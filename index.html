@@ -289,7 +289,20 @@ else { modeEl.textContent='● Lokaler Testmodus (nur dieser Browser)'; modeEl.c
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600); }
 
-async function load(){ MATCHES = await Store.listMatches(); render(); }
+async function load(){
+  try{
+    MATCHES = await Store.listMatches();
+    render();
+  }catch(err){
+    console.error('Laden fehlgeschlagen:', err);
+    const el=document.getElementById('sched');
+    if(el) el.innerHTML=`<div class="emptyrow" style="color:#ff9a9d">
+      Daten konnten nicht geladen werden: ${(err&&err.message)||err}<br>
+      <span style="color:var(--muted)">Prüfe die Supabase-Verbindung bzw. führe <b>supabase-schema.sql</b> erneut aus.</span></div>`;
+    try{ renderCourts(); }catch(e){}
+    toast('Fehler beim Laden: '+((err&&err.message)||err));
+  }
+}
 function render(){ renderCourts(); renderSched(); renderDone(); }
 
 function renderCourts(){
@@ -336,7 +349,17 @@ function renderSched(){
   if(q) rows=rows.filter(m=>(`${m.player1_name} ${m.player2_name} ${m.event||m.draw||''}`).toLowerCase().includes(q));
   document.getElementById('schedCount').textContent=rows.length;
 
-  if(!rows.length){ el.innerHTML='<div class="emptyrow">Keine offenen Ansetzungen. „⬆ XLSX importieren“ oder „Demo“.</div>'; return; }
+  if(!rows.length){
+    const none = MATCHES.length===0;
+    if(none && Store.ready){
+      el.innerHTML='<div class="emptyrow" style="color:#ffd08a">Verbunden, aber es kommen <b>0 Spiele</b> zurück.<br>'+
+        '<span style="color:var(--muted)">Entweder ist die Datenbank leer (dann importieren) – oder die Row-Level-Security blockiert das Lesen. '+
+        'Führe <b>supabase-schema.sql</b> erneut aus (Abschnitt 5 legt die Lese-Policy an).</span></div>';
+    } else {
+      el.innerHTML='<div class="emptyrow">Keine offenen Ansetzungen. „⬆ XLSX importieren“ oder „Demo“.</div>';
+    }
+    return;
+  }
   el.innerHTML='';
   rows.forEach(m=>{
     const busy=MATCHES.some(x=>x.court_id===m.court_no && x.status==='live');
