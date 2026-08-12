@@ -12,6 +12,17 @@
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  .bgfx{position:fixed;inset:0;z-index:-1;background-size:cover;background-position:center;opacity:.12;filter:saturate(.85)}
+  header img.logo{height:34px;width:auto;border-radius:6px;margin-right:2px}
+  header .navlink{color:var(--muted);text-decoration:none;font-size:13.5px;border:1px solid var(--line);padding:7px 12px;border-radius:9px;margin-left:auto}
+  header .navlink:hover{color:var(--ink);border-color:var(--muted)}
+  header .navlink + .mode{margin-left:10px}
+  /* größere Satz-Darstellung bei bestätigten Ergebnissen */
+  .setboxes{display:flex;gap:8px;flex-wrap:wrap}
+  .setbox{background:#131a26;border:1px solid var(--line);border-radius:9px;padding:8px 12px;
+    font-variant-numeric:tabular-nums;font-weight:800;font-size:22px;letter-spacing:1px;min-width:64px;text-align:center}
+  .setbox small{display:block;font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;margin-bottom:2px}
+  .setbox .a{color:#8db4ff}.setbox .b{color:#ff9a9d}
   header{display:flex;align-items:center;gap:16px;padding:14px 22px;
     background:linear-gradient(90deg,#161d29,#0f1419);border-bottom:1px solid var(--line)}
   header h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.3px}
@@ -85,8 +96,9 @@
   .assignbtn.busy{border-color:var(--line);color:var(--muted);background:transparent;cursor:not-allowed}
   .emptyrow{padding:22px;text-align:center;color:var(--muted)}
 
-  .done{display:grid;grid-template-columns:80px 1fr 160px auto;gap:12px;align-items:center;
-    padding:11px 14px;border-bottom:1px solid var(--line)}
+  .done{display:grid;grid-template-columns:90px 1fr minmax(240px,auto) 190px;gap:14px;align-items:center;
+    padding:13px 14px;border-bottom:1px solid var(--line)}
+  @media(max-width:820px){ .done{grid-template-columns:1fr;gap:8px} }
   .done:last-child{border-bottom:none}
   .done .score-sets{font-variant-numeric:tabular-nums;font-weight:700;letter-spacing:.5px;
     background:#131a26;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:14px;
@@ -112,8 +124,11 @@
 </style>
 </head>
 <body>
+<div class="bgfx" id="bgfx"></div>
 <header>
-  <h1>🎾 Squash&nbsp;·&nbsp;Turnierverwaltung</h1>
+  <img id="logo" class="logo" alt="" style="display:none">
+  <h1 id="appTitle">🎾 Squash&nbsp;·&nbsp;Turnierverwaltung</h1>
+  <a class="navlink" href="settings.html">⚙️ Einstellungen</a>
   <span id="mode" class="mode">…</span>
 </header>
 
@@ -171,6 +186,21 @@
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
     <button class="btn-ghost" onclick="addDlg.close()">Abbrechen</button>
     <button class="btn-primary" onclick="addMatch()">Speichern</button>
+  </div>
+</dialog>
+
+<dialog id="editDlg">
+  <h3>Ergebnis bearbeiten</h3>
+  <div id="editHead" style="font-size:13px;color:var(--muted);margin-bottom:12px"></div>
+  <div id="editSets"></div>
+  <div style="display:flex;gap:8px;margin:6px 0 14px">
+    <button class="btn-ghost btn-sm" onclick="addSetRow()">+ Satz</button>
+    <button class="btn-ghost btn-sm" onclick="removeSetRow()">− Satz</button>
+    <span id="editResult" style="margin-left:auto;font-weight:700"></span>
+  </div>
+  <div style="display:flex;gap:10px;justify-content:flex-end">
+    <button class="btn-ghost" onclick="editDlg.close()">Abbrechen</button>
+    <button class="btn-primary" onclick="saveEdit()">Speichern</button>
   </div>
 </dialog>
 
@@ -282,7 +312,11 @@ function renderDone(){
   el.innerHTML='';
   rows.slice().reverse().forEach(m=>{
     const winName=m.winner==1?m.player1_name:m.winner==2?m.player2_name:'';
-    const sets=m.score_text||'';
+    const sets=(m.score_text||'').trim();
+    const boxes = sets? sets.split(/\s+/).map((g,i)=>{
+        const [a,b]=g.split('-');
+        return `<div class="setbox"><small>SATZ ${i+1}</small><span class="a">${a}</span>-<span class="b">${b}</span></div>`;
+      }).join('') : '<span style="color:var(--muted)">—</span>';
     const row=document.createElement('div'); row.className='done';
     row.innerHTML=`
       <div class="tm" style="color:var(--muted);font-size:12px">${m.event||m.draw||''}<br>${m.round||''}</div>
@@ -291,8 +325,11 @@ function renderDone(){
         <span class="vs">${m.result||''}</span>
         <span class="team"><span class="fl">${flagEmoji(m.player2_country)}</span><span class="p2n">${m.player2_name}</span></span>
       </div>
-      <div>${sets?`<span class="score-sets" title="Zum Kopieren klicken" onclick="copyText('${sets}')">${sets}</span>`:'<span style="color:var(--muted)">—</span>'}</div>
-      <div class="win">🏆 ${winName}</div>`;
+      <div class="setboxes" ${sets?`title="Zum Kopieren klicken" style="cursor:copy" onclick="copyText('${sets}')"`:''}>${boxes}</div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        <div class="win">🏆 ${winName||'—'}</div>
+        <button class="btn-ghost btn-sm" onclick="openEdit('${m.id}')">✎ Ergebnis bearbeiten</button>
+      </div>`;
     el.appendChild(row);
   });
 }
@@ -307,10 +344,26 @@ function updateSelBar(){ const bar=document.getElementById('selbar');
   else bar.classList.remove('show'); }
 
 async function assign(id,cid){ const m=MATCHES.find(x=>x.id===id); if(!m) return;
+  // Warnung, wenn das Spiel für einen anderen Court geplant war
+  if(m.court_no && m.court_no!==cid){
+    if(!confirm(`Achtung: Dieses Spiel ist für Court ${m.court_no} geplant.\nWirklich stattdessen auf Court ${cid} ansetzen?`)) return;
+    await Store.updateMatch(id,{court_no:cid, court_label:'C'+cid});
+  }
   try{ await Store.assignToCourt(id,cid,Number(m.best_of)||3); selectedMatch=null; updateSelBar(); toast(`Auf Court ${cid} gelegt`); }
   catch(e){ toast(e.message); } }
 async function unassign(id){ await Store.unassign(id); toast('Zurück in die Ansetzungen'); }
-async function confirmR(id){ await Store.confirmResult(id); toast('Ergebnis bestätigt'); }
+async function confirmR(id){
+  const m=MATCHES.find(x=>x.id===id); const court=m?m.court_id:null;
+  await Store.confirmResult(id);
+  const s=await Store.getSettings();
+  if(s.autoAssign && court){
+    const next=await Store.nextScheduledForCourt(court);
+    if(next){ try{ await Store.assignToCourt(next.id,court,Number(next.best_of)||3);
+      toast(`Bestätigt · nächstes Spiel auf Court ${court} nachgerückt`); }
+      catch(e){ toast('Bestätigt · '+e.message); } }
+    else toast(`Bestätigt · kein weiteres Spiel für Court ${court}`);
+  } else toast('Ergebnis bestätigt');
+}
 async function setBo(id,v){ await Store.updateMatch(id,{best_of:Number(v)}); }
 
 const addDlg=document.getElementById('addDlg');
@@ -410,7 +463,63 @@ async function seed(){
 }
 async function clearAll(){ if(confirm('Wirklich ALLE Spiele löschen?')){ await Store.deleteAll(); toast('Gelöscht'); } }
 
+// ================= ERGEBNIS BEARBEITEN =================
+const editDlg=document.getElementById('editDlg');
+let editId=null;
+function openEdit(id){
+  const m=MATCHES.find(x=>x.id===id); if(!m) return; editId=id;
+  document.getElementById('editHead').textContent=`${m.player1_name}  vs  ${m.player2_name}`;
+  const sets=(m.score_text||'').trim();
+  const rows= sets? sets.split(/\s+/).map(g=>{const [a,b]=g.split('-');return {a:+a||0,b:+b||0};}) : [{a:0,b:0}];
+  renderSetRows(rows, m);
+  editDlg.showModal();
+}
+function renderSetRows(rows,m){
+  const wrap=document.getElementById('editSets');
+  wrap.innerHTML=rows.map((r,i)=>`
+    <div class="grid2" style="align-items:center;margin-bottom:8px">
+      <div class="field" style="margin:0"><label>Satz ${i+1} · ${m.player1_name}</label>
+        <input type="number" min="0" class="setA" value="${r.a}"></div>
+      <div class="field" style="margin:0"><label>${m.player2_name}</label>
+        <input type="number" min="0" class="setB" value="${r.b}"></div>
+    </div>`).join('');
+  wrap.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',updateEditResult));
+  updateEditResult();
+}
+function currentEditSets(){
+  const A=[...document.querySelectorAll('#editSets .setA')].map(i=>parseInt(i.value,10));
+  const B=[...document.querySelectorAll('#editSets .setB')].map(i=>parseInt(i.value,10));
+  const out=[]; for(let i=0;i<A.length;i++){ if(!isNaN(A[i])&&!isNaN(B[i])) out.push({a:A[i],b:B[i]}); }
+  return out;
+}
+function updateEditResult(){
+  const sets=currentEditSets(); let g1=0,g2=0;
+  sets.forEach(s=>{ if(s.a>s.b) g1++; else if(s.b>s.a) g2++; });
+  document.getElementById('editResult').textContent=`Sätze ${g1} – ${g2}`;
+}
+function addSetRow(){ const m=MATCHES.find(x=>x.id===editId); const rows=currentEditSets().map(s=>({a:s.a,b:s.b})); rows.push({a:0,b:0}); renderSetRows(rows,m); }
+function removeSetRow(){ const m=MATCHES.find(x=>x.id===editId); const rows=currentEditSets().map(s=>({a:s.a,b:s.b})); if(rows.length>1) rows.pop(); renderSetRows(rows,m); }
+async function saveEdit(){
+  const sets=currentEditSets();
+  let g1=0,g2=0; sets.forEach(s=>{ if(s.a>s.b) g1++; else if(s.b>s.a) g2++; });
+  const winner = g1>g2?1 : g2>g1?2 : null;
+  const patch={ score_text: sets.map(s=>`${s.a}-${s.b}`).join(' '), result:`${g1}-${g2}`, winner };
+  await Store.updateMatch(editId, patch);
+  editDlg.close(); toast('Ergebnis aktualisiert');
+}
+
+// ================= BRANDING =================
+async function applyBranding(){
+  const s=await Store.getSettings();
+  document.getElementById('bgfx').style.backgroundImage = s.backgroundUrl?`url("${s.backgroundUrl}")`:'none';
+  const l=document.getElementById('logo');
+  if(s.logoUrl){ l.src=s.logoUrl; l.style.display='block'; } else l.style.display='none';
+  if(s.tournamentName) document.getElementById('appTitle').innerHTML='🎾 '+s.tournamentName;
+}
+
 Store.subscribeAll(load);
+Store.subscribeSettings(applyBranding);
+applyBranding();
 load();
 </script>
 </body>

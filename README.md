@@ -1,106 +1,215 @@
-# Squash-Schiedsrichter-App
+# 🎾 Squash-Schiedsrichter & Turnierverwaltung
 
-Zentrale Turnierverwaltung + Schiedsrichter-Tablets pro Court, verbunden über
-Supabase Realtime. Läuft komplett aus statischen Dateien (GitHub Pages).
+Eine kleine, statische Web-App für Squash-Turniere:
 
-## Was drin ist
+- **Verwaltung** (`index.html`) – zeigt alle Courts und angesetzten Spiele.
+  Ein Spiel per **Drag&Drop** (oder Button) auf einen Court legen → auf dem
+  Court-Tablet erscheint sofort das Schiedsrichter-Board.
+- **Court-Tablet** (`court.html?court=N`) – Schiedsrichter-Anzeige im
+  „Squore“-Stil: große Punkte, Aufschlagseite, Satz-/Matchball, Timer,
+  Let-Entscheidung, Undo. Solange kein Spiel anliegt, zeigt es eine
+  **Vorschau der nächsten Spiele** dieses Courts.
 
-| Datei | Zweck |
-|---|---|
-| `index.html` | **Verwaltung** – Spiele per Drag&Drop auf Courts ziehen, Ergebnisse zurückholen |
-| `court.html` | **Schiedsrichter-Tablet** – eine Datei für alle Courts, gesteuert über `?court=N` |
-| `store.js` | Datenschicht (Supabase **oder** lokaler Testmodus) |
-| `config.js` | Zugangsdaten + Einstellungen – **hier trägst du deine Supabase-Daten ein** |
-| `supabase-schema.sql` | Datenbank-Setup |
+Kommunikation läuft über **Supabase Realtime** (geräteübergreifend) – oder,
+ganz ohne Konto, im **lokalen Testmodus** (nur Tabs im selben Browser).
 
-Zur Kernfrage aus deiner Nachricht: **Nein, du brauchst nicht pro Court eine
-eigene HTML-Datei.** Es gibt genau eine `court.html`. Jedes Tablet bekommt nur
-eine eigene URL mit Court-Nummer:
+---
 
-```
-https://DEINNAME.github.io/squash/court.html?court=1   ← Tablet Court 1
-https://DEINNAME.github.io/squash/court.html?court=2   ← Tablet Court 2
-...
-```
+## Dateien
 
-## Schnellstart ohne Server (zum Ausprobieren)
+| Datei                 | Zweck                                                        |
+|-----------------------|-------------------------------------------------------------|
+| `index.html`          | Verwaltung: Courts, Ansetzungen, Import, Ergebnisse         |
+| `court.html`          | Schiedsrichter-Tablet (pro Court via `?court=N`)            |
+| `config.js`           | Einstellungen (Supabase-Keys, Courts, Regeln)               |
+| `store.js`            | Datenschicht + Helfer (Flaggen, Import-Parsing)             |
+| `supabase-schema.sql` | Datenbank-Tabelle + Realtime + Rechte                       |
+| `README.md`           | Diese Anleitung                                             |
 
-Ohne Supabase-Daten in `config.js` läuft alles im **lokalen Testmodus** – zwei
-Browser-Tabs im selben Browser reden über den Rechner miteinander (kein
-Internet, keine geräteübergreifende Nutzung):
+---
 
-1. Ordner öffnen, `index.html` im Browser öffnen → „Demo-Daten laden“.
-2. Zweiten Tab öffnen: `court.html?court=1`.
-3. In der Verwaltung ein Spiel auf **Court 1** ziehen → es poppt im Court-Tab auf.
+## Schnellstart (lokaler Testmodus, ohne Internet-Konto)
 
-Damit siehst du den kompletten Ablauf. Für echte Tablets an echten Courts →
-Supabase einrichten (unten).
-
-## Einrichtung mit Supabase (echter Betrieb)
-
-1. **Projekt anlegen** auf [supabase.com](https://supabase.com) (kostenlos).
-2. **Schema laden:** SQL Editor → Inhalt von `supabase-schema.sql` einfügen → *Run*.
-3. **Zugangsdaten holen:** Settings → API → `Project URL` und `anon public` key.
-4. In **`config.js`** eintragen:
-   ```js
-   SUPABASE_URL: 'https://xxxx.supabase.co',
-   SUPABASE_ANON_KEY: 'eyJhbGciOi...'
+1. Ordner in einen kleinen Webserver legen, z.B.:
+   ```bash
+   cd squash-referee
+   python3 -m http.server 8000
    ```
-5. Fertig – die Verwaltung zeigt oben „● Supabase verbunden“.
+2. Verwaltung öffnen: `http://localhost:8000/index.html`
+3. Court-Tablet öffnen (zweiter Tab): `http://localhost:8000/court.html?court=1`
+4. In der Verwaltung „**Demo**“ klicken (oder XLSX importieren), ein Spiel auf
+   Court 1 ziehen → im Court-Tab läuft das Board.
 
-## Deployment auf GitHub Pages
+> Im lokalen Modus synchronisieren sich nur Tabs **im selben Browser**
+> (über `localStorage`/`BroadcastChannel`). Für echte Tablets Supabase nutzen.
 
-1. Repo anlegen, alle Dateien hochladen (Ordnerstruktur beibehalten).
-2. Repo → Settings → Pages → Source: `main` / root → Save.
-3. Nach ~1 Min ist alles erreichbar unter `https://DEINNAME.github.io/REPO/`.
-   - Verwaltung: `.../index.html`
-   - Tablets: `.../court.html?court=1` usw.
+---
 
-> `config.js` mit dem anon-Key liegt öffentlich im Repo. Der anon-Key ist dafür
-> gedacht, aber siehe Sicherheitshinweis in `supabase-schema.sql`.
+## Echtbetrieb mit Supabase (mehrere Geräte)
 
-## Bedienung
+1. Kostenloses Projekt auf **supabase.com** anlegen.
+2. Im **SQL Editor** die Datei `supabase-schema.sql` ausführen.
+   (Bei einem bestehenden Projekt einfach erneut ausführen – fehlende
+   Spalten werden per Migration ergänzt.)
+3. Unter **Settings → API** `Project URL` und `anon public`-Key kopieren und
+   in `config.js` eintragen:
+   ```js
+   SUPABASE_URL: 'https://DEINPROJEKT.supabase.co',
+   SUPABASE_ANON_KEY: 'eyJ...'
+   ```
+4. Dateien hochladen (z.B. **GitHub Pages**: Repo anlegen, Dateien pushen,
+   Settings → Pages → Branch `main`/`root`). Die App läuft komplett statisch.
 
-**Verwaltung (`index.html`)**
-- Spiel anlegen: „+ Spiel hinzufügen“. Best-of pro Spiel über die „Bo“-Auswahl.
-- Zuweisen: Spiel auf einen Court **ziehen** – oder Spiel antippen, dann Court
-  antippen (praktisch am Touchscreen).
-- Läuft ein Spiel, zeigt die Court-Kachel den Live-Stand.
-- Ist es beendet, erscheint „Bestätigen & zurückholen“ → Ergebnis landet unter
-  „Bestätigte Ergebnisse“, der Court wird frei.
+Jedes Court-Tablet ruft `…/court.html?court=1`, `?court=2` usw. auf.
 
-**Schiedsrichter-Tablet (`court.html?court=N`)**
-- Aufwärm-Overlay mit Timer; danach wählst du, wer zuerst aufschlägt.
-- **Punkt:** großes Feld des Spielers antippen (blau = Spieler 1, rot = Spieler 2).
-- **Aufschlag:** der weiße Punkt zeigt den Aufschläger, das Feld „Aufschlag ·
-  Rechts/Links“ die Box. Wechsel passieren automatisch nach PARS-Regeln.
-- **R? / Let:** Behinderung → *Let* (Wiederholung), *Stroke* (Punkt für den
-  behinderten Spieler) oder *No Let* (Punkt für den Gegner) über „Punkt →“.
-- **Undo:** das ↶ in der Mitte nimmt den letzten Punkt zurück (auch am Matchende).
-- **Satzball / Matchball** werden farbig eingeblendet.
-- Zwischen den Sätzen läuft automatisch die 90-Sekunden-Pause.
-- Bei Matchende wird das Ergebnis automatisch an die Verwaltung gemeldet.
+---
 
-## Squash-Regeln, die die App umsetzt
+## Spiele importieren (Tournament-Planner-XLSX)
 
-- **PARS bis 11**, Punkt bei jedem Ballwechsel, bei 10:10 mit 2 Punkten Vorsprung.
-- **Aufschlag:** Aufschläger behält bei Punktgewinn den Aufschlag und wechselt die
-  Box (R↔L); bei Hand-out wechselt der Aufschlag zum Gegner (der startet rechts).
-- **Best of 3 oder 5**, pro Spiel einstellbar; Satzgewinner schlägt im nächsten
-  Satz auf.
-- **Timer:** Aufwärmen (Standard 5:00), Satzpause 90 s, Timeout – in `config.js`
-  anpassbar.
+In der Verwaltung: **„⬆ XLSX importieren“** und die Export-Datei aus dem
+Squash Tournament Planner wählen. Die App liest die Spalten
+`Time, Event, Nr, Court, Round, Team 1, Team 2, Score` automatisch.
 
-## Wiederaufnahme
+Dabei gilt:
 
-Der komplette Spielstand liegt in der Datenbank (`state`). Fällt ein Tablet aus
-oder wird neu geladen, holt es sich beim Neustart automatisch den aktuellen Stand
-und macht weiter.
+- **Bereits gespielte Spiele werden übersprungen.** Ist die Spalte `Score`
+  gefüllt (z.B. `11-9 8-11 11-5`), gilt das Spiel als erledigt und wird
+  **nicht** importiert. Nur offene Spiele landen in der Ansetzungsliste.
+- **Duplikate werden erkannt** (gleiche Event+Nr+Runde+Spieler) – die Datei
+  kann also gefahrlos mehrfach importiert werden.
+- **Spielernamen & Länder** werden aus `Name (Land)[Setzung]` gelesen; die
+  passende **Flagge** wird automatisch gesetzt (inkl. England/Schottland/Wales).
+- Nach dem Import erscheint eine Meldung, z.B.
+  *„79 importiert · 25 bereits gespielt übersprungen · 0 Duplikate“*.
 
-## Nächste sinnvolle Schritte
+### Court-Bezeichnungen sind flexibel
 
-- Anbindung an deine bestehende Turniersoftware (der Screenshot sieht nach
-  *Tournament Planner* aus): Spiele automatisch als `matches` importieren statt
-  von Hand anzulegen.
-- Auth ergänzen, falls die Seiten öffentlich erreichbar sein sollen.
-- Referee-Namen / Marker und Protokoll (jeder Punkt mit Zeitstempel) mitschreiben.
+Die `Court`-Spalte darf `C1`, `1`, `C-1`, `Court 1` … heißen – die Ziffer
+wird herausgelesen (`C2`→2, `C-13`→13). Namens-Courts ohne Ziffer werden über
+`COURT_ALIASES` in `config.js` zugeordnet. Standard:
+
+```js
+COURT_ALIASES: { 'CC': 1 }   // "CC" (Center Court) = Court 1
+```
+
+Ein Tablet mit `?court=2` zeigt also automatisch alle Spiele, die im Import
+auf `C2` (oder `2`, `C-2` …) stehen.
+
+---
+
+## Automatische Schiedsrichter
+
+Beim Import trägt die App als Schiedsrichter automatisch **beide Spieler der
+vorherigen Begegnung auf demselben Court** ein (sortiert nach Uhrzeit). So
+pfeift jede Paarung das direkt folgende Spiel auf ihrem Court – auch wenn das
+Vorspiel bereits gespielt war. Der Schiedsrichter erscheint
+
+- in der **Ansetzungsliste** (Spalte „Schiedsrichter“),
+- in der **Court-Vorschau** auf dem Tablet,
+- und im **Live-Board** unten während des Spiels.
+
+(Manuell angelegte Spiele haben zunächst keinen Schiedsrichter.)
+
+---
+
+## Vorschau pro Court
+
+Solange auf einem Court kein Spiel läuft, zeigt `court.html?court=N` unter
+„Warte auf Spiel“ die **nächsten Spiele dieses Courts**: Uhrzeit, Begegnung
+(mit Flaggen), Event/Runde und Schiedsrichter. Die Anzahl steuert
+`QUEUE_PREVIEW` in `config.js`.
+
+---
+
+## Ergebnisse & Satzergebnisse (für den Tournament Planner)
+
+Wird ein Spiel beendet, meldet das Tablet automatisch zurück. Unter
+**„Bestätigte Ergebnisse“** stehen dann:
+
+- Der Satz-Endstand (z.B. `3-1`) und der Sieger,
+- **alle einzelnen Satzergebnisse** als Text, z.B. `11-9 8-11 9-11 11-6`.
+
+Ein Klick auf die Satzergebnisse **kopiert sie in die Zwischenablage** – so
+lassen sie sich direkt im Tournament Planner eintragen.
+
+---
+
+## Squash-Regeln (eingebaut)
+
+- **PARS bis 11**: Punkt bei jedem Ballwechsel, bei 10:10 mit zwei Punkten
+  Vorsprung.
+- **Aufschlag**: Gewinnt der Aufschläger, behält er das Aufschlagrecht und
+  wechselt die Seite (Rechts↔Links). Bei Hand-out bekommt der Gegner Punkt
+  **und** Aufschlag und beginnt rechts.
+- **Best of 3 oder 5** pro Spiel einstellbar (importierte Junioren-Spiele
+  stehen standardmäßig auf Bo5). Der Satzgewinner schlägt im nächsten Satz auf.
+- **Timer**: Aufwärmen (5:00), Satzpause (90 s), Timeout.
+- **Let-Button (R?)**: Let (Wiederholung, kein Punkt) oder Punkt an einen
+  Spieler (deckt Stroke und No-Let ab).
+- **Undo** nimmt den letzten Punkt bzw. Schritt zurück.
+
+---
+
+## Sicherheitshinweis
+
+Der `anon`-Key steht im Browser und ist damit öffentlich. Die mitgelieferten
+Policies erlauben Lesen **und** Schreiben für alle, die die URL kennen – für
+ein internes Turnier-Tool im Vereins-WLAN in der Regel ausreichend. Wer es
+absichern möchte, ergänzt eine eigene Authentifizierung oder einen Proxy.
+
+---
+
+# Neu: Einstellungen, Branding, Auto-Nachrücken, Livestream
+
+## Datenbank aktualisieren
+Wenn du Supabase nutzt: `supabase-schema.sql` **erneut** im SQL-Editor ausführen.
+Es ist idempotent und legt zusätzlich die Tabelle `app_settings` an (für Logo,
+Hintergrund, Courts und Optionen, die auf allen Geräten gelten).
+
+## Einstellungsseite (`settings.html`)
+Erreichbar über „⚙️ Einstellungen“ oben in der Verwaltung. Dort einstellbar:
+- **Turniername** (erscheint in den Stream-Anzeigen),
+- **Logo** und **Hintergrundbild** – per Datei-Upload oder als URL/Pfad. Kleine
+  Logos werden direkt gespeichert und dauerhaft eingebunden; große Hintergründe
+  besser als Datei (z.B. `assets/background.jpg`) oder URL,
+- **Greenscreen-Farbe** der Stream-Anzeigen (Standard `#82F84E`),
+- **„Spiele automatisch auf den Court nachrücken“**,
+- **Courts** (Nummern) – darunter stehen für jeden Court alle **Links** zum
+  Kopieren (Schiedsrichter-Tablet und die vier Stream-Ansichten).
+
+Einstellungen gelten mit Supabase auf allen Geräten, im Testmodus im jeweiligen
+Browser.
+
+## Automatisch nachrücken
+Ist die Option aktiv, rückt nach „**Bestätigen & zurückholen**“ automatisch das
+nächste geplante Spiel dieses Courts auf das Tablet – der Schiedsrichter startet
+dann nur noch den Timer. Ist sie inaktiv, zeigt der Court nach dem Matchball:
+**„Das nächste Spiel wird von der Turnierleitung gestartet.“** – zusammen mit
+Logo, Hintergrund und der Vorschau der nächsten Spiele.
+
+## Warnung beim Court-Wechsel
+Ziehst du ein Spiel, das für einen bestimmten Court geplant ist, auf einen
+**anderen** Court, kommt eine Rückfrage, bevor es umgesetzt wird.
+
+## Ergebnisse nachträglich bearbeiten
+Unter „Bestätigte Ergebnisse“ werden die Sätze jetzt **groß** dargestellt. Über
+**„✎ Ergebnis bearbeiten“** lassen sich einzelne Sätze ändern, hinzufügen oder
+entfernen; Satzstand, Sieger und die Kopiervorlage werden automatisch neu
+berechnet.
+
+## Livestream- & Vollbild-Anzeige (`stream.html`)
+Pro Court gibt es eine Greenscreen-Anzeige, die sich live aktualisiert:
+`stream.html?court=N&view=…` mit vier Ansichten:
+- `scoreboard` – große **Vollbild**-Punkteanzeige (auch für einen Monitor am Court),
+- `psaline` – kompakte einzeilige PSA-Leiste,
+- `fullscore` – Titelzeile mit Turnier/Court/Uhr, Namen, Länderkürzeln und Sätzen,
+- `modern` – moderne, schräge Variante mit Flaggen.
+
+Bedienung: Maus bewegen zeigt die Leiste oben rechts (Ansicht wechseln, Vollbild).
+Tasten: **1–4** Ansicht, **F** Vollbild, **H** Leiste aus/ein.
+
+### In OBS einbinden
+Als **Browserquelle** die jeweilige Stream-URL eintragen (z.B. 1920×1080), dann
+einen **Chroma-Key-Filter** auf Grün setzen. Für saubere Flaggen im Stream werden
+echte Flaggenbilder (flagcdn.com) statt Emoji verwendet – dafür braucht der
+Stream-Rechner Internetzugang.

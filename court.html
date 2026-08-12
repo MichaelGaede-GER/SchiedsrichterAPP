@@ -9,6 +9,9 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
     font-family:"Segoe UI",system-ui,sans-serif;overflow:hidden}
+  .bgfx{position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;opacity:.16}
+  .wrap,.idle,.overlay{position:relative;z-index:1}
+  .brandlogo{max-height:90px;max-width:220px;margin-bottom:14px;border-radius:10px}
   .wrap{display:flex;flex-direction:column;height:100%}
   .top{display:flex;align-items:center;gap:12px;padding:8px 14px;background:#111;flex:0 0 auto}
   .top .court{font-weight:800;letter-spacing:1px;font-size:15px}
@@ -89,6 +92,7 @@
 </style>
 </head>
 <body>
+<div class="bgfx" id="bgfx"></div>
 <div id="app"></div>
 
 <div id="ovWarmup" class="overlay"><div class="card">
@@ -143,15 +147,16 @@
   </div>
 </div></div>
 
-<div id="ovDone" class="overlay"><div class="card">
+<div id="ovDone" class="overlay"><div class="card" style="width:min(680px,96vw)">
+  <img id="doneLogo" class="brandlogo" alt="" style="display:none">
   <h2>🏆 Spielende</h2>
   <div id="doneWinner" class="big"></div>
   <div id="doneSets" class="setline"></div>
   <p id="doneResult"></p>
-  <p class="note">Das Ergebnis wurde an die Verwaltung gemeldet.</p>
+  <p class="note" style="font-size:16px;color:#cfe0ff"><b>Das nächste Spiel wird von der Turnierleitung gestartet.</b></p>
+  <div id="donePreview" style="margin-top:10px"></div>
   <div class="row">
     <button class="btn btn-gray" onclick="undo()">Undo letzter Punkt</button>
-    <button class="btn btn-green" onclick="hide('ovDone')">Fertig</button>
   </div>
 </div></div>
 
@@ -199,10 +204,27 @@ class SquashMatch {
 }
 
 // ============ ZUSTAND ============
-let ALLMATCHES=[]; let match=null; let M=null; let syncing=false;
+let ALLMATCHES=[]; let match=null; let M=null; let syncing=false; let SETTINGS=null;
 function hide(id){ document.getElementById(id).classList.remove('show'); }
 function show(id){ document.getElementById(id).classList.add('show'); }
 function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
+
+function applyBranding(){
+  const bg=document.getElementById('bgfx');
+  bg.style.backgroundImage=(SETTINGS&&SETTINGS.backgroundUrl)?`url("${SETTINGS.backgroundUrl}")`:'none';
+}
+function showDoneOverlay(){
+  const wn=M.matchWinner===1?match.player1_name:match.player2_name;
+  setText('doneWinner','🏆 '+wn);
+  setText('doneSets', M.setScores());
+  setText('doneResult','Sätze '+M.resultString());
+  const logo=document.getElementById('doneLogo');
+  if(SETTINGS&&SETTINGS.logoUrl){ logo.src=SETTINGS.logoUrl; logo.style.display='block'; } else logo.style.display='none';
+  document.getElementById('donePreview').innerHTML=
+    `<h3 style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:6px 0 10px">Nächste Spiele auf Court ${COURT}</h3>`+
+    `<div class="queue" style="text-align:left">${queueCardsHtml()}</div>`;
+  show('ovDone');
+}
 
 // ============ TIMER ============
 const Timer={ sec:0,running:false,label:'',_iv:null,
@@ -269,10 +291,11 @@ function render(){
   Timer._paint();
 }
 
-function renderIdle(app){
+function queueCardsHtml(){
   const queue=ALLMATCHES.filter(m=>m.court_no===COURT && m.status==='scheduled')
     .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0)).slice(0,CONFIG.QUEUE_PREVIEW||4);
-  const cards=queue.map((m,i)=>`
+  if(!queue.length) return '<div class="qempty">Keine anstehenden Spiele für diesen Court.</div>';
+  return queue.map((m,i)=>`
     <div class="qcard ${i===0?'next':''}">
       <div class="qtime">${shortTime(m.scheduled_time)||'--:--'}<small>${i===0?'ALS NÄCHSTES':'SPÄTER'}</small></div>
       <div>
@@ -285,12 +308,16 @@ function renderIdle(app){
         ${m.referee?`<div class="qref"><b>Schiri:</b> ${m.referee}</div>`:''}
       </div>
     </div>`).join('');
+}
+function renderIdle(app){
+  const logo=(SETTINGS&&SETTINGS.logoUrl)?`<img class="brandlogo" src="${SETTINGS.logoUrl}" alt="">`:'';
   app.innerHTML=`<div class="idle">
+    ${logo}
     <div class="cn">${COURT}</div>
     <div class="msg">Warte auf Spiel…<br><small style="opacity:.6">${Store.ready?'Supabase verbunden':'Lokaler Testmodus'}</small></div>
     <div class="queue">
       <h3>Nächste Spiele auf Court ${COURT}</h3>
-      ${queue.length?cards:'<div class="qempty">Keine anstehenden Spiele für diesen Court.</div>'}
+      ${queueCardsHtml()}
     </div>
   </div>`;
 }
@@ -310,13 +337,7 @@ function afterChange(){
       +`Aufschlag Satz ${M.games.length+1}: ${M._nextServer===1?match.player1_name:match.player2_name}`);
     Timer.start(CONFIG.REST_SECONDS,'Satzpause'); show('ovRest');
   }
-  if(M.status==='finished'){
-    const wn=M.matchWinner===1?match.player1_name:match.player2_name;
-    setText('doneWinner','🏆 '+wn);
-    setText('doneSets', M.setScores());
-    setText('doneResult','Sätze '+M.resultString());
-    show('ovDone');
-  }
+  if(M.status==='finished'){ showDoneOverlay(); }
 }
 
 // ============ SYNC ============
@@ -345,13 +366,15 @@ async function loadCourt(){
     render(); hideAll();
     if(M.status==='warmup'){ Timer.start(CONFIG.WARMUP_SECONDS,'Aufwärmen'); show('ovWarmup'); }
     else if(M.status==='between'){ show('ovRest'); }
-    else if(M.status==='finished'){ setText('doneWinner','🏆 '+(M.matchWinner===1?match.player1_name:match.player2_name));
-      setText('doneSets',M.setScores()); setText('doneResult','Sätze '+M.resultString()); show('ovDone'); }
+    else if(M.status==='finished'){ showDoneOverlay(); }
   } else { render(); }
 }
 function hideAll(){ ['ovWarmup','ovLet','ovTimer','ovRest','ovDone'].forEach(hide); }
 
+async function refreshSettings(){ SETTINGS=await Store.getSettings(); applyBranding(); if(!match) render(); }
 Store.subscribeAll(loadCourt);
+Store.subscribeSettings(refreshSettings);
+refreshSettings();
 loadCourt();
 </script>
 </body>

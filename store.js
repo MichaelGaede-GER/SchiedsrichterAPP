@@ -51,6 +51,21 @@ const Store = (() => {
             () => callback()).subscribe();
       return () => sb.removeChannel(ch);
     },
+    async getSettingsRaw() {
+      const { data, error } = await sb.from('app_settings').select('data').eq('id', 'app').maybeSingle();
+      if (error) throw error; return (data && data.data) || {};
+    },
+    async saveSettingsRaw(obj) {
+      const { error } = await sb.from('app_settings')
+        .upsert({ id: 'app', data: obj, updated_at: new Date().toISOString() });
+      if (error) throw error;
+    },
+    subscribeSettings(callback) {
+      const ch = sb.channel('settings-all')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' },
+            () => callback()).subscribe();
+      return () => sb.removeChannel(ch);
+    },
   };
 
   // ---------------- LOKALES BACKEND ----------------
@@ -85,8 +100,20 @@ const Store = (() => {
     },
     async deleteAll() { writeLS([]); },
     subscribeAll(callback) {
-      const onMsg = () => callback();
+      const onMsg = e => { if (!e.data || e.data.t === 'changed') callback(); };
       const onStorage = e => { if (e.key === KEY) callback(); };
+      if (bc) bc.addEventListener('message', onMsg);
+      window.addEventListener('storage', onStorage);
+      return () => { if (bc) bc.removeEventListener('message', onMsg); window.removeEventListener('storage', onStorage); };
+    },
+    async getSettingsRaw() { try { return JSON.parse(localStorage.getItem('squash_settings') || '{}'); } catch { return {}; } },
+    async saveSettingsRaw(obj) {
+      localStorage.setItem('squash_settings', JSON.stringify(obj));
+      if (bc) bc.postMessage({ t: 'settings' });
+    },
+    subscribeSettings(callback) {
+      const onMsg = e => { if (e.data && e.data.t === 'settings') callback(); };
+      const onStorage = e => { if (e.key === 'squash_settings') callback(); };
       if (bc) bc.addEventListener('message', onMsg);
       window.addEventListener('storage', onStorage);
       return () => { if (bc) bc.removeEventListener('message', onMsg); window.removeEventListener('storage', onStorage); };
@@ -108,6 +135,37 @@ const Store = (() => {
     subscribeAll: (...a) => backend.subscribeAll(...a),
     // court.html hört ebenfalls auf alle Spiele und filtert lokal
     subscribeCourt: (courtId, cb) => backend.subscribeAll(cb),
+    subscribeSettings: (...a) => backend.subscribeSettings(...a),
+
+    // ---- Einstellungen (mit Standardwerten aus CONFIG) ----
+    _defaults() {
+      const c = window.CONFIG || {};
+      return {
+        tournamentName: c.TOURNAMENT_NAME || 'Squash Turnier',
+        courts: c.COURTS || [1,2,3,4,5,6],
+        autoAssign: !!c.AUTO_ASSIGN,
+        green: c.GREEN || '#82F84E',
+        logoUrl: c.LOGO_URL || '',
+        backgroundUrl: c.BACKGROUND_URL || '',
+      };
+    },
+    async getSettings() {
+      let raw = {};
+      try { raw = await backend.getSettingsRaw(); } catch (e) { raw = {}; }
+      return Object.assign(this._defaults(), raw || {});
+    },
+    async saveSettings(patch) {
+      let raw = {};
+      try { raw = await backend.getSettingsRaw(); } catch (e) { raw = {}; }
+      await backend.saveSettingsRaw(Object.assign({}, raw, patch));
+    },
+
+    // nächstes geplantes Spiel eines Courts (nach Uhrzeit)
+    async nextScheduledForCourt(courtNo) {
+      const all = await backend.listMatches();
+      return all.filter(m => m.status === 'scheduled' && m.court_no === courtNo)
+        .sort((a, b) => (a.sort_ts || 0) - (b.sort_ts || 0))[0] || null;
+    },
 
     async assignToCourt(matchId, courtId, bestOf) {
       const all = await backend.listMatches();

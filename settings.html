@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Squash – Einstellungen</title>
+<style>
+  :root{--bg:#0f1419;--panel:#1a2230;--panel2:#232d3d;--line:#31405a;--ink:#eef3fb;
+    --muted:#8aa0bf;--blue:#2f6bff;--green:#2fbf71;--amber:#f2b134;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  .bgfx{position:fixed;inset:0;z-index:-1;background-size:cover;background-position:center;opacity:.14;filter:saturate(.8)}
+  header{display:flex;align-items:center;gap:14px;padding:14px 22px;background:linear-gradient(90deg,#161d29,#0f1419);border-bottom:1px solid var(--line)}
+  header img.logo{height:34px;width:auto;border-radius:6px}
+  header h1{font-size:19px;margin:0;font-weight:700}
+  header a{margin-left:auto;color:var(--muted);text-decoration:none;font-size:14px;border:1px solid var(--line);padding:7px 12px;border-radius:9px}
+  header a:hover{color:var(--ink)}
+  main{padding:22px;max-width:900px;margin:0 auto}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin:26px 0 12px;font-weight:700}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  .field .hint{font-size:12px;color:var(--muted);margin-top:5px}
+  input[type=text],input[type=number]{width:100%;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:inherit}
+  input[type=color]{width:56px;height:38px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:2px;vertical-align:middle}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-size:15px}
+  .switch input{width:0;height:0;opacity:0;position:absolute}
+  .track{width:48px;height:28px;border-radius:999px;background:#33415a;position:relative;transition:background .15s}
+  .track::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s}
+  .switch input:checked + .track{background:var(--green)}
+  .switch input:checked + .track::after{left:23px}
+  button{font:inherit;cursor:pointer;border:none;border-radius:9px;padding:9px 14px;font-weight:600}
+  .btn-primary{background:var(--blue);color:#fff}.btn-green{background:var(--green);color:#08130c}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .btn-ghost:hover{color:var(--ink)}
+  .preview{margin-top:8px;display:flex;gap:12px;align-items:center}
+  .preview img{max-height:60px;max-width:180px;border-radius:8px;border:1px solid var(--line);background:#0008}
+  .courts-links{display:grid;gap:10px}
+  .clink{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .clink h4{margin:0 0 8px;font-size:14px}
+  .lrow{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13px}
+  .lrow .tag{min-width:150px;color:var(--muted)}
+  .lrow code{flex:1;background:#131a26;border:1px solid var(--line);border-radius:6px;padding:5px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+  .lrow button{padding:5px 9px;font-size:12px}
+  .savebar{position:sticky;bottom:0;background:linear-gradient(0deg,#0f1419,rgba(15,20,25,.8));padding:14px 0;display:flex;gap:12px;align-items:center}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#232d3d;border:1px solid var(--line);padding:11px 18px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  .mode{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="bgfx" id="bgfx"></div>
+<header>
+  <img id="logo" class="logo" alt="" style="display:none">
+  <h1>⚙️ Einstellungen</h1>
+  <a href="index.html">← Zur Verwaltung</a>
+</header>
+
+<main>
+  <h2>Turnier</h2>
+  <div class="card">
+    <div class="field">
+      <label>Turniername (erscheint in den Stream-Anzeigen)</label>
+      <input type="text" id="tournamentName" placeholder="z.B. Deutsche Jugend Einzelmeisterschaft 2026">
+    </div>
+    <div class="row" style="justify-content:space-between">
+      <span id="mode" class="mode">…</span>
+    </div>
+  </div>
+
+  <h2>Branding</h2>
+  <div class="card">
+    <div class="field">
+      <label>Logo</label>
+      <div class="row">
+        <button class="btn-ghost" onclick="logoFile.click()">Bild hochladen…</button>
+        <input type="file" id="logoFile" accept="image/*" style="display:none">
+        <span class="hint">oder URL/Pfad:</span>
+        <input type="text" id="logoUrl" placeholder="assets/logo.png" style="flex:1;min-width:160px">
+      </div>
+      <div class="preview"><img id="logoPreview" alt="" style="display:none">
+        <button class="btn-ghost" onclick="clearImg('logo')">Entfernen</button></div>
+      <div class="hint">Wird im Kopf der App und auf den „Warte auf Spiel“-Bildschirmen gezeigt.</div>
+    </div>
+    <div class="field">
+      <label>Hintergrundbild</label>
+      <div class="row">
+        <button class="btn-ghost" onclick="bgFile.click()">Bild hochladen…</button>
+        <input type="file" id="bgFile" accept="image/*" style="display:none">
+        <span class="hint">oder URL/Pfad:</span>
+        <input type="text" id="bgUrl" placeholder="assets/background.jpg" style="flex:1;min-width:160px">
+      </div>
+      <div class="preview"><img id="bgPreview" alt="" style="display:none">
+        <button class="btn-ghost" onclick="clearImg('bg')">Entfernen</button></div>
+      <div class="hint">Große Bilder besser als Datei/URL einbinden (Upload landet als Daten in der Datenbank).</div>
+    </div>
+    <div class="field">
+      <label>Greenscreen-Farbe (Stream-Anzeigen)</label>
+      <div class="row"><input type="color" id="green"><input type="text" id="greenHex" style="max-width:120px"></div>
+    </div>
+  </div>
+
+  <h2>Ablauf</h2>
+  <div class="card">
+    <label class="switch">
+      <input type="checkbox" id="autoAssign"><span class="track"></span>
+      <span>Spiele automatisch auf den Court nachrücken</span>
+    </label>
+    <div class="hint" style="margin-top:8px">
+      Aktiv: Wird ein Ergebnis bestätigt und zurückgeholt, erscheint automatisch das
+      nächste geplante Spiel dieses Courts auf dem Schiedsrichter-Tablet – der Schiedsrichter
+      startet dann den Timer. Inaktiv: Nach dem Matchball zeigt der Court „Das nächste Spiel
+      wird von der Turnierleitung gestartet“.
+    </div>
+  </div>
+
+  <h2>Courts</h2>
+  <div class="card">
+    <div class="field">
+      <label>Court-Nummern (kommagetrennt)</label>
+      <input type="text" id="courts" placeholder="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15">
+      <div class="hint">Bestimmt, wie viele Courts die Verwaltung zeigt und welche Links unten erscheinen.</div>
+    </div>
+    <h2 style="margin-top:6px">Links pro Court</h2>
+    <div id="links" class="courts-links"></div>
+  </div>
+
+  <div class="savebar">
+    <button class="btn-green" onclick="saveAll()">Einstellungen speichern</button>
+    <span class="hint">Gilt auf allen Geräten (bei Supabase) bzw. in diesem Browser (Testmodus).</span>
+  </div>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="store.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let S={};
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400);}
+
+$('mode').textContent = Store.ready ? '● Supabase verbunden (Einstellungen gelten überall)' : '● Lokaler Testmodus (nur dieser Browser)';
+
+function baseUrl(){ return location.href.replace(/[^/]*$/,''); }
+
+function applyBranding(){
+  const bg=$('bgUrl').value.trim()||S.backgroundUrl;
+  const lg=$('logoUrl').value.trim()||S.logoUrl;
+  $('bgfx').style.backgroundImage = bg?`url("${bg}")`:'none';
+  const l=$('logo'); if(lg){ l.src=lg; l.style.display='block'; } else l.style.display='none';
+}
+
+function renderLinks(){
+  const list=($('courts').value||'').split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
+  const base=baseUrl();
+  const rows=list.map(n=>{
+    const links=[
+      ['Schiedsrichter-Tablet', `court.html?court=${n}`],
+      ['Vollbild-Anzeige',      `stream.html?court=${n}&view=scoreboard`],
+      ['Stream · PSA Line',     `stream.html?court=${n}&view=psaline`],
+      ['Stream · Fullscore',    `stream.html?court=${n}&view=fullscore`],
+      ['Stream · Modern',       `stream.html?court=${n}&view=modern`],
+    ];
+    return `<div class="clink"><h4>Court ${n}</h4>`+
+      links.map(([tag,rel])=>{const url=base+rel;
+        return `<div class="lrow"><span class="tag">${tag}</span>
+          <code title="${url}">${url}</code>
+          <button class="btn-ghost" onclick="copyText('${url}')">Kopieren</button>
+          <button class="btn-ghost" onclick="window.open('${url}','_blank')">Öffnen</button></div>`;}).join('')+
+      `</div>`;
+  }).join('');
+  $('links').innerHTML=rows||'<span class="hint">Keine Courts.</span>';
+}
+function copyText(t){ navigator.clipboard&&navigator.clipboard.writeText(t).then(()=>toast('Link kopiert')); }
+
+// ---- Bild-Uploads -> Data-URL ----
+function readAsDataURL(file){ return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);}); }
+$('logoFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;
+  const d=await readAsDataURL(f); $('logoUrl').value=d; showPreview('logo',d); applyBranding(); toast('Logo geladen (noch speichern!)');});
+$('bgFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;
+  if(f.size>2*1024*1024 && !confirm('Das Bild ist größer als 2 MB. Als Datei/URL einzubinden ist besser. Trotzdem einbetten?')) return;
+  const d=await readAsDataURL(f); $('bgUrl').value=d; showPreview('bg',d); applyBranding(); toast('Hintergrund geladen (noch speichern!)');});
+function showPreview(which,src){const p=$(which+'Preview'); if(src){p.src=src;p.style.display='block';}else p.style.display='none';}
+function clearImg(which){ $(which+'Url').value=''; showPreview(which,''); applyBranding(); }
+
+['logoUrl','bgUrl'].forEach(id=>$(id).addEventListener('input',()=>{ showPreview(id==='logoUrl'?'logo':'bg',$(id).value.trim()); applyBranding(); }));
+$('courts').addEventListener('input',renderLinks);
+$('green').addEventListener('input',()=>{$('greenHex').value=$('green').value;});
+$('greenHex').addEventListener('input',()=>{const v=$('greenHex').value.trim(); if(/^#?[0-9a-fA-F]{6}$/.test(v)) $('green').value=v.startsWith('#')?v:'#'+v;});
+
+async function loadSettings(){
+  S=await Store.getSettings();
+  $('tournamentName').value=S.tournamentName||'';
+  $('courts').value=(S.courts||[]).join(',');
+  $('autoAssign').checked=!!S.autoAssign;
+  $('green').value=S.green||'#82F84E'; $('greenHex').value=S.green||'#82F84E';
+  $('logoUrl').value=S.logoUrl||''; showPreview('logo',S.logoUrl||'');
+  $('bgUrl').value=S.backgroundUrl||''; showPreview('bg',S.backgroundUrl||'');
+  applyBranding(); renderLinks();
+}
+
+async function saveAll(){
+  const courts=($('courts').value||'').split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
+  const patch={
+    tournamentName:$('tournamentName').value.trim(),
+    courts, autoAssign:$('autoAssign').checked,
+    green:$('green').value,
+    logoUrl:$('logoUrl').value.trim(),
+    backgroundUrl:$('bgUrl').value.trim(),
+  };
+  try{ await Store.saveSettings(patch); toast('Gespeichert ✓'); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
+
+loadSettings();
+</script>
+</body>
+</html>
