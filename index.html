@@ -36,6 +36,9 @@
   .tpcheck:hover{border-color:var(--blue)}
   .tpcheck input{width:17px;height:17px;accent-color:var(--green);cursor:pointer}
   .done.sent{opacity:.82}
+  .endbadge{font-size:11px;font-weight:900;letter-spacing:.5px;border-radius:6px;padding:2px 7px;margin-left:4px}
+  .endbadge.walkover{background:#123a5a;color:#8fd0ff}
+  .endbadge.retired{background:#5a1220;color:#ff9aa8}
   header{display:flex;align-items:center;gap:16px;padding:14px 22px;
     background:linear-gradient(90deg,#161d29,#0f1419);border-bottom:1px solid var(--line)}
   header h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.3px}
@@ -209,12 +212,26 @@
     <div class="field"><label>Land 2</label><input id="f_c2" value="de"></div>
   </div>
   <div class="grid2">
+    <div class="field"><label>Bundesland 1 (optional, z.B. BY)</label><input id="f_r1" placeholder="leer = Nationalflagge"></div>
+    <div class="field"><label>Bundesland 2 (optional)</label><input id="f_r2" placeholder="leer = Nationalflagge"></div>
+  </div>
+  <div class="grid2">
     <div class="field"><label>Court-Nr.</label><input id="f_court" type="number" min="1" placeholder="optional"></div>
     <div class="field"><label>Best of</label><input id="f_bo" type="number" value="3" min="3" max="5" step="2"></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Zeit (Anzeige)</label><input id="f_time" placeholder="z.B. Do 19.02.2026 16:10"></div>
     <div class="field"><label>Schiedsrichter</label><input id="f_ref" placeholder="optional"></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>Wertung</label>
+      <select id="f_ending" onchange="updWinnerVis()">
+        <option value="">Normal (gespielt)</option>
+        <option value="walkover">Walkover (Gegner gewinnt)</option>
+        <option value="retired">Retired / Aufgabe (Gegner gewinnt)</option>
+      </select></div>
+    <div class="field" id="winnerWrap" style="display:none"><label>Sieger</label>
+      <select id="f_winner"><option value="1">Spieler 1</option><option value="2">Spieler 2</option></select></div>
   </div>
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
     <button class="btn-ghost" onclick="addDlg.close()">Abbrechen</button>
@@ -259,7 +276,10 @@ function flagUrlIdx(code){
   const map={eng:'gb-eng',sct:'gb-sct',wls:'gb-wls'};
   return `https://flagcdn.com/h40/${map[c]||c}.png`;
 }
-function flagImg(code){ const u=flagUrlIdx(code); return u?`<span class="flagi" style="background-image:url('${u}')"></span>`:''; }
+function flagImg(code, region){
+  const url = regionFlagUrl(region, 40) || flagUrlIdx(code);
+  return url ? `<span class="flagi" style="background-image:url('${url}')"></span>` : '';
+}
 if (Store.ready){ modeEl.textContent='● Supabase verbunden'; modeEl.className='mode live'; }
 else { modeEl.textContent='● Lokaler Testmodus (nur dieser Browser)'; modeEl.className='mode local'; }
 
@@ -294,8 +314,8 @@ function renderCourts(){
                        : `<span class="badge playing">Läuft</span>`;
       div.innerHTML=`<div class="cnum">COURT ${cid}</div>
         <div class="live">
-          <div class="row p1"><span class="nm">${flagImg(live.player1_country)} ${live.player1_name}</span><span class="sc">${p1}</span></div>
-          <div class="row p2"><span class="nm">${flagImg(live.player2_country)} ${live.player2_name}</span><span class="sc">${p2}</span></div>
+          <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}</span><span class="sc">${p1}</span></div>
+          <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}</span><span class="sc">${p2}</span></div>
           <div class="meta"><span>Satz ${g1}–${g2} · Bo${live.best_of}</span>${badge}</div>
           <div class="actions">
             ${fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
@@ -331,9 +351,9 @@ function renderSched(){
           <button class="editbtn" title="Spiel bearbeiten" onclick="event.stopPropagation();openEditMatch('${m.id}')">✎ Bearbeiten</button>
         </div>
         <div class="teams">
-          <span class="team"><span class="p1n">${m.player1_name}</span>${flagImg(m.player1_country)}</span>
+          <span class="team"><span class="p1n">${m.player1_name}</span>${flagImg(m.player1_country,m.player1_region)}</span>
           <span class="vs">vs</span>
-          <span class="team">${flagImg(m.player2_country)}<span class="p2n">${m.player2_name}</span></span>
+          <span class="team">${flagImg(m.player2_country,m.player2_region)}<span class="p2n">${m.player2_name}</span></span>
         </div>
       </div>
       <div class="ref">${m.referee?('<b>Schiri:</b> '+m.referee):'<span style="opacity:.6">—</span>'}</div>
@@ -368,13 +388,13 @@ function resultRowHtml(m,isSent){
   return `
     <div class="tm" style="color:var(--muted);font-size:12px">${m.event||m.draw||''}<br>${m.round||''}</div>
     <div class="teams">
-      <span class="team"><span class="p1n">${m.player1_name}</span>${flagImg(m.player1_country)}</span>
+      <span class="team"><span class="p1n">${m.player1_name}</span>${flagImg(m.player1_country,m.player1_region)}</span>
       <span class="vs">${m.result||''}</span>
-      <span class="team">${flagImg(m.player2_country)}<span class="p2n">${m.player2_name}</span></span>
+      <span class="team">${flagImg(m.player2_country,m.player2_region)}<span class="p2n">${m.player2_name}</span></span>
     </div>
     <div class="setboxes" ${sets?`title="Zum Kopieren klicken" style="cursor:copy" onclick="copyText('${sets}')"`:''}>${boxes}</div>
     <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
-      <div class="win">🏆 ${winName||'—'}</div>
+      <div class="win">🏆 ${winName||'—'} ${m.ending?`<span class="endbadge ${m.ending}">${m.ending==='walkover'?'W.O.':'RETIRED'}</span>`:''}</div>
       <label class="tpcheck"><input type="checkbox" ${isSent?'checked':''}
         onchange="toggleTransfer('${m.id}',this.checked)"> Übertrag TP-Software</label>
       <button class="btn-ghost btn-sm" onclick="openEdit('${m.id}')">✎ Ergebnis bearbeiten</button>
@@ -435,11 +455,14 @@ async function setBo(id,v){ await Store.updateMatch(id,{best_of:Number(v)}); }
 const addDlg=document.getElementById('addDlg');
 let editingMatchId=null;
 function setF(id,v){ document.getElementById(id).value=(v==null?'':v); }
+function updWinnerVis(){ document.getElementById('winnerWrap').style.display = document.getElementById('f_ending').value?'':'none'; }
 function openAdd(){
   editingMatchId=null;
   document.getElementById('matchDlgTitle').textContent='Spiel hinzufügen';
   setF('f_draw','Ju11'); setF('f_round','RR1'); setF('f_p1',''); setF('f_c1','de');
-  setF('f_p2',''); setF('f_c2','de'); setF('f_court',''); setF('f_bo','3'); setF('f_time',''); setF('f_ref','');
+  setF('f_p2',''); setF('f_c2','de'); setF('f_r1',''); setF('f_r2','');
+  setF('f_court',''); setF('f_bo','3'); setF('f_time',''); setF('f_ref','');
+  setF('f_ending',''); updWinnerVis();
   addDlg.showModal();
 }
 function openEditMatch(id){
@@ -449,8 +472,10 @@ function openEditMatch(id){
   setF('f_draw',m.event||m.draw||''); setF('f_round',m.round||'');
   setF('f_p1',m.player1_name||''); setF('f_c1',m.player1_country||'');
   setF('f_p2',m.player2_name||''); setF('f_c2',m.player2_country||'');
+  setF('f_r1',m.player1_region||''); setF('f_r2',m.player2_region||'');
   setF('f_court',m.court_no||''); setF('f_bo',m.best_of||3);
   setF('f_time',m.scheduled_time||''); setF('f_ref',m.referee||'');
+  setF('f_ending',m.ending||''); setF('f_winner',String(m.winner||1)); updWinnerVis();
   addDlg.showModal();
 }
 async function saveMatch(){
@@ -458,19 +483,33 @@ async function saveMatch(){
   if(!g('f_p1')||!g('f_p2')){ toast('Bitte beide Spieler eintragen'); return; }
   const courtNo=g('f_court')?Number(g('f_court')):null;
   const time=g('f_time')||null;
+  const ending=g('f_ending')||null;
   const patch={
     event:g('f_draw'), draw:g('f_draw'), round:g('f_round'),
     player1_name:g('f_p1'), player1_country:countryToISO(g('f_c1'))||g('f_c1')||null,
     player2_name:g('f_p2'), player2_country:countryToISO(g('f_c2'))||g('f_c2')||null,
+    player1_region:g('f_r1')||null, player2_region:g('f_r2')||null,
     best_of:Number(g('f_bo'))||3, court_no:courtNo, court_label:courtNo?('C'+courtNo):null,
     scheduled_time:time, sort_ts:(parseTimeMs(time)||null), referee:g('f_ref')||null,
   };
+  if(ending){
+    // Sonderwertung -> als bestätigtes Ergebnis, Gegner/Sieger gewinnt
+    const winner=Number(g('f_winner'))||1;
+    const m=editingMatchId?MATCHES.find(x=>x.id===editingMatchId):null;
+    patch.status='confirmed'; patch.winner=winner; patch.ending=ending; patch.court_id=null;
+    patch.result = ending==='walkover' ? 'W.O.' : (m&&m.result?m.result:'0-0');
+    patch.score_text = (m&&m.score_text)?m.score_text:'';
+    patch.transferred = m?!!m.transferred:false;
+  } else {
+    patch.ending=null;
+  }
   if(editingMatchId){
     await Store.updateMatch(editingMatchId, patch);
-    addDlg.close(); toast('Spiel aktualisiert');
+    addDlg.close(); toast(ending?('Wertung gesetzt: '+ending):'Spiel aktualisiert');
   } else {
-    await Store.insertMatch(Object.assign({ match_no:'', court_id:null, import_key:null,
-      status:'scheduled', state:null, result:null, winner:null, score_text:null }, patch));
+    const base={ match_no:'', court_id:null, import_key:null, status:'scheduled',
+      state:null, result:null, winner:null, score_text:null };
+    await Store.insertMatch(Object.assign(base, patch));
     addDlg.close(); toast('Spiel angelegt');
   }
 }
