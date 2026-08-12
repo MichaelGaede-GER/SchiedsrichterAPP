@@ -50,10 +50,10 @@
   .mid-undo{background:#2b2b2b;color:#fff;font-size:20px;font-weight:800}
   .mid-label{font-size:10px;color:var(--muted);margin-top:-8px}
 
-  .foot{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:14px;padding:7px 14px;background:#0d0d0d;font-size:13px;color:var(--muted);flex-wrap:wrap}
-  .setpill{background:#151515;border:1px solid #2a2a2a;border-radius:999px;padding:5px 14px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums}
-  .games{display:flex;gap:6px}
-  .games .g{background:#151515;border:1px solid #2a2a2a;border-radius:6px;padding:3px 8px;font-size:12px}
+  .foot{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:22px;padding:14px 18px;background:#0d0d0d;font-size:27px;color:#cfe0ff;flex-wrap:wrap}
+  .setpill{background:#151515;border:1px solid #2a2a2a;border-radius:999px;padding:9px 22px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums}
+  .games{display:flex;gap:12px}
+  .games .g{background:#151515;border:1px solid #2a2a2a;border-radius:9px;padding:8px 16px;font-size:25px;font-weight:700}
   .refline{color:#cfe0ff}.refline b{color:var(--muted);font-weight:600}
 
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);display:none;align-items:center;justify-content:center;z-index:20;padding:20px}
@@ -147,6 +147,18 @@
   </div>
 </div></div>
 
+<div id="ovConfirm" class="overlay"><div class="card" style="width:min(640px,96vw)">
+  <h2>🏁 Matchball</h2>
+  <div id="confWinner" class="big"></div>
+  <div id="confSets" class="setline"></div>
+  <p id="confResult" style="font-size:20px;color:#cfe0ff;margin:0 0 6px"></p>
+  <p style="font-size:22px;color:#fff;font-weight:800;margin:14px 0 4px">Ist das Ergebnis richtig?</p>
+  <div class="row">
+    <button class="choice red" onclick="resultNo()">✗ Nein · ein Punkt zurück</button>
+    <button class="choice blue" onclick="resultYes()">✓ Ja · an die Turnierleitung</button>
+  </div>
+</div></div>
+
 <div id="ovDone" class="overlay"><div class="card" style="width:min(680px,96vw)">
   <img id="doneLogo" class="brandlogo" alt="" style="display:none">
   <h2>🏆 Spielende</h2>
@@ -204,7 +216,7 @@ class SquashMatch {
 }
 
 // ============ ZUSTAND ============
-let ALLMATCHES=[]; let match=null; let M=null; let syncing=false; let SETTINGS=null;
+let ALLMATCHES=[]; let match=null; let M=null; let syncing=false; let SETTINGS=null; let refConfirmed=false;
 function hide(id){ document.getElementById(id).classList.remove('show'); }
 function show(id){ document.getElementById(id).classList.add('show'); }
 function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
@@ -213,6 +225,17 @@ function applyBranding(){
   const bg=document.getElementById('bgfx');
   bg.style.backgroundImage=(SETTINGS&&SETTINGS.backgroundUrl)?`url("${SETTINGS.backgroundUrl}")`:'none';
 }
+function showConfirmOverlay(){
+  const wn=M.matchWinner===1?match.player1_name:match.player2_name;
+  setText('confWinner','🏆 '+wn);
+  setText('confSets', M.setScores());
+  setText('confResult','Sätze '+M.resultString());
+  hide('ovDone'); show('ovConfirm');
+}
+function resultYes(){ refConfirmed=true; hide('ovConfirm'); showDoneOverlay(); }
+function resultNo(){ hide('ovConfirm'); undo(); }
+// nach Matchball entscheiden: erst bestätigen lassen, dann übergeben
+function finishFlow(){ if(refConfirmed) showDoneOverlay(); else showConfirmOverlay(); }
 function showDoneOverlay(){
   const wn=M.matchWinner===1?match.player1_name:match.player2_name;
   setText('doneWinner','🏆 '+wn);
@@ -324,7 +347,7 @@ function renderIdle(app){
 
 // ============ AKTIONEN ============
 function point(who){ if(!M||M.status!=='playing') return; M.point(who); afterChange(); }
-function undo(){ if(!M) return; if(M.undo()){ hide('ovDone'); hide('ovRest'); afterChange(); } }
+function undo(){ if(!M) return; if(M.undo()){ refConfirmed=false; hide('ovConfirm'); hide('ovDone'); hide('ovRest'); afterChange(); } }
 function letDecide(what){ hide('ovLet'); if(what==='let') return; point(what); }
 function startPlay(server){ hide('ovWarmup'); Timer.stop(); M.startMatch(server); afterChange(); }
 function startNextGame(){ hide('ovRest'); Timer.stop(); M.startNextGame(); afterChange(); }
@@ -337,7 +360,7 @@ function afterChange(){
       +`Aufschlag Satz ${M.games.length+1}: ${M._nextServer===1?match.player1_name:match.player2_name}`);
     Timer.start(CONFIG.REST_SECONDS,'Satzpause'); show('ovRest');
   }
-  if(M.status==='finished'){ showDoneOverlay(); }
+  if(M.status==='finished'){ finishFlow(); }
 }
 
 // ============ SYNC ============
@@ -359,6 +382,7 @@ async function loadCourt(){
   const isNew=!match || match.id!==live.id;
   match=live;
   if(isNew){
+    refConfirmed=false;
     M=new SquashMatch({ bestOf:live.best_of||CONFIG.DEFAULT_BEST_OF,
       p1:{name:live.player1_name,country:live.player1_country},
       p2:{name:live.player2_name,country:live.player2_country} });
@@ -366,10 +390,10 @@ async function loadCourt(){
     render(); hideAll();
     if(M.status==='warmup'){ Timer.start(CONFIG.WARMUP_SECONDS,'Aufwärmen'); show('ovWarmup'); }
     else if(M.status==='between'){ show('ovRest'); }
-    else if(M.status==='finished'){ showDoneOverlay(); }
+    else if(M.status==='finished'){ finishFlow(); }
   } else { render(); }
 }
-function hideAll(){ ['ovWarmup','ovLet','ovTimer','ovRest','ovDone'].forEach(hide); }
+function hideAll(){ ['ovWarmup','ovLet','ovTimer','ovRest','ovConfirm','ovDone'].forEach(hide); }
 
 async function refreshSettings(){ SETTINGS=await Store.getSettings(); applyBranding(); if(!match) render(); }
 Store.subscribeAll(loadCourt);
