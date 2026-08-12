@@ -23,13 +23,13 @@
     font-variant-numeric:tabular-nums;font-weight:800;font-size:22px;letter-spacing:1px;min-width:64px;text-align:center}
   .setbox small{display:block;font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;margin-bottom:2px}
   .setbox .a{color:#8db4ff}.setbox .b{color:#ff9a9d}
-  /* Ergebnis-Reiter */
-  .restabs{display:flex;gap:8px;margin:22px 0 12px;flex-wrap:wrap}
-  .rtab{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:10px;
-    padding:9px 16px;font-weight:700;font-size:13px;letter-spacing:.6px;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:8px}
-  .rtab:hover{color:var(--ink)}
-  .rtab.active{background:var(--panel);border-color:var(--blue);color:var(--ink)}
-  .rtab .count{background:#131a26}
+  /* Haupt-Reiter (Angesetzt / Bestätigt / Übertragen) */
+  .maintabs{display:flex;gap:8px;margin:26px 0 14px;flex-wrap:wrap}
+  .mtab{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:11px;
+    padding:11px 18px;font-weight:800;font-size:14px;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:9px}
+  .mtab:hover{color:var(--ink)}
+  .mtab.active{background:var(--panel);border-color:var(--blue);color:var(--ink)}
+  .mtab .count{background:#131a26}
   /* TP-Übertrag-Checkbox */
   .tpcheck{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#cfe0ff;
     background:#101826;border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer;user-select:none}
@@ -155,33 +155,37 @@
   <h2>Courts</h2>
   <div id="courts" class="courts"></div>
 
-  <h2>Angesetzte Spiele <span class="count" id="schedCount">0</span></h2>
-  <div class="toolbar">
-    <input id="search" class="search" placeholder="Suche Spieler / Event…" oninput="render()">
-    <select id="courtFilter" class="filter" onchange="render()"><option value="">Alle Courts</option></select>
-    <div class="spacer"></div>
-    <button class="btn-primary btn-sm" onclick="fileInput.click()">⬆ XLSX importieren</button>
-    <button class="btn-ghost btn-sm" onclick="openAdd()">+ Spiel</button>
-    <button class="btn-ghost btn-sm" onclick="seed()">Demo</button>
-    <button class="btn-ghost btn-sm" onclick="clearAll()">Alles löschen</button>
-    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
-  </div>
-  <div class="card">
-    <div class="thead"><div>Zeit</div><div>Court</div><div>Begegnung</div><div>Schiedsrichter</div><div>Bo</div><div>Ansetzen</div></div>
-    <div id="sched"></div>
-  </div>
-  <p style="font-size:12.5px;color:var(--muted);margin:10px 0 0">
-    Spiel auf einen Court <b>ziehen</b>, den Button <b>▶ Court</b> nutzen, oder Spiel antippen und dann Court antippen.
-    Bereits gespielte Spiele werden beim Import automatisch übersprungen.</p>
-
-  <div class="restabs">
-    <button class="rtab active" data-tab="done" onclick="setResultTab('done')">
+  <div class="maintabs">
+    <button class="mtab active" data-tab="sched" onclick="setMainTab('sched')">
+      Angesetzte Spiele <span class="count" id="schedCount">0</span></button>
+    <button class="mtab" data-tab="done" onclick="setMainTab('done')">
       Bestätigte Ergebnisse <span class="count" id="doneCount">0</span></button>
-    <button class="rtab" data-tab="sent" onclick="setResultTab('sent')">
+    <button class="mtab" data-tab="sent" onclick="setMainTab('sent')">
       Übertragene Ergebnisse <span class="count" id="sentCount">0</span></button>
   </div>
-  <div class="card" id="cardDone"><div id="done"></div></div>
-  <div class="card" id="cardSent" style="display:none"><div id="sent"></div></div>
+
+  <div id="panelSched">
+    <div class="toolbar">
+      <input id="search" class="search" placeholder="Suche Spieler / Event…" oninput="render()">
+      <select id="courtFilter" class="filter" onchange="render()"><option value="">Alle Courts</option></select>
+      <div class="spacer"></div>
+      <button class="btn-primary btn-sm" onclick="fileInput.click()">⬆ XLSX importieren</button>
+      <button class="btn-ghost btn-sm" onclick="openAdd()">+ Spiel</button>
+      <button class="btn-ghost btn-sm" onclick="seed()">Demo</button>
+      <button class="btn-ghost btn-sm" onclick="clearAll()">Alles löschen</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
+    </div>
+    <div class="card">
+      <div class="thead"><div>Zeit</div><div>Court</div><div>Begegnung</div><div>Schiedsrichter</div><div>Bo</div><div>Ansetzen</div></div>
+      <div id="sched"></div>
+    </div>
+    <p style="font-size:12.5px;color:var(--muted);margin:10px 0 0">
+      Spiel auf einen Court <b>ziehen</b>, den Button <b>▶ Court</b> nutzen, oder Spiel antippen und dann Court antippen.
+      Bereits gespielte Spiele werden beim Import automatisch übersprungen.</p>
+  </div>
+
+  <div id="panelDone" style="display:none"><div class="card"><div id="done"></div></div></div>
+  <div id="panelSent" style="display:none"><div class="card"><div id="sent"></div></div></div>
 </main>
 
 <dialog id="addDlg">
@@ -323,12 +327,13 @@ function renderSched(){
   });
 }
 
-let resultTab='done';
-function setResultTab(t){
-  resultTab=t;
-  document.querySelectorAll('.rtab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
-  document.getElementById('cardDone').style.display = t==='done'?'':'none';
-  document.getElementById('cardSent').style.display = t==='sent'?'':'none';
+let mainTab='sched';
+function setMainTab(t){
+  mainTab=t;
+  document.querySelectorAll('.mtab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  document.getElementById('panelSched').style.display = t==='sched'?'':'none';
+  document.getElementById('panelDone').style.display  = t==='done'?'':'none';
+  document.getElementById('panelSent').style.display  = t==='sent'?'':'none';
 }
 function resultRowHtml(m,isSent){
   const winName=m.winner==1?m.player1_name:m.winner==2?m.player2_name:'';
