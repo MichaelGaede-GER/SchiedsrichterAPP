@@ -626,7 +626,7 @@ async function loadCourt(){
 }
 function hideAll(){ ['ovWarmup','ovLet','ovTimer','ovRest','ovConfirm','ovDone','ovPenalty','ovInjury'].forEach(hide); }
 
-async function refreshSettings(){ SETTINGS=await Store.getSettings(); applyBranding(); if(!match) render(); }
+async function refreshSettings(){ SETTINGS=await Store.getSettings(); applyBranding(); loadCourt(); }
 Store.subscribeAll(loadCourt);
 Store.subscribeSettings(refreshSettings);
 refreshSettings();

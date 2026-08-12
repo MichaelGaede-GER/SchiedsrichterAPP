@@ -64,6 +64,37 @@ const Store = (() => {
             () => callback()).subscribe();
       return () => sb.removeChannel(ch);
     },
+    async listTournaments() {
+      const { data, error } = await sb.from('tournaments').select('*').order('created_at', { ascending: true });
+      if (error) throw error; return data || [];
+    },
+    async createTournament(name) {
+      const { data, error } = await sb.from('tournaments').insert({ name }).select().single();
+      if (error) throw error; return data;
+    },
+    async renameTournament(id, name) {
+      const { error } = await sb.from('tournaments').update({ name }).eq('id', id);
+      if (error) throw error;
+    },
+    async deleteTournament(id) {
+      await sb.from('matches').delete().eq('tournament_id', id);
+      const { error } = await sb.from('tournaments').delete().eq('id', id);
+      if (error) throw error;
+    },
+    async deleteMatchesOfTournament(id) {
+      if (id) await sb.from('matches').delete().eq('tournament_id', id);
+      else await sb.from('matches').delete().is('tournament_id', null);
+    },
+    async adoptOrphans(toId) {
+      const { error } = await sb.from('matches').update({ tournament_id: toId }).is('tournament_id', null);
+      if (error) throw error;
+    },
+    subscribeTournaments(callback) {
+      const ch = sb.channel('tours-all')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' },
+            () => callback()).subscribe();
+      return () => sb.removeChannel(ch);
+    },
   };
 
   // ---------------- LOKALES BACKEND ----------------
@@ -116,24 +147,109 @@ const Store = (() => {
       window.addEventListener('storage', onStorage);
       return () => { if (bc) bc.removeEventListener('message', onMsg); window.removeEventListener('storage', onStorage); };
     },
+    async listTournaments() { try { return JSON.parse(localStorage.getItem('squash_tournaments') || '[]'); } catch { return []; } },
+    async createTournament(name) {
+      const t = { id: 't_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), name, created_at: new Date().toISOString() };
+      const l = await this.listTournaments(); l.push(t);
+      localStorage.setItem('squash_tournaments', JSON.stringify(l));
+      if (bc) bc.postMessage({ t: 'tours' }); return t;
+    },
+    async renameTournament(id, name) {
+      const l = await this.listTournaments(); const t = l.find(x => x.id === id); if (t) t.name = name;
+      localStorage.setItem('squash_tournaments', JSON.stringify(l));
+      if (bc) bc.postMessage({ t: 'tours' });
+    },
+    async deleteTournament(id) {
+      let l = await this.listTournaments(); l = l.filter(x => x.id !== id);
+      localStorage.setItem('squash_tournaments', JSON.stringify(l));
+      await this.deleteMatchesOfTournament(id);
+      if (bc) bc.postMessage({ t: 'tours' });
+    },
+    async deleteMatchesOfTournament(id) {
+      const rows = readLS().filter(m => (id ? m.tournament_id !== id : !!m.tournament_id));
+      writeLS(rows);
+    },
+    async adoptOrphans(toId) {
+      const rows = readLS(); rows.forEach(m => { if (!m.tournament_id) m.tournament_id = toId; }); writeLS(rows);
+    },
+    subscribeTournaments(callback) {
+      const onMsg = e => { if (e.data && e.data.t === 'tours') callback(); };
+      const onStorage = e => { if (e.key === 'squash_tournaments') callback(); };
+      if (bc) bc.addEventListener('message', onMsg);
+      window.addEventListener('storage', onStorage);
+      return () => { if (bc) bc.removeEventListener('message', onMsg); window.removeEventListener('storage', onStorage); };
+    },
   };
 
   const backend = useSupabase ? SupabaseStore : LocalStore;
   if (useSupabase) initSupabase();
 
+  let ACTIVE; // undefined = noch nicht geladen, null = kein aktives Turnier, sonst id
+  async function ensureActive() {
+    if (ACTIVE === undefined) {
+      try { const s = await backend.getSettingsRaw(); ACTIVE = (s && s.activeTournament) || null; }
+      catch (e) { ACTIVE = null; }
+    }
+    return ACTIVE;
+  }
+
   return {
     mode: backend.mode,
     ready: useSupabase,
-    listMatches: (...a) => backend.listMatches(...a),
+    async listMatches() {
+      await ensureActive();
+      const all = await backend.listMatches();
+      return ACTIVE ? all.filter(m => m.tournament_id === ACTIVE)
+                    : all.filter(m => !m.tournament_id);
+    },
     getMatch: (...a) => backend.getMatch(...a),
     updateMatch: (...a) => backend.updateMatch(...a),
-    insertMatch: (...a) => backend.insertMatch(...a),
-    insertMany: (...a) => backend.insertMany(...a),
-    deleteAll: (...a) => backend.deleteAll(...a),
+    async insertMatch(match) { await ensureActive();
+      const row = Object.assign({}, match);
+      if (row.tournament_id === undefined) row.tournament_id = ACTIVE || null;
+      return backend.insertMatch(row); },
+    async insertMany(list) { await ensureActive();
+      return backend.insertMany((list || []).map(m => {
+        const row = Object.assign({}, m);
+        if (row.tournament_id === undefined) row.tournament_id = ACTIVE || null;
+        return row; })); },
+    async deleteAll() { await ensureActive(); return backend.deleteMatchesOfTournament(ACTIVE || null); },
     subscribeAll: (...a) => backend.subscribeAll(...a),
-    // court.html hört ebenfalls auf alle Spiele und filtert lokal
     subscribeCourt: (courtId, cb) => backend.subscribeAll(cb),
     subscribeSettings: (...a) => backend.subscribeSettings(...a),
+    subscribeTournaments: (...a) => backend.subscribeTournaments(...a),
+
+    // ---- Turniere ----
+    listTournaments: (...a) => backend.listTournaments(...a),
+    async createTournament(name) { const t = await backend.createTournament(name); return t; },
+    renameTournament: (...a) => backend.renameTournament(...a),
+    deleteTournament: (...a) => backend.deleteTournament(...a),
+    activeTournament() { return ACTIVE || null; },
+    async setActiveTournament(id) { ACTIVE = id || null; await this.saveSettings({ activeTournament: ACTIVE }); },
+    async adoptOrphans() { await ensureActive(); if (!ACTIVE) throw new Error('Kein aktives Turnier ausgewählt.'); await backend.adoptOrphans(ACTIVE); },
+
+    // ---- Backup ----
+    async exportBackup() {
+      await ensureActive();
+      const tours = await backend.listTournaments().catch(() => []);
+      const t = tours.find(x => x.id === ACTIVE) || null;
+      const all = await backend.listMatches();
+      const matches = (ACTIVE ? all.filter(m => m.tournament_id === ACTIVE) : all.filter(m => !m.tournament_id))
+        .map(m => { const c = Object.assign({}, m); delete c.id; delete c.created_at; delete c.updated_at; delete c.tournament_id; return c; });
+      return { type: 'squash-backup', version: 1, exportedAt: new Date().toISOString(),
+               tournament: { name: t ? t.name : (ACTIVE ? 'Turnier' : 'Ohne Turnier') }, matches };
+    },
+    async importBackup(obj, opts) {
+      opts = opts || {};
+      if (!obj || obj.type !== 'squash-backup' || !Array.isArray(obj.matches))
+        throw new Error('Ungültige Backup-Datei');
+      const name = opts.name || ((obj.tournament && obj.tournament.name) || 'Import') ;
+      const t = await backend.createTournament(name);
+      const rows = obj.matches.map(m => { const c = Object.assign({}, m);
+        delete c.id; delete c.created_at; delete c.updated_at; c.tournament_id = t.id; return c; });
+      if (rows.length) await backend.insertMany(rows);
+      return t;
+    },
 
     // ---- Einstellungen (mit Standardwerten aus CONFIG) ----
     _defaults() {
@@ -145,28 +261,33 @@ const Store = (() => {
         green: c.GREEN || '#82F84E',
         logoUrl: c.LOGO_URL || '',
         backgroundUrl: c.BACKGROUND_URL || '',
+        activeTournament: null,
       };
     },
     async getSettings() {
       let raw = {};
       try { raw = await backend.getSettingsRaw(); } catch (e) { raw = {}; }
-      return Object.assign(this._defaults(), raw || {});
+      const merged = Object.assign(this._defaults(), raw || {});
+      ACTIVE = merged.activeTournament || null;
+      return merged;
     },
     async saveSettings(patch) {
       let raw = {};
       try { raw = await backend.getSettingsRaw(); } catch (e) { raw = {}; }
-      await backend.saveSettingsRaw(Object.assign({}, raw, patch));
+      const next = Object.assign({}, raw, patch);
+      if ('activeTournament' in patch) ACTIVE = patch.activeTournament || null;
+      await backend.saveSettingsRaw(next);
     },
 
-    // nächstes geplantes Spiel eines Courts (nach Uhrzeit)
+    // nächstes geplantes Spiel eines Courts (nach Uhrzeit, im aktiven Turnier)
     async nextScheduledForCourt(courtNo) {
-      const all = await backend.listMatches();
+      const all = await this.listMatches();
       return all.filter(m => m.status === 'scheduled' && m.court_no === courtNo)
         .sort((a, b) => (a.sort_ts || 0) - (b.sort_ts || 0))[0] || null;
     },
 
     async assignToCourt(matchId, courtId, bestOf) {
-      const all = await backend.listMatches();
+      const all = await this.listMatches();
       const busy = all.find(m => m.court_id === courtId && m.status === 'live');
       if (busy) throw new Error('Court ' + courtId + ' ist belegt.');
       await backend.updateMatch(matchId, {

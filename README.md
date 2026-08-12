@@ -213,3 +213,66 @@ Als **Browserquelle** die jeweilige Stream-URL eintragen (z.B. 1920×1080), dann
 einen **Chroma-Key-Filter** auf Grün setzen. Für saubere Flaggen im Stream werden
 echte Flaggenbilder (flagcdn.com) statt Emoji verwendet – dafür braucht der
 Stream-Rechner Internetzugang.
+
+## Bundesländer (deutsche Turniere)
+Beim Anlegen/Bearbeiten eines Spiels kann pro Spieler optional ein **Bundesland**
+angegeben werden (Kürzel wie `BY`, `NRW` oder ausgeschrieben „Bayern"). Ist ein
+Bundesland gesetzt, wird an allen Stellen (Verwaltung, Schiedsrichter-App, Stream)
+statt der Nationalflagge die **Bundesland-Flagge** angezeigt; bleibt es leer, gilt
+die Nationalflagge. Die Bundesland-Flaggen werden von Wikimedia Commons geladen
+(Internet nötig, wie bei den Länderflaggen).
+
+Dafür einmal die aktualisierte `supabase-schema.sql` ausführen (legt die Spalten
+`player1_region` / `player2_region` an). Bereits importierte Spiele bekommen das
+Bundesland über „✎ Bearbeiten".
+
+## Verhaltensstrafen, Verletzungstimer, Aufgabe/Walkover
+**Schiedsrichter-App:** Ein **langer Druck** (ca. 0,5 s) auf einen Spielernamen
+öffnet ein Menü:
+- **Verhaltensstrafe** wegen Schlägermissbrauch, Obszönität, Spielverzögerung,
+  Widerspruch, Beschimpfung/Beleidigung Offizieller, Übermäßiger körperlicher
+  Kontakt, Unsportliches Verhalten oder Coaching. Stufen: **Verwarnung →
+  Strafpunkt** (Punkt an Gegner) **→ Strafsatz** (Satz an Gegner). Die empfohlene
+  nächste Stufe wird hervorgehoben; führt ein Strafsatz zum Matchende, gewinnt der
+  Gegner. Kleine Badges am Namen zeigen erteilte Strafen. Alles ist per **Undo**
+  rücknehmbar.
+- **Verletzungstimer**: Selbst verschuldet 3:00 · Blutung (selbst) 5:00 · vom
+  Gegner mitverschuldet 15:00 · vom Gegner verschuldet 15:00. Der Timer läuft auch
+  im Stream mit, lässt sich **vorher abbrechen** (weiterspielen) und fragt nach
+  Ablauf, ob der Spieler **weiterspielen** kann. Wenn nicht, wird der aktuelle
+  Spielstand übertragen, der Sieger gewählt und **„Retired"** vermerkt.
+
+**Verwaltung:** Unter „✎ Bearbeiten" gibt es eine **Wertung**: Normal / **Walkover**
+/ **Retired**. Bei Walkover oder Retired wird der gewählte Sieger als bestätigtes
+Ergebnis eingetragen (Badge in der Ergebnisliste).
+
+Dafür einmal die aktualisierte `supabase-schema.sql` ausführen (legt die Spalte
+`ending` an).
+
+## Turniere (Events) & Backup
+In **⚙️ Einstellungen** gibt es jetzt oben den Bereich **Turniere / Events**:
+- **Neues Turnier anlegen & aktivieren** – ab dann gehören alle importierten
+  Spiele, Ergebnisse und Übertragungen zu diesem Turnier.
+- **Aktives Turnier** über das Auswahlfeld wechseln (Laden). Das aktive Turnier
+  gilt geräteübergreifend – Verwaltung, Court-Tablets und Stream zeigen automatisch
+  dasselbe Turnier. Im Kopf der Verwaltung wird das aktive Turnier angezeigt.
+- **Umbenennen** / **Löschen** (Löschen entfernt auch alle zugehörigen Spiele).
+- **Vorhandene Spiele ohne Turnier übernehmen** – ordnet früher importierte Spiele
+  (die noch keinem Turnier zugewiesen sind) dem aktiven Turnier zu. Praktisch nach
+  dem Update, damit deine bestehenden Spiele wieder auftauchen.
+
+**Backup:**
+- **Backup herunterladen** speichert das aktive Turnier (Name + alle Spiele/
+  Ergebnisse) als JSON-Datei.
+- **Backup einspielen** liest eine solche Datei und legt daraus ein **neues**
+  Turnier an (bestehende Daten bleiben unberührt) und aktiviert es.
+
+Dafür einmal die aktualisierte `supabase-schema.sql` ausführen – sie legt die
+Tabelle `tournaments` und die Spalte `tournament_id` an und macht den Import-
+Schlüssel pro Turnier eindeutig (dieselbe XLSX kann so in mehreren Turnieren
+verwendet werden).
+
+**Wichtiger Hinweis nach dem Update:** Deine bereits importierten Spiele gehören
+noch zu „keinem Turnier". Sie sind sichtbar, solange kein Turnier aktiv ist.
+Sobald du ein Turnier anlegst/aktivierst, nutze einmal „Vorhandene Spiele ohne
+Turnier übernehmen", um sie in das Turnier zu holen.

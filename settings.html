@@ -58,10 +58,45 @@
 </header>
 
 <main>
-  <h2>Turnier</h2>
+  <h2>Turniere / Events</h2>
   <div class="card">
     <div class="field">
-      <label>Turniername (erscheint in den Stream-Anzeigen)</label>
+      <label>Aktives Turnier</label>
+      <div class="row">
+        <select id="tourSelect" style="flex:1;min-width:200px" onchange="onTourSelect()"></select>
+        <button class="btn-ghost" onclick="renameTour()">Umbenennen</button>
+        <button class="btn-ghost" onclick="deleteTour()">Löschen</button>
+      </div>
+      <div class="hint">Alle Spiele, Ergebnisse und Übertragungen gehören zum aktiven Turnier. Das aktive Turnier gilt auf allen Geräten (Verwaltung, Courts, Stream).</div>
+    </div>
+    <div class="field">
+      <label>Neues Turnier anlegen</label>
+      <div class="row">
+        <input type="text" id="newTourName" placeholder="z.B. German Junior Open 2026" style="flex:1;min-width:220px">
+        <button class="btn-green" onclick="createTour()">Anlegen &amp; aktivieren</button>
+      </div>
+    </div>
+    <div class="field">
+      <button class="btn-ghost" onclick="adoptOrphans()">Vorhandene Spiele ohne Turnier ins aktive Turnier übernehmen</button>
+      <div class="hint">Nützlich für Spiele, die vor der Turnier-Funktion importiert wurden.</div>
+    </div>
+  </div>
+
+  <h2>Backup</h2>
+  <div class="card">
+    <div class="row">
+      <button class="btn-ghost" onclick="downloadBackup()">⬇ Backup des aktiven Turniers herunterladen</button>
+      <button class="btn-ghost" onclick="backupFile.click()">⬆ Backup einspielen…</button>
+      <input type="file" id="backupFile" accept="application/json,.json" style="display:none">
+    </div>
+    <div class="hint">Der Download enthält Turniername und alle Spiele/Ergebnisse als JSON-Datei.
+      Beim Einspielen wird daraus ein <b>neues</b> Turnier erstellt (bestehende Daten bleiben unberührt).</div>
+  </div>
+
+  <h2>Turnier-Anzeigename</h2>
+  <div class="card">
+    <div class="field">
+      <label>Turniername (Kopf der App &amp; Stream-Anzeigen)</label>
       <input type="text" id="tournamentName" placeholder="z.B. Deutsche Jugend Einzelmeisterschaft 2026">
     </div>
     <div class="row" style="justify-content:space-between">
@@ -191,6 +226,74 @@ $('courts').addEventListener('input',renderLinks);
 $('green').addEventListener('input',()=>{$('greenHex').value=$('green').value;});
 $('greenHex').addEventListener('input',()=>{const v=$('greenHex').value.trim(); if(/^#?[0-9a-fA-F]{6}$/.test(v)) $('green').value=v.startsWith('#')?v:'#'+v;});
 
+// ================= TURNIERE =================
+let TOURS=[];
+async function loadTours(){
+  try{ TOURS=await Store.listTournaments(); }catch(e){ TOURS=[]; }
+  const active=Store.activeTournament();
+  const sel=$('tourSelect');
+  sel.innerHTML='<option value="">— Kein Turnier (Altdaten) —</option>'+
+    TOURS.map(t=>`<option value="${t.id}" ${t.id===active?'selected':''}>${t.name}</option>`).join('');
+}
+async function onTourSelect(){
+  const id=$('tourSelect').value||null;
+  await Store.setActiveTournament(id);
+  toast(id?'Turnier aktiviert':'Kein Turnier aktiv');
+}
+async function createTour(){
+  const name=$('newTourName').value.trim();
+  if(!name){ toast('Bitte einen Turniernamen eingeben'); return; }
+  try{ const t=await Store.createTournament(name); await Store.setActiveTournament(t.id);
+    $('newTourName').value=''; await loadTours(); toast('Turnier angelegt & aktiviert'); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
+async function renameTour(){
+  const id=$('tourSelect').value; if(!id){ toast('Kein Turnier ausgewählt'); return; }
+  const cur=(TOURS.find(t=>t.id===id)||{}).name||'';
+  const name=prompt('Neuer Name für das Turnier:', cur); if(!name) return;
+  try{ await Store.renameTournament(id,name.trim()); await loadTours(); toast('Umbenannt'); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
+async function deleteTour(){
+  const id=$('tourSelect').value; if(!id){ toast('Kein Turnier ausgewählt'); return; }
+  const nm=(TOURS.find(t=>t.id===id)||{}).name||'';
+  if(!confirm(`Turnier „${nm}" und ALLE zugehörigen Spiele/Ergebnisse endgültig löschen?`)) return;
+  try{ await Store.deleteTournament(id); if(Store.activeTournament()===id) await Store.setActiveTournament(null);
+    await loadTours(); toast('Turnier gelöscht'); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
+async function adoptOrphans(){
+  if(!Store.activeTournament()){ toast('Bitte zuerst ein Turnier aktivieren'); return; }
+  if(!confirm('Alle Spiele ohne Turnier-Zuordnung dem aktiven Turnier zuordnen?')) return;
+  try{ await Store.adoptOrphans(); toast('Spiele übernommen'); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
+
+// ================= BACKUP =================
+async function downloadBackup(){
+  try{
+    const data=await Store.exportBackup();
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const safe=(data.tournament.name||'turnier').replace(/[^\w\-]+/g,'_');
+    a.href=url; a.download='backup_'+safe+'_'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    toast('Backup heruntergeladen ('+data.matches.length+' Spiele)');
+  }catch(e){ toast('Fehler: '+e.message); }
+}
+$('backupFile').addEventListener('change',async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{
+    const text=await f.text(); const obj=JSON.parse(text);
+    const suggested=(obj.tournament&&obj.tournament.name)||'Import';
+    const name=prompt('Name für das eingespielte Turnier:', suggested); if(!name) return;
+    const t=await Store.importBackup(obj,{name:name.trim()});
+    await Store.setActiveTournament(t.id); await loadTours();
+    toast('Backup eingespielt & aktiviert');
+  }catch(err){ toast('Backup-Fehler: '+err.message); }
+});
+
 async function loadSettings(){
   S=await Store.getSettings();
   $('tournamentName').value=S.tournamentName||'';
@@ -200,6 +303,7 @@ async function loadSettings(){
   $('logoUrl').value=S.logoUrl||''; showPreview('logo',S.logoUrl||'');
   $('bgUrl').value=S.backgroundUrl||''; showPreview('bg',S.backgroundUrl||'');
   applyBranding(); renderLinks();
+  await loadTours();
 }
 
 async function saveAll(){

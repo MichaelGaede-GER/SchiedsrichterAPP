@@ -102,7 +102,9 @@ let SET=null, MATCH=null, ALL=[];
 document.title='Court '+COURT+' – '+VIEW;
 
 // Flaggenbild (echte Bilder statt Emoji – wichtig für OBS/Windows)
-function flagUrl(code){
+function flagUrl(code, region){
+  const rf = (typeof regionFlagUrl==='function' && regionFlagUrl(region,80)) || '';
+  if(rf) return rf;
   if(!code) return '';
   let c=String(code).toLowerCase().trim();
   if(!/^[a-z]{2}$/.test(c) && !['eng','sct','wls'].includes(c)){
@@ -112,10 +114,10 @@ function flagUrl(code){
   const map={eng:'gb-eng',sct:'gb-sct',wls:'gb-wls'};
   return `https://flagcdn.com/h80/${map[c]||c}.png`;
 }
-function flagCss(code){ const u=flagUrl(code); return u?`background-image:url("${u}")`:''; }
-// gibt ein Flaggen-Element zurück, oder '' wenn keine (gültige) Nationalität
-function flagSpan(code,cls,style){ const css=flagCss(code); return css?`<span class="${cls}" style="${style?style+';':''}${css}"></span>`:''; }
-function flagDiv(code,cls,style){ const css=flagCss(code); return css?`<div class="${cls}" style="${style?style+';':''}${css}"></div>`:''; }
+function flagCss(code, region){ const u=flagUrl(code, region); return u?`background-image:url("${u}")`:''; }
+// Flaggen-Element (Bundesland bevorzugt), '' wenn keine gültige Angabe
+function flagSpan(code,cls,style,region){ const css=flagCss(code,region); return css?`<span class="${cls}" style="${style?style+';':''}${css}"></span>`:''; }
+function flagDiv(code,cls,style,region){ const css=flagCss(code,region); return css?`<div class="${cls}" style="${style?style+';':''}${css}"></div>`:''; }
 const NAT3={at:'AUT',be:'BEL',bg:'BUL',cz:'CZE',dk:'DEN',eg:'EGY',eng:'ENG',ee:'EST',fi:'FIN',
   fr:'FRA',de:'GER',hu:'HUN',ie:'IRL',lv:'LAT',lt:'LTU',mu:'MRI',nl:'NED',no:'NOR',pl:'POL',
   pt:'POR',ro:'ROU',es:'ESP',se:'SWE',ch:'SUI',tr:'TUR',ua:'UKR',sct:'SCO',wls:'WAL',us:'USA',
@@ -130,6 +132,7 @@ function liveState(){
   return {
     p1:MATCH.player1_name, p2:MATCH.player2_name,
     c1:MATCH.player1_country, c2:MATCH.player2_country,
+    r1:MATCH.player1_region, r2:MATCH.player2_region,
     pts1:s.cur?s.cur.p1:0, pts2:s.cur?s.cur.p2:0,
     server:s.cur?s.cur.server:null, side:s.cur?s.cur.side:'R',
     g1:s.gamesWon1||0, g2:s.gamesWon2||0,
@@ -198,12 +201,12 @@ function viewScore(d){
   const side=d.side==='L'?'L':'R';
   return `<div class="sb">
     <div class="top">
-      <div class="name p1">${flagSpan(d.c1,'flagimg','width:44px;height:30px')}${d.p1}${d.server===1?'<span class="dot"></span>':''}</div>
+      <div class="name p1">${flagSpan(d.c1,'flagimg','width:44px;height:30px',d.r1)}${d.p1}${d.server===1?'<span class="dot"></span>':''}</div>
       <div class="center">
         <div class="gp"><b>${d.g1}</b><b>${d.g2}</b></div>
         <div class="serve">${side}</div>
       </div>
-      <div class="name p2">${d.server===2?'<span class="dot"></span>':''}${d.p2}${flagSpan(d.c2,'flagimg','width:44px;height:30px')}</div>
+      <div class="name p2">${d.server===2?'<span class="dot"></span>':''}${d.p2}${flagSpan(d.c2,'flagimg','width:44px;height:30px',d.r2)}</div>
     </div>
     <div class="big">
       <div class="bigbox"><span class="n">${d.pts1}</span></div>
@@ -220,12 +223,12 @@ function viewFull(d){
     <div class="title"><span>${[title,d.event,d.round].filter(Boolean).join(' — ')}</span>
       <span class="r">Court: ${COURT}&nbsp;&nbsp;${clock()}</span></div>
     <div class="rowline"><div class="frow">
-      ${flagDiv(d.c1,'flagcell flagimg')}
+      ${flagDiv(d.c1,'flagcell flagimg','',d.r1)}
       <div class="name"><span class="t">${d.p1} <span class="nat">[${nat(d.c1)}]</span></span>${d.server===1?'<span class="dot"></span>':''}</div>
       <div class="cur">${d.pts1}</div></div>${setCells(cols1)}
     </div>
     <div class="rowline"><div class="frow">
-      ${flagDiv(d.c2,'flagcell flagimg')}
+      ${flagDiv(d.c2,'flagcell flagimg','',d.r2)}
       <div class="name"><span class="t">${d.p2} <span class="nat">[${nat(d.c2)}]</span></span>${d.server===2?'<span class="dot"></span>':''}</div>
       <div class="cur">${d.pts2}</div></div>${setCells(cols2)}
     </div>
@@ -236,7 +239,7 @@ function viewModern(d){
   const cols1=setCols(d,1), cols2=setCols(d,2);
   const cells=cols=>cols.map(c=>`<div class="set skew"><span>${c?c.v:''}</span></div>`).join('');
   return `<div class="mod">
-    ${flagDiv(d.c1,'flagtop flagimg')}
+    ${flagDiv(d.c1,'flagtop flagimg','',d.r1)}
     <div class="mrow">
       <div class="name skew"><span class="t">${d.p1}${d.server===1?' •':''}</span></div>
       <div class="cur skew"><span>${d.pts1}</span></div>${cells(cols1)}
@@ -245,7 +248,7 @@ function viewModern(d){
       <div class="name skew"><span class="t">${d.p2}${d.server===2?' •':''}</span></div>
       <div class="cur skew"><span>${d.pts2}</span></div>${cells(cols2)}
     </div>
-    ${flagDiv(d.c2,'flagbot flagimg')}
+    ${flagDiv(d.c2,'flagbot flagimg','',d.r2)}
   </div>`;
 }
 
@@ -263,7 +266,7 @@ let hideT; function nudge(){ const bar=document.getElementById('bar'); bar.class
 document.addEventListener('mousemove',nudge); nudge();
 
 // ---- Daten / Realtime ----
-async function refreshSettings(){ SET=await Store.getSettings(); setBg(); render(); }
+async function refreshSettings(){ SET=await Store.getSettings(); setBg(); render(); load(); }
 async function load(){
   ALL=await Store.listMatches();
   MATCH=ALL.find(m=>m.court_id===COURT && m.status==='live')||null;

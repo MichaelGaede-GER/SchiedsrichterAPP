@@ -150,7 +150,8 @@
 <header>
   <img id="logo" class="logo" alt="" style="display:none">
   <h1 id="appTitle">🎾 Squash&nbsp;·&nbsp;Turnierverwaltung</h1>
-  <a class="navlink" href="settings.html">⚙️ Einstellungen</a>
+  <span id="activeTour" class="mode" style="margin-left:auto"></span>
+  <a class="navlink" href="settings.html" style="margin-left:10px">⚙️ Einstellungen</a>
   <span id="mode" class="mode">…</span>
 </header>
 
@@ -670,10 +671,21 @@ async function applyBranding(){
   const l=document.getElementById('logo');
   if(s.logoUrl){ l.src=s.logoUrl; l.style.display='block'; } else l.style.display='none';
   if(s.tournamentName) document.getElementById('appTitle').innerHTML='🎾 '+s.tournamentName;
+  // aktives Turnier anzeigen
+  try{
+    const tours=await Store.listTournaments();
+    const act=Store.activeTournament();
+    const t=tours.find(x=>x.id===act);
+    const el=document.getElementById('activeTour');
+    el.textContent = t?('Turnier: '+t.name) : 'Kein Turnier aktiv';
+    el.style.color = t?'#8fd0ff':'#ffd08a';
+  }catch(e){}
 }
 
+async function onSettingsChanged(){ try{ await applyBranding(); }catch(e){} load(); }
 Store.subscribeAll(load);
-Store.subscribeSettings(applyBranding);
+Store.subscribeSettings(onSettingsChanged);
+Store.subscribeTournaments(onSettingsChanged);
 applyBranding();
 try{ renderCourts(); }catch(e){}
 load();
