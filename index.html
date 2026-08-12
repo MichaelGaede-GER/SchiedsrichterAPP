@@ -19,31 +19,30 @@
     border:1px solid var(--line);color:var(--muted)}
   .mode.live{color:var(--green);border-color:#1e5b3d;background:#10261c}
   .mode.local{color:var(--amber);border-color:#5b4a1e;background:#241f10}
-  main{padding:22px;max-width:1400px;margin:0 auto}
+  main{padding:20px;max-width:1500px;margin:0 auto}
   h2{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);
-    margin:26px 0 12px;font-weight:700}
+    margin:26px 0 12px;font-weight:700;display:flex;align-items:center;gap:10px}
+  h2 .count{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
+    padding:1px 9px;font-size:11px;letter-spacing:0;color:var(--ink)}
 
-  /* ---- Courts ---- */
-  .courts{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+  .courts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
   .court{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;
-    padding:14px;min-height:150px;transition:border-color .15s,background .15s;position:relative}
+    padding:12px;min-height:132px;transition:border-color .15s,background .15s;position:relative}
   .court.drop{border-color:var(--blue);background:#14203a;border-style:dashed}
   .court .cnum{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:1px}
-  .court .empty{color:var(--muted);font-size:14px;margin-top:34px;text-align:center}
-  .court .empty small{display:block;margin-top:6px;opacity:.7}
-  .court.free{cursor:pointer}
-  .court.free:hover{border-color:var(--blue)}
-
-  .live{margin-top:6px}
-  .live .row{display:flex;align-items:center;gap:8px;padding:4px 0}
-  .live .nm{font-weight:600;font-size:15px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .live .sc{font-variant-numeric:tabular-nums;font-weight:800;font-size:22px;min-width:28px;text-align:right}
+  .court .empty{color:var(--muted);font-size:13px;margin-top:26px;text-align:center}
+  .court .empty small{display:block;margin-top:5px;opacity:.7}
+  .court.free{cursor:pointer}.court.free:hover{border-color:var(--blue)}
+  .live .row{display:flex;align-items:center;gap:8px;padding:3px 0}
+  .live .nm{font-weight:600;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .live .p1 .nm{color:#8db4ff}.live .p2 .nm{color:#ff9a9d}
-  .live .meta{font-size:11.5px;color:var(--muted);margin-top:8px;display:flex;justify-content:space-between}
-  .badge{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:700}
+  .live .sc{font-variant-numeric:tabular-nums;font-weight:800;font-size:20px;min-width:26px;text-align:right}
+  .live .meta{font-size:11px;color:var(--muted);margin-top:6px;display:flex;justify-content:space-between;gap:6px}
+  .badge{font-size:10.5px;padding:2px 7px;border-radius:999px;font-weight:700;white-space:nowrap}
   .badge.playing{background:#10261c;color:var(--green);border:1px solid #1e5b3d}
   .badge.finished{background:#2a1a12;color:var(--amber);border:1px solid #6b4a1e}
-  .court .actions{margin-top:10px;display:flex;gap:8px}
+  .court .actions{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+
   button{font:inherit;cursor:pointer;border:none;border-radius:9px;padding:8px 12px;font-weight:600}
   .btn-primary{background:var(--blue);color:#fff}
   .btn-green{background:var(--green);color:#08130c}
@@ -51,44 +50,65 @@
   .btn-ghost:hover{color:var(--ink);border-color:var(--muted)}
   .btn-sm{padding:5px 9px;font-size:12px}
 
-  /* ---- Ansetzungen ---- */
-  table{width:100%;border-collapse:collapse}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+  .toolbar .spacer{flex:1}
+  input.search,select.filter{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;font:inherit}
+  input.search{min-width:180px}
+
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-  .m{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;
-    padding:12px 16px;border-bottom:1px solid var(--line);cursor:grab}
+  .thead,.m{display:grid;
+    grid-template-columns:56px 52px 1fr 150px 46px 100px;gap:12px;align-items:center;
+    padding:9px 14px}
+  .thead{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
+    border-bottom:1px solid var(--line);background:#131a26}
+  .m{border-bottom:1px solid var(--line);cursor:grab}
   .m:last-child{border-bottom:none}
   .m.sel{background:#14203a;outline:1px solid var(--blue)}
-  .m .info{font-size:12px;color:var(--muted);min-width:110px}
-  .m .info b{color:var(--ink);font-weight:600}
-  .m .teams{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .m .team{display:flex;align-items:center;gap:6px;font-weight:600}
-  .m .team .fl{font-size:18px}
-  .m .vs{color:var(--muted);font-size:12px;padding:0 4px}
-  .m .p1n{color:#8db4ff}.m .p2n{color:#ff9a9d}
-  .m .ctrl{display:flex;align-items:center;gap:8px}
-  select{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
-    border-radius:8px;padding:6px 8px;font:inherit}
-  .hint{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+  .m .tm{font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}
+  .m .ct{font-weight:800;color:#cfe0ff;font-size:13px}
+  .m .ev{font-size:12px}
+  .m .ev .sub{color:var(--muted);font-size:11px}
+  .teams{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
+  .team{display:flex;align-items:center;gap:5px;font-weight:600;font-size:14px}
+  .team .fl{font-size:16px}
+  .vs{color:var(--muted);font-size:11px;padding:0 2px}
+  .p1n{color:#8db4ff}.p2n{color:#ff9a9d}
+  .ref{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .ref b{color:#c9d6ea;font-weight:600}
+  select.bo{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+    border-radius:7px;padding:5px 6px;font:inherit}
+  .assignbtn{background:#14203a;border:1px solid var(--blue);color:#bcd3ff;font-size:11.5px;
+    border-radius:8px;padding:6px 6px;white-space:nowrap}
+  .assignbtn:hover{background:#1b2b4d}
+  .assignbtn.busy{border-color:var(--line);color:var(--muted);background:transparent;cursor:not-allowed}
   .emptyrow{padding:22px;text-align:center;color:var(--muted)}
 
-  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-  dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);
-    border-radius:14px;padding:20px;width:min(460px,92vw)}
+  .done{display:grid;grid-template-columns:80px 1fr 160px auto;gap:12px;align-items:center;
+    padding:11px 14px;border-bottom:1px solid var(--line)}
+  .done:last-child{border-bottom:none}
+  .done .score-sets{font-variant-numeric:tabular-nums;font-weight:700;letter-spacing:.5px;
+    background:#131a26;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:14px;
+    display:inline-flex;gap:8px;cursor:copy}
+  .done .score-sets:hover{border-color:var(--blue)}
+  .done .win{color:var(--green);font-weight:700;font-size:13px;white-space:nowrap}
+
+  dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:20px;width:min(460px,92vw)}
   dialog::backdrop{background:rgba(0,0,0,.55)}
   dialog h3{margin:0 0 14px}
   .field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
   .field label{font-size:12px;color:var(--muted)}
-  .field input{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
-    border-radius:8px;padding:9px 10px;font:inherit}
+  .field input{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:inherit}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
-    background:#232d3d;border:1px solid var(--line);padding:11px 18px;border-radius:10px;
-    font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#232d3d;
+    border:1px solid var(--line);padding:11px 18px;border-radius:10px;font-size:14px;opacity:0;
+    transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
   .toast.show{opacity:1}
   .selbar{position:sticky;top:0;z-index:5;background:#14203a;border:1px solid var(--blue);
-    border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;display:none;
-    align-items:center;gap:10px}
+    border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;display:none;align-items:center;gap:10px}
   .selbar.show{display:flex}
+  @media(max-width:760px){ .thead{display:none} .m{grid-template-columns:1fr;gap:6px} }
 </style>
 </head>
 <body>
@@ -107,37 +127,47 @@
   <h2>Courts</h2>
   <div id="courts" class="courts"></div>
 
-  <h2>Angesetzte Spiele</h2>
-  <div class="card"><div id="sched"></div></div>
-  <p class="hint">Spiel auf einen Court <b>ziehen</b> – oder Spiel antippen, dann Court antippen.
-     Best-of pro Spiel links einstellbar.</p>
-
+  <h2>Angesetzte Spiele <span class="count" id="schedCount">0</span></h2>
   <div class="toolbar">
-    <button class="btn-primary btn-sm" onclick="openAdd()">+ Spiel hinzufügen</button>
-    <button class="btn-ghost btn-sm" onclick="seed()">Demo-Daten laden</button>
+    <input id="search" class="search" placeholder="Suche Spieler / Event…" oninput="render()">
+    <select id="courtFilter" class="filter" onchange="render()"><option value="">Alle Courts</option></select>
+    <div class="spacer"></div>
+    <button class="btn-primary btn-sm" onclick="fileInput.click()">⬆ XLSX importieren</button>
+    <button class="btn-ghost btn-sm" onclick="openAdd()">+ Spiel</button>
+    <button class="btn-ghost btn-sm" onclick="seed()">Demo</button>
     <button class="btn-ghost btn-sm" onclick="clearAll()">Alles löschen</button>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
   </div>
+  <div class="card">
+    <div class="thead"><div>Zeit</div><div>Court</div><div>Begegnung</div><div>Schiedsrichter</div><div>Bo</div><div>Ansetzen</div></div>
+    <div id="sched"></div>
+  </div>
+  <p style="font-size:12.5px;color:var(--muted);margin:10px 0 0">
+    Spiel auf einen Court <b>ziehen</b>, den Button <b>▶ Court</b> nutzen, oder Spiel antippen und dann Court antippen.
+    Bereits gespielte Spiele werden beim Import automatisch übersprungen.</p>
 
-  <h2 style="margin-top:30px">Bestätigte Ergebnisse</h2>
+  <h2>Bestätigte Ergebnisse <span class="count" id="doneCount">0</span></h2>
   <div class="card"><div id="done"></div></div>
 </main>
 
 <dialog id="addDlg">
   <h3>Spiel hinzufügen</h3>
   <div class="grid2">
-    <div class="field"><label>Draw</label><input id="f_draw" value="Ju11"></div>
+    <div class="field"><label>Event</label><input id="f_draw" value="Ju11"></div>
     <div class="field"><label>Runde</label><input id="f_round" value="RR1"></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Spieler 1</label><input id="f_p1" placeholder="Vorname Nachname"></div>
-    <div class="field"><label>Land 1 (ISO, z.B. de)</label><input id="f_c1" value="de" maxlength="2"></div>
+    <div class="field"><label>Land 1 (z.B. de)</label><input id="f_c1" value="de" maxlength="3"></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Spieler 2</label><input id="f_p2" placeholder="Vorname Nachname"></div>
-    <div class="field"><label>Land 2 (ISO)</label><input id="f_c2" value="de" maxlength="2"></div>
+    <div class="field"><label>Land 2</label><input id="f_c2" value="de" maxlength="3"></div>
   </div>
-  <div class="field"><label>Best of</label>
-    <select id="f_bo"><option value="3">3</option><option value="5">5</option></select></div>
+  <div class="grid2">
+    <div class="field"><label>Court-Nr.</label><input id="f_court" type="number" min="1" placeholder="optional"></div>
+    <div class="field"><label>Best of</label><input id="f_bo" type="number" value="3" min="3" max="5" step="2"></div>
+  </div>
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
     <button class="btn-ghost" onclick="addDlg.close()">Abbrechen</button>
     <button class="btn-primary" onclick="addMatch()">Speichern</button>
@@ -147,74 +177,56 @@
 <div id="toast" class="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 <script src="store.js"></script>
 <script>
-const COURTS = (window.CONFIG.COURTS)||[1,2,3,4,5,6];
+const COURTS = window.CONFIG.COURTS || [1,2,3,4,5,6];
+const fileInput = document.getElementById('fileInput');
 let MATCHES = [];
-let selectedMatch = null;   // für Tap-Zuweisung
+let selectedMatch = null;
 
-// Mode-Banner
 const modeEl = document.getElementById('mode');
-if (Store.ready){ modeEl.textContent = '● Supabase verbunden'; modeEl.className='mode live'; }
-else { modeEl.textContent = '● Lokaler Testmodus (nur dieser Browser)'; modeEl.className='mode local'; }
+if (Store.ready){ modeEl.textContent='● Supabase verbunden'; modeEl.className='mode live'; }
+else { modeEl.textContent='● Lokaler Testmodus (nur dieser Browser)'; modeEl.className='mode local'; }
 
-function toast(msg){
-  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
-  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2200);
-}
+{ const cf=document.getElementById('courtFilter');
+  COURTS.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent='Court '+c; cf.appendChild(o); }); }
 
-async function load(){
-  MATCHES = await Store.listMatches();
-  render();
-}
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600); }
 
-function render(){
-  renderCourts();
-  renderSched();
-  renderDone();
-}
-
-function scoreLine(m, who){
-  const st = m.state;
-  if(!st) return '0';
-  return st['gamesWon'+who] ?? 0;
-}
+async function load(){ MATCHES = await Store.listMatches(); render(); }
+function render(){ renderCourts(); renderSched(); renderDone(); }
 
 function renderCourts(){
   const wrap=document.getElementById('courts'); wrap.innerHTML='';
   COURTS.forEach(cid=>{
-    const live = MATCHES.find(m=>m.court_id===cid && (m.status==='live'));
+    const live=MATCHES.find(m=>m.court_id===cid && m.status==='live');
     const div=document.createElement('div');
-    div.className='court'+(live?'':' free');
-    div.dataset.court=cid;
-
+    div.className='court'+(live?'':' free'); div.dataset.court=cid;
     if(!live){
-      div.innerHTML=`<div class="cnum">COURT ${cid}</div>
-        <div class="empty">frei<small>Spiel hierher ziehen</small></div>`;
-      // Drop-Ziel
+      div.innerHTML=`<div class="cnum">COURT ${cid}</div><div class="empty">frei<small>Spiel hierher ziehen</small></div>`;
       div.addEventListener('dragover',e=>{e.preventDefault();div.classList.add('drop');});
       div.addEventListener('dragleave',()=>div.classList.remove('drop'));
       div.addEventListener('drop',e=>{e.preventDefault();div.classList.remove('drop');
         const id=e.dataTransfer.getData('text/id'); if(id) assign(id,cid);});
-      // Tap-Zuweisung
       div.addEventListener('click',()=>{ if(selectedMatch) assign(selectedMatch,cid); });
     } else {
       const s=live.state||{};
       const g1=s.gamesWon1??0, g2=s.gamesWon2??0;
-      const p1=(s.cur?s.cur.p1:0), p2=(s.cur?s.cur.p2:0);
-      const fin = live.status==='live' && s.status==='finished';
-      const badge = fin
-        ? `<span class="badge finished">Beendet ${live.result||''}</span>`
-        : `<span class="badge playing">Läuft</span>`;
+      const p1=s.cur?s.cur.p1:0, p2=s.cur?s.cur.p2:0;
+      const fin = s.status==='finished';
+      const badge = fin? `<span class="badge finished">Beendet ${live.result||''}</span>`
+                       : `<span class="badge playing">Läuft</span>`;
       div.innerHTML=`<div class="cnum">COURT ${cid}</div>
         <div class="live">
           <div class="row p1"><span class="nm">${flagEmoji(live.player1_country)} ${live.player1_name}</span><span class="sc">${p1}</span></div>
           <div class="row p2"><span class="nm">${flagEmoji(live.player2_country)} ${live.player2_name}</span><span class="sc">${p2}</span></div>
           <div class="meta"><span>Satz ${g1}–${g2} · Bo${live.best_of}</span>${badge}</div>
           <div class="actions">
-            ${fin ? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
-                  : `<button class="btn-ghost btn-sm" onclick="unassign('${live.id}')">Vom Court nehmen</button>`}
+            ${fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
+                 : `<button class="btn-ghost btn-sm" onclick="unassign('${live.id}')">Vom Court nehmen</button>`}
           </div>
         </div>`;
     }
@@ -224,30 +236,40 @@ function renderCourts(){
 
 function renderSched(){
   const el=document.getElementById('sched');
-  const rows=MATCHES.filter(m=>!m.court_id && m.status!=='confirmed');
-  if(!rows.length){ el.innerHTML='<div class="emptyrow emp'+'tyrow">Keine offenen Ansetzungen. „Demo-Daten laden“ oder „+ Spiel hinzufügen“.</div>'; return; }
+  const q=(document.getElementById('search').value||'').toLowerCase().trim();
+  const cf=document.getElementById('courtFilter').value;
+  let rows=MATCHES.filter(m=>!m.court_id && m.status==='scheduled');
+  if(cf) rows=rows.filter(m=>String(m.court_no)===cf);
+  if(q) rows=rows.filter(m=>(`${m.player1_name} ${m.player2_name} ${m.event||m.draw||''}`).toLowerCase().includes(q));
+  document.getElementById('schedCount').textContent=rows.length;
+
+  if(!rows.length){ el.innerHTML='<div class="emptyrow">Keine offenen Ansetzungen. „⬆ XLSX importieren“ oder „Demo“.</div>'; return; }
   el.innerHTML='';
   rows.forEach(m=>{
+    const busy=MATCHES.some(x=>x.court_id===m.court_no && x.status==='live');
     const row=document.createElement('div');
-    row.className='m'+(selectedMatch===m.id?' sel':'');
-    row.draggable=true;
+    row.className='m'+(selectedMatch===m.id?' sel':''); row.draggable=true;
     row.innerHTML=`
-      <div class="info"><b>${m.draw||''}</b> · ${m.round||''}<br>${m.match_no||''}</div>
-      <div class="teams">
-        <span class="team"><span class="fl">${flagEmoji(m.player1_country)}</span><span class="p1n">${m.player1_name}</span></span>
-        <span class="vs">vs</span>
-        <span class="team"><span class="fl">${flagEmoji(m.player2_country)}</span><span class="p2n">${m.player2_name}</span></span>
+      <div class="tm">${shortTime(m.scheduled_time)||'—'}</div>
+      <div class="ct">${m.court_label||(m.court_no?('C'+m.court_no):'—')}</div>
+      <div class="ev">
+        <div>${m.event||m.draw||''} <span class="sub">${m.round||''} ${m.match_no?('· '+m.match_no):''}</span></div>
+        <div class="teams">
+          <span class="team"><span class="fl">${flagEmoji(m.player1_country)}</span><span class="p1n">${m.player1_name}</span></span>
+          <span class="vs">vs</span>
+          <span class="team"><span class="fl">${flagEmoji(m.player2_country)}</span><span class="p2n">${m.player2_name}</span></span>
+        </div>
       </div>
-      <div class="ctrl">
-        <label style="font-size:11px;color:var(--muted)">Bo</label>
-        <select onchange="setBo('${m.id}',this.value)">
-          <option value="3"${m.best_of==3?' selected':''}>3</option>
-          <option value="5"${m.best_of==5?' selected':''}>5</option>
-        </select>
-      </div>`;
+      <div class="ref">${m.referee?('<b>Schiri:</b> '+m.referee):'<span style="opacity:.6">—</span>'}</div>
+      <div><select class="bo" onchange="setBo('${m.id}',this.value)">
+        <option value="3"${m.best_of==3?' selected':''}>3</option>
+        <option value="5"${m.best_of==5?' selected':''}>5</option></select></div>
+      <div>${m.court_no
+        ? `<button class="assignbtn ${busy?'busy':''}" ${busy?'disabled title="Court belegt"':''}
+             onclick="assign('${m.id}',${m.court_no})">▶ Court ${m.court_no}</button>`
+        : `<span style="color:var(--muted);font-size:11px">ziehen</span>`}</div>`;
     row.addEventListener('dragstart',e=>e.dataTransfer.setData('text/id',m.id));
-    row.querySelector('.teams').addEventListener('click',()=>toggleSel(m.id));
-    row.querySelector('.info').addEventListener('click',()=>toggleSel(m.id));
+    row.querySelector('.ev').addEventListener('click',()=>toggleSel(m.id));
     el.appendChild(row);
   });
 }
@@ -255,86 +277,139 @@ function renderSched(){
 function renderDone(){
   const el=document.getElementById('done');
   const rows=MATCHES.filter(m=>m.status==='confirmed');
-  if(!rows.length){ el.innerHTML='<div class="emp'+'tyrow">Noch keine bestätigten Ergebnisse.</div>'; return; }
+  document.getElementById('doneCount').textContent=rows.length;
+  if(!rows.length){ el.innerHTML='<div class="emptyrow">Noch keine bestätigten Ergebnisse.</div>'; return; }
   el.innerHTML='';
-  rows.forEach(m=>{
-    const winName = m.winner==1?m.player1_name:m.winner==2?m.player2_name:'';
-    const row=document.createElement('div'); row.className='m'; row.draggable=false;
-    row.style.cursor='default';
+  rows.slice().reverse().forEach(m=>{
+    const winName=m.winner==1?m.player1_name:m.winner==2?m.player2_name:'';
+    const sets=m.score_text||'';
+    const row=document.createElement('div'); row.className='done';
     row.innerHTML=`
-      <div class="info"><b>${m.draw||''}</b> · ${m.round||''}</div>
+      <div class="tm" style="color:var(--muted);font-size:12px">${m.event||m.draw||''}<br>${m.round||''}</div>
       <div class="teams">
-        <span class="team"><span class="p1n">${m.player1_name}</span></span>
+        <span class="team"><span class="fl">${flagEmoji(m.player1_country)}</span><span class="p1n">${m.player1_name}</span></span>
         <span class="vs">${m.result||''}</span>
-        <span class="team"><span class="p2n">${m.player2_name}</span></span>
+        <span class="team"><span class="fl">${flagEmoji(m.player2_country)}</span><span class="p2n">${m.player2_name}</span></span>
       </div>
-      <div class="ctrl" style="color:var(--green);font-weight:700">🏆 ${winName}</div>`;
+      <div>${sets?`<span class="score-sets" title="Zum Kopieren klicken" onclick="copyText('${sets}')">${sets}</span>`:'<span style="color:var(--muted)">—</span>'}</div>
+      <div class="win">🏆 ${winName}</div>`;
     el.appendChild(row);
   });
 }
 
-// ---- Auswahl (Tap-Modus) ----
-function toggleSel(id){ selectedMatch = selectedMatch===id?null:id; updateSelBar(); render(); }
-function clearSel(){ selectedMatch=null; updateSelBar(); render(); }
-function updateSelBar(){
-  const bar=document.getElementById('selbar');
-  if(selectedMatch){
-    const m=MATCHES.find(x=>x.id===selectedMatch);
-    document.getElementById('selText').textContent =
-      `Ausgewählt: ${m.player1_name} vs ${m.player2_name}`;
-    bar.classList.add('show');
-  } else bar.classList.remove('show');
-}
+function copyText(t){ navigator.clipboard&&navigator.clipboard.writeText(t).then(()=>toast('Kopiert: '+t)); }
 
-// ---- Aktionen ----
-async function assign(id,cid){
-  const m=MATCHES.find(x=>x.id===id); if(!m) return;
-  try{
-    await Store.assignToCourt(id,cid,Number(m.best_of)||3);
-    selectedMatch=null; updateSelBar();
-    toast(`Auf Court ${cid} gelegt`);
-  }catch(e){ toast(e.message); }
-}
+function toggleSel(id){ selectedMatch=selectedMatch===id?null:id; updateSelBar(); render(); }
+function clearSel(){ selectedMatch=null; updateSelBar(); render(); }
+function updateSelBar(){ const bar=document.getElementById('selbar');
+  if(selectedMatch){ const m=MATCHES.find(x=>x.id===selectedMatch);
+    document.getElementById('selText').textContent=`Ausgewählt: ${m.player1_name} vs ${m.player2_name}`; bar.classList.add('show'); }
+  else bar.classList.remove('show'); }
+
+async function assign(id,cid){ const m=MATCHES.find(x=>x.id===id); if(!m) return;
+  try{ await Store.assignToCourt(id,cid,Number(m.best_of)||3); selectedMatch=null; updateSelBar(); toast(`Auf Court ${cid} gelegt`); }
+  catch(e){ toast(e.message); } }
 async function unassign(id){ await Store.unassign(id); toast('Zurück in die Ansetzungen'); }
 async function confirmR(id){ await Store.confirmResult(id); toast('Ergebnis bestätigt'); }
 async function setBo(id,v){ await Store.updateMatch(id,{best_of:Number(v)}); }
 
-// ---- Dialog ----
 const addDlg=document.getElementById('addDlg');
 function openAdd(){ addDlg.showModal(); }
 async function addMatch(){
   const g=id=>document.getElementById(id).value.trim();
   if(!g('f_p1')||!g('f_p2')){ toast('Bitte beide Spieler eintragen'); return; }
+  const courtNo=g('f_court')?Number(g('f_court')):null;
   await Store.insertMatch({
-    draw:g('f_draw'), round:g('f_round'), match_no:'',
-    player1_name:g('f_p1'), player1_country:g('f_c1')||'de',
-    player2_name:g('f_p2'), player2_country:g('f_c2')||'de',
-    best_of:Number(g('f_bo')), court_id:null, status:'scheduled',
-    state:null, result:null, winner:null,
-  });
+    event:g('f_draw'), draw:g('f_draw'), round:g('f_round'), match_no:'',
+    player1_name:g('f_p1'), player1_country:countryToISO(g('f_c1'))||g('f_c1'),
+    player2_name:g('f_p2'), player2_country:countryToISO(g('f_c2'))||g('f_c2'),
+    best_of:Number(g('f_bo'))||3, court_id:null, court_no:courtNo, court_label:courtNo?('C'+courtNo):null,
+    scheduled_time:null, sort_ts:null, referee:null, import_key:null,
+    status:'scheduled', state:null, result:null, winner:null, score_text:null });
   addDlg.close(); toast('Spiel angelegt');
 }
 
+// ================= XLSX-IMPORT =================
+function processSheet(aoa){
+  let h=-1;
+  for(let i=0;i<Math.min(aoa.length,12);i++){
+    const r=aoa[i]||[]; if(r.some(c=>String(c).trim()==='Team 1')){ h=i; break; } }
+  if(h<0) return [];
+  const cols=aoa[h].map(c=>String(c==null?'':c).trim());
+  const ci=n=>cols.indexOf(n);
+  const IT=ci('Time'),IE=ci('Event'),IN=ci('Nr'),IC=ci('Court'),IR=ci('Round'),
+        I1=ci('Team 1'),I2=ci('Team 2'),IS=ci('Score');
+  const recs=[];
+  for(let i=h+1;i<aoa.length;i++){
+    const r=aoa[i]||[]; if(!r.some(c=>c!=null&&String(c).trim())) continue;
+    const t1raw=r[I1], t2raw=r[I2]; if(!t1raw&&!t2raw) continue;
+    recs.push({ time:r[IT], event:r[IE], nr:r[IN], court:r[IC], round:r[IR],
+      t1raw, t2raw, score:r[IS], sort_ts:parseTimeMs(r[IT]), court_no:courtToNo(r[IC]),
+      played:hasScore(r[IS]) });
+  }
+  const byCourt={};
+  recs.forEach(x=>{ const k=x.court_no==null?'?':x.court_no; (byCourt[k]=byCourt[k]||[]).push(x); });
+  Object.keys(byCourt).forEach(k=>{
+    const list=byCourt[k];
+    list.sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0) || (Number(a.nr)||0)-(Number(b.nr)||0));
+    for(let i=0;i<list.length;i++){
+      if(i===0){ list[i].referee=''; continue; }
+      const p=list[i-1];
+      list[i].referee=[parsePlayer(p.t1raw).name, parsePlayer(p.t2raw).name].filter(Boolean).join(' / ');
+    }
+  });
+  return recs;
+}
+
+fileInput.addEventListener('change', async e=>{
+  const file=e.target.files[0]; if(!file) return; fileInput.value='';
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    let recs=[];
+    wb.SheetNames.forEach(sn=>{
+      const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false,defval:null});
+      recs=recs.concat(processSheet(aoa));
+    });
+    const open=recs.filter(r=>!r.played);
+    const played=recs.length-open.length;
+    const existing=new Set(MATCHES.map(m=>m.import_key).filter(Boolean));
+    const toInsert=[]; let dup=0;
+    for(const r of open){
+      const key=importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw);
+      if(existing.has(key)){ dup++; continue; }
+      existing.add(key);
+      const p1=parsePlayer(r.t1raw), p2=parsePlayer(r.t2raw);
+      toInsert.push({
+        event:r.event||'', draw:r.event||'', round:r.round||'', match_no:r.nr!=null?('#'+r.nr):'',
+        player1_name:p1.name, player1_country:countryToISO(p1.country),
+        player2_name:p2.name, player2_country:countryToISO(p2.country),
+        best_of:window.CONFIG.DEFAULT_IMPORT_BEST_OF||5,
+        court_id:null, court_no:r.court_no, court_label:r.court!=null?String(r.court):null,
+        scheduled_time:r.time||null, sort_ts:r.sort_ts||null,
+        referee:r.referee||null, import_key:key,
+        status:'scheduled', state:null, result:null, winner:null, score_text:null });
+    }
+    await Store.insertMany(toInsert);
+    toast(`${toInsert.length} importiert · ${played} bereits gespielt übersprungen · ${dup} Duplikate`);
+  }catch(err){ console.error(err); toast('Import-Fehler: '+err.message); }
+});
+
 async function seed(){
   const demo=[
-    ['Ju11','RR1','#1','Jonas Buchholz','de','Johann Middele','de',3],
-    ['Ju11','RR1','#2','Max Böhme','de','Bennet Bloching','de',3],
-    ['U13/U17','Group A','#3','Dominik Bodo','de','Ahmad Wali Sherzad','af',5],
+    ['Ju11','RR1','#1','Jonas Buchholz','de','Johann Middele','de',3,'Do 19.02.2026 15:00',1],
+    ['Ju11','RR1','#2','Max Böhme','de','Bennet Bloching','de',3,'Do 19.02.2026 15:00',2],
+    ['U13/U17','Group A','#3','Dominik Bodo','de','Ahmad Wali Sherzad','af',5,'Do 19.02.2026 15:35',1],
   ];
-  for(const d of demo){
-    await Store.insertMatch({
-      draw:d[0],round:d[1],match_no:d[2],
-      player1_name:d[3],player1_country:d[4],
-      player2_name:d[5],player2_country:d[6],
-      best_of:d[7],court_id:null,status:'scheduled',
-      state:null,result:null,winner:null,
-    });
-  }
-  toast('Demo-Daten geladen');
+  const rows=demo.map(d=>({event:d[0],draw:d[0],round:d[1],match_no:d[2],
+    player1_name:d[3],player1_country:d[4],player2_name:d[5],player2_country:d[6],
+    best_of:d[7],court_id:null,court_no:d[9],court_label:'C'+d[9],
+    scheduled_time:d[8],sort_ts:parseTimeMs(d[8]),referee:null,import_key:null,
+    status:'scheduled',state:null,result:null,winner:null,score_text:null}));
+  await Store.insertMany(rows); toast('Demo-Daten geladen');
 }
 async function clearAll(){ if(confirm('Wirklich ALLE Spiele löschen?')){ await Store.deleteAll(); toast('Gelöscht'); } }
 
-// Realtime
 Store.subscribeAll(load);
 load();
 </script>
