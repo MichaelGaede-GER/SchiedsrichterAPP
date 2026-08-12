@@ -675,6 +675,7 @@ async function applyBranding(){
 Store.subscribeAll(load);
 Store.subscribeSettings(applyBranding);
 applyBranding();
+try{ renderCourts(); }catch(e){}
 load();
 </script>
 </body>

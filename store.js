@@ -19,12 +19,10 @@ const Store = (() => {
   const SupabaseStore = {
     mode: 'supabase',
     async listMatches() {
-      const { data, error } = await sb.from('matches')
-        .select('*').order('sort_ts', { ascending: true, nullsFirst: false });
+      const { data, error } = await sb.from('matches').select('*');
       if (error) throw error;
-      return data;
-    },
-    async getMatch(id) {
+      return (data || []).slice().sort((a, b) => (a.sort_ts || 0) - (b.sort_ts || 0));
+    },    async getMatch(id) {
       const { data, error } = await sb.from('matches').select('*').eq('id', id).single();
       if (error) throw error; return data;
     },
@@ -237,6 +235,58 @@ function flagEmoji(code) {
   }
   if (c.length !== 2) return '🏳️';
   return c.toUpperCase().replace(/./g, ch => String.fromCodePoint(127397 + ch.charCodeAt(0)));
+}
+
+// ---- Deutsche Bundesländer -> Flaggen (Wikimedia Commons) ----
+const DE_STATE_FILE = {
+  'bw':'Flag of Baden-Württemberg.svg',
+  'by':'Flag of Bavaria (striped).svg',
+  'be':'Flag of Berlin.svg',
+  'bb':'Flag of Brandenburg.svg',
+  'hb':'Flag of Bremen.svg',
+  'hh':'Flag of Hamburg.svg',
+  'he':'Flag of Hesse.svg',
+  'mv':'Flag of Mecklenburg-Western Pomerania.svg',
+  'ni':'Flag of Lower Saxony.svg',
+  'nw':'Flag of North Rhine-Westphalia.svg',
+  'rp':'Flag of Rhineland-Palatinate.svg',
+  'sl':'Flag of Saarland.svg',
+  'sn':'Flag of Saxony.svg',
+  'st':'Flag of Saxony-Anhalt (state).svg',
+  'sh':'Flag of Schleswig-Holstein.svg',
+  'th':'Flag of Thuringia.svg',
+};
+const DE_STATE_ALIAS = {
+  'baden-württemberg':'bw','baden-wuerttemberg':'bw','baden württemberg':'bw','württemberg':'bw',
+  'bayern':'by','bavaria':'by',
+  'berlin':'be',
+  'brandenburg':'bb',
+  'bremen':'hb',
+  'hamburg':'hh',
+  'hessen':'he','hesse':'he',
+  'mecklenburg-vorpommern':'mv','mecklenburg vorpommern':'mv','meck-pomm':'mv','mecpom':'mv',
+  'niedersachsen':'ni','lower saxony':'ni',
+  'nordrhein-westfalen':'nw','nordrhein westfalen':'nw','nrw':'nw','north rhine-westphalia':'nw',
+  'rheinland-pfalz':'rp','rheinland pfalz':'rp','rlp':'rp','rhineland-palatinate':'rp',
+  'saarland':'sl',
+  'sachsen':'sn','saxony':'sn',
+  'sachsen-anhalt':'st','sachsen anhalt':'st','saxony-anhalt':'st',
+  'schleswig-holstein':'sh','schleswig holstein':'sh',
+  'thüringen':'th','thueringen':'th','thuringia':'th',
+};
+// Bundesland-Eingabe -> Kürzel (bw, by, …) oder null
+function regionCode(region) {
+  if (!region) return null;
+  const k = String(region).toLowerCase().trim();
+  if (DE_STATE_FILE[k]) return k;
+  return DE_STATE_ALIAS[k] || null;
+}
+// Bundesland -> Flaggen-URL (Wikimedia), '' wenn unbekannt
+function regionFlagUrl(region, width) {
+  const c = regionCode(region);
+  if (!c) return '';
+  const file = DE_STATE_FILE[c];
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=${width || 80}`;
 }
 
 // Court-Label -> Nummer. Aliase (z.B. CC=1) zuerst, sonst Ziffern extrahieren.
