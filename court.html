@@ -281,6 +281,7 @@ function render(){
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}</div></div>
       <div class="right"><span id="matchClock" class="clock">—</span>
+        <button id="fsBtn" class="iconbtn" onclick="toggleFull()">⛶ Vollbild</button>
         <button class="iconbtn" onclick="show('ovTimer')">⏱ Timer</button></div>
     </div>
     <div class="names">
@@ -355,6 +356,17 @@ function renderIdle(app){
 function point(who){ if(!M||M.status!=='playing') return; M.point(who); afterChange(); }
 function undo(){ if(!M) return; if(M.undo()){ refConfirmed=false; hide('ovConfirm'); hide('ovDone'); hide('ovRest'); afterChange(); } }
 function letDecide(what){ hide('ovLet'); if(what==='let') return; point(what); }
+function toggleFull(){
+  const el=document.documentElement;
+  if(!document.fullscreenElement){
+    (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el);
+  } else {
+    (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document);
+  }
+}
+document.addEventListener('fullscreenchange',()=>{
+  const b=document.getElementById('fsBtn'); if(b) b.textContent=document.fullscreenElement?'⤢ Fenster':'⛶ Vollbild';
+});
 function startPlay(server){ hide('ovWarmup'); Timer.stop(); M.startMatch(server); afterChange(); }
 function startNextGame(){ hide('ovRest'); Timer.stop(); M.startNextGame(); afterChange(); }
 
