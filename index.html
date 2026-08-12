@@ -23,6 +23,19 @@
     font-variant-numeric:tabular-nums;font-weight:800;font-size:22px;letter-spacing:1px;min-width:64px;text-align:center}
   .setbox small{display:block;font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;margin-bottom:2px}
   .setbox .a{color:#8db4ff}.setbox .b{color:#ff9a9d}
+  /* Ergebnis-Reiter */
+  .restabs{display:flex;gap:8px;margin:22px 0 12px;flex-wrap:wrap}
+  .rtab{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:10px;
+    padding:9px 16px;font-weight:700;font-size:13px;letter-spacing:.6px;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:8px}
+  .rtab:hover{color:var(--ink)}
+  .rtab.active{background:var(--panel);border-color:var(--blue);color:var(--ink)}
+  .rtab .count{background:#131a26}
+  /* TP-Übertrag-Checkbox */
+  .tpcheck{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#cfe0ff;
+    background:#101826;border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer;user-select:none}
+  .tpcheck:hover{border-color:var(--blue)}
+  .tpcheck input{width:17px;height:17px;accent-color:var(--green);cursor:pointer}
+  .done.sent{opacity:.82}
   header{display:flex;align-items:center;gap:16px;padding:14px 22px;
     background:linear-gradient(90deg,#161d29,#0f1419);border-bottom:1px solid var(--line)}
   header h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.3px}
@@ -161,8 +174,14 @@
     Spiel auf einen Court <b>ziehen</b>, den Button <b>▶ Court</b> nutzen, oder Spiel antippen und dann Court antippen.
     Bereits gespielte Spiele werden beim Import automatisch übersprungen.</p>
 
-  <h2>Bestätigte Ergebnisse <span class="count" id="doneCount">0</span></h2>
-  <div class="card"><div id="done"></div></div>
+  <div class="restabs">
+    <button class="rtab active" data-tab="done" onclick="setResultTab('done')">
+      Bestätigte Ergebnisse <span class="count" id="doneCount">0</span></button>
+    <button class="rtab" data-tab="sent" onclick="setResultTab('sent')">
+      Übertragene Ergebnisse <span class="count" id="sentCount">0</span></button>
+  </div>
+  <div class="card" id="cardDone"><div id="done"></div></div>
+  <div class="card" id="cardSent" style="display:none"><div id="sent"></div></div>
 </main>
 
 <dialog id="addDlg">
@@ -304,34 +323,53 @@ function renderSched(){
   });
 }
 
+let resultTab='done';
+function setResultTab(t){
+  resultTab=t;
+  document.querySelectorAll('.rtab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  document.getElementById('cardDone').style.display = t==='done'?'':'none';
+  document.getElementById('cardSent').style.display = t==='sent'?'':'none';
+}
+function resultRowHtml(m,isSent){
+  const winName=m.winner==1?m.player1_name:m.winner==2?m.player2_name:'';
+  const sets=(m.score_text||'').trim();
+  const boxes = sets? sets.split(/\s+/).map((g,i)=>{
+      const [a,b]=g.split('-');
+      return `<div class="setbox"><small>SATZ ${i+1}</small><span class="a">${a}</span>-<span class="b">${b}</span></div>`;
+    }).join('') : '<span style="color:var(--muted)">—</span>';
+  return `
+    <div class="tm" style="color:var(--muted);font-size:12px">${m.event||m.draw||''}<br>${m.round||''}</div>
+    <div class="teams">
+      <span class="team"><span class="fl">${flagEmoji(m.player1_country)}</span><span class="p1n">${m.player1_name}</span></span>
+      <span class="vs">${m.result||''}</span>
+      <span class="team"><span class="fl">${flagEmoji(m.player2_country)}</span><span class="p2n">${m.player2_name}</span></span>
+    </div>
+    <div class="setboxes" ${sets?`title="Zum Kopieren klicken" style="cursor:copy" onclick="copyText('${sets}')"`:''}>${boxes}</div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <div class="win">🏆 ${winName||'—'}</div>
+      <label class="tpcheck"><input type="checkbox" ${isSent?'checked':''}
+        onchange="toggleTransfer('${m.id}',this.checked)"> Übertrag TP-Software</label>
+      <button class="btn-ghost btn-sm" onclick="openEdit('${m.id}')">✎ Ergebnis bearbeiten</button>
+    </div>`;
+}
 function renderDone(){
+  const confirmed=MATCHES.filter(m=>m.status==='confirmed');
+  const done=confirmed.filter(m=>!m.transferred);
+  const sent=confirmed.filter(m=>m.transferred);
+  document.getElementById('doneCount').textContent=done.length;
+  document.getElementById('sentCount').textContent=sent.length;
+
   const el=document.getElementById('done');
-  const rows=MATCHES.filter(m=>m.status==='confirmed');
-  document.getElementById('doneCount').textContent=rows.length;
-  if(!rows.length){ el.innerHTML='<div class="emptyrow">Noch keine bestätigten Ergebnisse.</div>'; return; }
-  el.innerHTML='';
-  rows.slice().reverse().forEach(m=>{
-    const winName=m.winner==1?m.player1_name:m.winner==2?m.player2_name:'';
-    const sets=(m.score_text||'').trim();
-    const boxes = sets? sets.split(/\s+/).map((g,i)=>{
-        const [a,b]=g.split('-');
-        return `<div class="setbox"><small>SATZ ${i+1}</small><span class="a">${a}</span>-<span class="b">${b}</span></div>`;
-      }).join('') : '<span style="color:var(--muted)">—</span>';
-    const row=document.createElement('div'); row.className='done';
-    row.innerHTML=`
-      <div class="tm" style="color:var(--muted);font-size:12px">${m.event||m.draw||''}<br>${m.round||''}</div>
-      <div class="teams">
-        <span class="team"><span class="fl">${flagEmoji(m.player1_country)}</span><span class="p1n">${m.player1_name}</span></span>
-        <span class="vs">${m.result||''}</span>
-        <span class="team"><span class="fl">${flagEmoji(m.player2_country)}</span><span class="p2n">${m.player2_name}</span></span>
-      </div>
-      <div class="setboxes" ${sets?`title="Zum Kopieren klicken" style="cursor:copy" onclick="copyText('${sets}')"`:''}>${boxes}</div>
-      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-        <div class="win">🏆 ${winName||'—'}</div>
-        <button class="btn-ghost btn-sm" onclick="openEdit('${m.id}')">✎ Ergebnis bearbeiten</button>
-      </div>`;
-    el.appendChild(row);
-  });
+  if(!done.length){ el.innerHTML='<div class="emptyrow">Noch keine offenen Ergebnisse. '+(confirmed.length?'Alle übertragen ✓':'')+'</div>'; }
+  else { el.innerHTML=''; done.slice().reverse().forEach(m=>{ const row=document.createElement('div'); row.className='done'; row.innerHTML=resultRowHtml(m,false); el.appendChild(row); }); }
+
+  const es=document.getElementById('sent');
+  if(!sent.length){ es.innerHTML='<div class="emptyrow">Noch nichts an die TP-Software übertragen.</div>'; }
+  else { es.innerHTML=''; sent.slice().reverse().forEach(m=>{ const row=document.createElement('div'); row.className='done sent'; row.innerHTML=resultRowHtml(m,true); es.appendChild(row); }); }
+}
+async function toggleTransfer(id,checked){
+  await Store.updateMatch(id,{transferred:!!checked});
+  toast(checked?'Als übertragen markiert':'Zurück in „Bestätigte Ergebnisse“');
 }
 
 function copyText(t){ navigator.clipboard&&navigator.clipboard.writeText(t).then(()=>toast('Kopiert: '+t)); }
