@@ -94,8 +94,14 @@
   .m .ev{font-size:12px}
   .m .ev .sub{color:var(--muted);font-size:11px}
   .teams{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
-  .team{display:flex;align-items:center;gap:5px;font-weight:600;font-size:14px}
+  .team{display:flex;align-items:center;gap:6px;font-weight:600;font-size:14px}
   .team .fl{font-size:16px}
+  .flagi{display:inline-block;width:24px;height:16px;border-radius:2px;background-size:cover;background-position:center;
+    vertical-align:middle;flex:0 0 auto;box-shadow:0 0 0 1px rgba(255,255,255,.1)}
+  .evtop{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .editbtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;
+    padding:3px 9px;font-size:12px;cursor:pointer;flex:0 0 auto}
+  .editbtn:hover{color:var(--ink);border-color:var(--blue)}
   .vs{color:var(--muted);font-size:11px;padding:0 2px}
   .p1n{color:#8db4ff}.p2n{color:#ff9a9d}
   .ref{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;
@@ -189,26 +195,30 @@
 </main>
 
 <dialog id="addDlg">
-  <h3>Spiel hinzufügen</h3>
+  <h3 id="matchDlgTitle">Spiel hinzufügen</h3>
   <div class="grid2">
     <div class="field"><label>Event</label><input id="f_draw" value="Ju11"></div>
     <div class="field"><label>Runde</label><input id="f_round" value="RR1"></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Spieler 1</label><input id="f_p1" placeholder="Vorname Nachname"></div>
-    <div class="field"><label>Land 1 (z.B. de)</label><input id="f_c1" value="de" maxlength="3"></div>
+    <div class="field"><label>Land 1 (z.B. de oder England)</label><input id="f_c1" value="de"></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Spieler 2</label><input id="f_p2" placeholder="Vorname Nachname"></div>
-    <div class="field"><label>Land 2</label><input id="f_c2" value="de" maxlength="3"></div>
+    <div class="field"><label>Land 2</label><input id="f_c2" value="de"></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Court-Nr.</label><input id="f_court" type="number" min="1" placeholder="optional"></div>
     <div class="field"><label>Best of</label><input id="f_bo" type="number" value="3" min="3" max="5" step="2"></div>
   </div>
+  <div class="grid2">
+    <div class="field"><label>Zeit (Anzeige)</label><input id="f_time" placeholder="z.B. Do 19.02.2026 16:10"></div>
+    <div class="field"><label>Schiedsrichter</label><input id="f_ref" placeholder="optional"></div>
+  </div>
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
     <button class="btn-ghost" onclick="addDlg.close()">Abbrechen</button>
-    <button class="btn-primary" onclick="addMatch()">Speichern</button>
+    <button class="btn-primary" onclick="saveMatch()">Speichern</button>
   </div>
 </dialog>
 
@@ -240,6 +250,16 @@ let MATCHES = [];
 let selectedMatch = null;
 
 const modeEl = document.getElementById('mode');
+// echte Flaggenbilder (Windows zeigt Emoji-Flaggen nur als Buchstaben)
+function flagUrlIdx(code){
+  if(!code) return '';
+  let c=String(code).toLowerCase().trim();
+  if(!/^[a-z]{2}$/.test(c) && !['eng','sct','wls'].includes(c)) c=(typeof countryToISO==='function'&&countryToISO(code))||'';
+  if(!c) return '';
+  const map={eng:'gb-eng',sct:'gb-sct',wls:'gb-wls'};
+  return `https://flagcdn.com/h40/${map[c]||c}.png`;
+}
+function flagImg(code){ const u=flagUrlIdx(code); return u?`<span class="flagi" style="background-image:url('${u}')"></span>`:''; }
 if (Store.ready){ modeEl.textContent='● Supabase verbunden'; modeEl.className='mode live'; }
 else { modeEl.textContent='● Lokaler Testmodus (nur dieser Browser)'; modeEl.className='mode local'; }
 
@@ -274,8 +294,8 @@ function renderCourts(){
                        : `<span class="badge playing">Läuft</span>`;
       div.innerHTML=`<div class="cnum">COURT ${cid}</div>
         <div class="live">
-          <div class="row p1"><span class="nm">${flagEmoji(live.player1_country)} ${live.player1_name}</span><span class="sc">${p1}</span></div>
-          <div class="row p2"><span class="nm">${flagEmoji(live.player2_country)} ${live.player2_name}</span><span class="sc">${p2}</span></div>
+          <div class="row p1"><span class="nm">${flagImg(live.player1_country)} ${live.player1_name}</span><span class="sc">${p1}</span></div>
+          <div class="row p2"><span class="nm">${flagImg(live.player2_country)} ${live.player2_name}</span><span class="sc">${p2}</span></div>
           <div class="meta"><span>Satz ${g1}–${g2} · Bo${live.best_of}</span>${badge}</div>
           <div class="actions">
             ${fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
@@ -306,11 +326,14 @@ function renderSched(){
       <div class="tm">${shortTime(m.scheduled_time)||'—'}</div>
       <div class="ct">${m.court_label||(m.court_no?('C'+m.court_no):'—')}</div>
       <div class="ev">
-        <div>${m.event||m.draw||''} <span class="sub">${m.round||''} ${m.match_no?('· '+m.match_no):''}</span></div>
+        <div class="evtop">
+          <span>${m.event||m.draw||''} <span class="sub">${m.round||''} ${m.match_no?('· '+m.match_no):''}</span></span>
+          <button class="editbtn" title="Spiel bearbeiten" onclick="event.stopPropagation();openEditMatch('${m.id}')">✎ Bearbeiten</button>
+        </div>
         <div class="teams">
-          <span class="team"><span class="fl">${flagEmoji(m.player1_country)}</span><span class="p1n">${m.player1_name}</span></span>
+          <span class="team"><span class="p1n">${m.player1_name}</span>${flagImg(m.player1_country)}</span>
           <span class="vs">vs</span>
-          <span class="team"><span class="fl">${flagEmoji(m.player2_country)}</span><span class="p2n">${m.player2_name}</span></span>
+          <span class="team">${flagImg(m.player2_country)}<span class="p2n">${m.player2_name}</span></span>
         </div>
       </div>
       <div class="ref">${m.referee?('<b>Schiri:</b> '+m.referee):'<span style="opacity:.6">—</span>'}</div>
@@ -345,9 +368,9 @@ function resultRowHtml(m,isSent){
   return `
     <div class="tm" style="color:var(--muted);font-size:12px">${m.event||m.draw||''}<br>${m.round||''}</div>
     <div class="teams">
-      <span class="team"><span class="fl">${flagEmoji(m.player1_country)}</span><span class="p1n">${m.player1_name}</span></span>
+      <span class="team"><span class="p1n">${m.player1_name}</span>${flagImg(m.player1_country)}</span>
       <span class="vs">${m.result||''}</span>
-      <span class="team"><span class="fl">${flagEmoji(m.player2_country)}</span><span class="p2n">${m.player2_name}</span></span>
+      <span class="team">${flagImg(m.player2_country)}<span class="p2n">${m.player2_name}</span></span>
     </div>
     <div class="setboxes" ${sets?`title="Zum Kopieren klicken" style="cursor:copy" onclick="copyText('${sets}')"`:''}>${boxes}</div>
     <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
@@ -410,19 +433,46 @@ async function confirmR(id){
 async function setBo(id,v){ await Store.updateMatch(id,{best_of:Number(v)}); }
 
 const addDlg=document.getElementById('addDlg');
-function openAdd(){ addDlg.showModal(); }
-async function addMatch(){
+let editingMatchId=null;
+function setF(id,v){ document.getElementById(id).value=(v==null?'':v); }
+function openAdd(){
+  editingMatchId=null;
+  document.getElementById('matchDlgTitle').textContent='Spiel hinzufügen';
+  setF('f_draw','Ju11'); setF('f_round','RR1'); setF('f_p1',''); setF('f_c1','de');
+  setF('f_p2',''); setF('f_c2','de'); setF('f_court',''); setF('f_bo','3'); setF('f_time',''); setF('f_ref','');
+  addDlg.showModal();
+}
+function openEditMatch(id){
+  const m=MATCHES.find(x=>x.id===id); if(!m) return;
+  editingMatchId=id;
+  document.getElementById('matchDlgTitle').textContent='Spiel bearbeiten';
+  setF('f_draw',m.event||m.draw||''); setF('f_round',m.round||'');
+  setF('f_p1',m.player1_name||''); setF('f_c1',m.player1_country||'');
+  setF('f_p2',m.player2_name||''); setF('f_c2',m.player2_country||'');
+  setF('f_court',m.court_no||''); setF('f_bo',m.best_of||3);
+  setF('f_time',m.scheduled_time||''); setF('f_ref',m.referee||'');
+  addDlg.showModal();
+}
+async function saveMatch(){
   const g=id=>document.getElementById(id).value.trim();
   if(!g('f_p1')||!g('f_p2')){ toast('Bitte beide Spieler eintragen'); return; }
   const courtNo=g('f_court')?Number(g('f_court')):null;
-  await Store.insertMatch({
-    event:g('f_draw'), draw:g('f_draw'), round:g('f_round'), match_no:'',
-    player1_name:g('f_p1'), player1_country:countryToISO(g('f_c1'))||g('f_c1'),
-    player2_name:g('f_p2'), player2_country:countryToISO(g('f_c2'))||g('f_c2'),
-    best_of:Number(g('f_bo'))||3, court_id:null, court_no:courtNo, court_label:courtNo?('C'+courtNo):null,
-    scheduled_time:null, sort_ts:null, referee:null, import_key:null,
-    status:'scheduled', state:null, result:null, winner:null, score_text:null });
-  addDlg.close(); toast('Spiel angelegt');
+  const time=g('f_time')||null;
+  const patch={
+    event:g('f_draw'), draw:g('f_draw'), round:g('f_round'),
+    player1_name:g('f_p1'), player1_country:countryToISO(g('f_c1'))||g('f_c1')||null,
+    player2_name:g('f_p2'), player2_country:countryToISO(g('f_c2'))||g('f_c2')||null,
+    best_of:Number(g('f_bo'))||3, court_no:courtNo, court_label:courtNo?('C'+courtNo):null,
+    scheduled_time:time, sort_ts:(parseTimeMs(time)||null), referee:g('f_ref')||null,
+  };
+  if(editingMatchId){
+    await Store.updateMatch(editingMatchId, patch);
+    addDlg.close(); toast('Spiel aktualisiert');
+  } else {
+    await Store.insertMatch(Object.assign({ match_no:'', court_id:null, import_key:null,
+      status:'scheduled', state:null, result:null, winner:null, score_text:null }, patch));
+    addDlg.close(); toast('Spiel angelegt');
+  }
 }
 
 // ================= XLSX-IMPORT =================
