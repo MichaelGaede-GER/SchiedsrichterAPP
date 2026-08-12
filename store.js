@@ -192,7 +192,7 @@ const Store = (() => {
 
 // Ländername -> ISO-Code (für Flaggen). 'eng'/'sct'/'wls' = UK-Subdivisionen.
 const COUNTRY_ISO = {
-  'austria':'at','belgium':'be','bulgaria':'bg','czech republic':'cz','denmark':'dk',
+  'austria':'at','belgium':'be','bulgaria':'bg','czech republic':'cz','czechia':'cz','denmark':'dk',
   'egypt':'eg','england':'eng','estonia':'ee','finland':'fi','france':'fr','germany':'de',
   'hungary':'hu','ireland':'ie','latvia':'lv','lithuania':'lt','mauritius':'mu',
   'netherlands':'nl','norway':'no','poland':'pl','portugal':'pt','romania':'ro','spain':'es',
@@ -200,6 +200,22 @@ const COUNTRY_ISO = {
   'scotland':'sct','wales':'wls','usa':'us','united states':'us','canada':'ca','india':'in',
   'australia':'au','japan':'jp','malaysia':'my','hong kong':'hk','italy':'it','greece':'gr',
   'luxembourg':'lu','slovenia':'si','slovakia':'sk','croatia':'hr','iceland':'is','serbia':'rs',
+  // erweitert
+  'afghanistan':'af','albania':'al','algeria':'dz','andorra':'ad','argentina':'ar','armenia':'am',
+  'azerbaijan':'az','bahrain':'bh','bangladesh':'bd','belarus':'by','bolivia':'bo',
+  'bosnia and herzegovina':'ba','bosnia':'ba','brazil':'br','chile':'cl','china':'cn',
+  'chinese taipei':'tw','taiwan':'tw','colombia':'co','costa rica':'cr','cyprus':'cy',
+  'ecuador':'ec','el salvador':'sv','georgia':'ge','gibraltar':'gi','great britain':'gb',
+  'united kingdom':'gb','uk':'gb','guatemala':'gt','indonesia':'id','iran':'ir','iraq':'iq',
+  'israel':'il','jamaica':'jm','jordan':'jo','kazakhstan':'kz','kenya':'ke','kosovo':'xk',
+  'kuwait':'kw','lebanon':'lb','libya':'ly','liechtenstein':'li','macau':'mo','macao':'mo',
+  'malta':'mt','mexico':'mx','moldova':'md','monaco':'mc','montenegro':'me','morocco':'ma',
+  'nepal':'np','new zealand':'nz','nigeria':'ng','north macedonia':'mk','macedonia':'mk',
+  'oman':'om','pakistan':'pk','panama':'pa','paraguay':'py','peru':'pe','philippines':'ph',
+  'qatar':'qa','russia':'ru','saudi arabia':'sa','singapore':'sg','south africa':'za',
+  'south korea':'kr','korea':'kr','republic of korea':'kr','sri lanka':'lk','syria':'sy',
+  'thailand':'th','trinidad and tobago':'tt','tunisia':'tn','united arab emirates':'ae','uae':'ae',
+  'uruguay':'uy','uzbekistan':'uz','venezuela':'ve','vietnam':'vn','zimbabwe':'zw',
 };
 function countryToISO(name) {
   if (!name) return null;

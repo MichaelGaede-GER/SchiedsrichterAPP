@@ -257,14 +257,21 @@ function showDoneOverlay(){
 // ============ TIMER ============
 const Timer={ sec:0,running:false,label:'',_iv:null,
   fmt(s){ s=Math.max(0,s); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); },
-  start(sec,label){ this.sec=sec; this.label=label||''; this.running=true; this._run(); this._paint(); },
+  start(sec,label){ this.sec=sec; this.label=label||''; this.running=true; this._run(); this._paint(); pushTimer(); },
   _run(){ clearInterval(this._iv); this._iv=setInterval(()=>{ if(this.running){ this.sec--;
-    if(this.sec<=0){ this.sec=0; this.running=false; } this._paint(); } },1000); },
-  toggle(){ this.running=!this.running; }, stop(){ this.running=false; this.sec=0; this._paint(); },
+    if(this.sec<=0){ this.sec=0; this.running=false; this._paint(); pushTimer(); return; } this._paint(); } },1000); },
+  toggle(){ this.running=!this.running; this._paint(); pushTimer(); },
+  stop(){ this.running=false; this.sec=0; this._paint(); pushTimer(); },
   reset(kind){ if(kind==='warmup') this.start(CONFIG.WARMUP_SECONDS,'Aufwärmen'); },
+  snapshot(){ return { label:this.label, running:this.running, sec:this.sec,
+    endsAt: this.running ? Date.now()+this.sec*1000 : null }; },
   _paint(){ const t=this.fmt(this.sec);
     setText('warmClock',t); setText('restClock',t); setText('tMenuClock',t);
     setText('matchClock', this.running||this.sec>0 ? (this.label+' '+t) : '—'); } };
+
+// Timer-Stand in die Spieldaten schreiben (für Stream-Anzeige)
+function withTimer(st){ if(st) st.timer=Timer.snapshot(); return st; }
+async function pushTimer(){ if(!match||!M) return; try{ await Store.updateMatch(match.id,{ state:withTimer(M.serialize()) }); }catch(e){} }
 
 // ============ RENDER ============
 function render(){
@@ -385,7 +392,7 @@ function afterChange(){
 async function sync(){
   if(!match||syncing) return; syncing=true;
   try{
-    const patch={ state:M.serialize() };
+    const patch={ state:withTimer(M.serialize()) };
     if(M.status==='finished'){ patch.result=M.resultString(); patch.winner=M.matchWinner; patch.score_text=M.setScores(); }
     await Store.updateMatch(match.id, patch);
   }catch(e){ console.warn('sync',e); }

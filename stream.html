@@ -18,6 +18,12 @@
   #bar button{background:#222;color:#fff;border:1px solid #444;border-radius:7px;padding:6px 10px;font-size:12px;cursor:pointer}
   #bar button.active{background:var(--blue);border-color:var(--blue)}
   .idle{opacity:.25;font-weight:800;font-size:5vw;color:#0a3d0a}
+  /* Timer-Banner (Aufwärmen / Satzpause / Timeout) */
+  .stimer{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:40;display:none;
+    align-items:center;gap:16px;background:#111;color:#fff;border-radius:16px;padding:12px 26px;
+    box-shadow:0 4px 16px rgba(0,0,0,.45)}
+  .stimer .lbl{font-size:24px;font-weight:800;letter-spacing:.5px}
+  .stimer .clk{font-size:34px;font-weight:900;font-variant-numeric:tabular-nums;color:#ffd23f}
 
   /* ===== gemeinsame Bausteine ===== */
   .flagimg{display:inline-block;background-size:cover;background-position:center;border-radius:3px;flex:0 0 auto}
@@ -83,6 +89,7 @@
   <button onclick="goFull()">⛶</button>
 </div>
 <div id="stage"><div class="idle" id="idle">–</div></div>
+<div id="stimer" class="stimer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -95,13 +102,20 @@ let SET=null, MATCH=null, ALL=[];
 document.title='Court '+COURT+' – '+VIEW;
 
 // Flaggenbild (echte Bilder statt Emoji – wichtig für OBS/Windows)
-function flagCss(code){
+function flagUrl(code){
   if(!code) return '';
-  const c=String(code).toLowerCase();
+  let c=String(code).toLowerCase().trim();
+  if(!/^[a-z]{2}$/.test(c) && !['eng','sct','wls'].includes(c)){
+    c=(typeof countryToISO==='function' && countryToISO(code)) || '';
+  }
+  if(!c) return '';
   const map={eng:'gb-eng',sct:'gb-sct',wls:'gb-wls'};
-  const cc=map[c]||c;
-  return `background-image:url("https://flagcdn.com/h80/${cc}.png")`;
+  return `https://flagcdn.com/h80/${map[c]||c}.png`;
 }
+function flagCss(code){ const u=flagUrl(code); return u?`background-image:url("${u}")`:''; }
+// gibt ein Flaggen-Element zurück, oder '' wenn keine (gültige) Nationalität
+function flagSpan(code,cls,style){ const css=flagCss(code); return css?`<span class="${cls}" style="${style?style+';':''}${css}"></span>`:''; }
+function flagDiv(code,cls,style){ const css=flagCss(code); return css?`<div class="${cls}" style="${style?style+';':''}${css}"></div>`:''; }
 const NAT3={at:'AUT',be:'BEL',bg:'BUL',cz:'CZE',dk:'DEN',eg:'EGY',eng:'ENG',ee:'EST',fi:'FIN',
   fr:'FRA',de:'GER',hu:'HUN',ie:'IRL',lv:'LAT',lt:'LTU',mu:'MRI',nl:'NED',no:'NOR',pl:'POL',
   pt:'POR',ro:'ROU',es:'ESP',se:'SWE',ch:'SUI',tr:'TUR',ua:'UKR',sct:'SCO',wls:'WAL',us:'USA',
@@ -121,6 +135,7 @@ function liveState(){
     g1:s.gamesWon1||0, g2:s.gamesWon2||0,
     games:s.games||[], bestOf:s.bestOf||MATCH.best_of||3,
     event:MATCH.event||MATCH.draw||'', round:MATCH.round||'',
+    timer:s.timer||null, mstatus:s.status||'',
   };
 }
 
@@ -130,13 +145,33 @@ function render(){
   setBg();
   const stage=document.getElementById('stage');
   const d=liveState();
-  if(!d){ stage.innerHTML=`<div class="idle">Court ${COURT}</div>`; return; }
+  if(!d){ stage.innerHTML=`<div class="idle">Court ${COURT}</div>`; paintTimer(); return; }
   document.title='Court '+COURT+' – '+VIEW;
   if(VIEW==='psaline') stage.innerHTML=viewPsa(d);
   else if(VIEW==='fullscore') stage.innerHTML=viewFull(d);
   else if(VIEW==='modern') stage.innerHTML=viewModern(d);
   else stage.innerHTML=viewScore(d);
+  paintTimer();
 }
+
+// ---- Timer-Anzeige (aus den Spieldaten, lokal heruntergezählt) ----
+function fmtT(s){ s=Math.max(0,s|0); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+function timerInfo(){
+  const d=liveState(); if(!d||!d.timer) return null;
+  const t=d.timer; let left;
+  if(t.running && t.endsAt){ left=Math.round((t.endsAt-Date.now())/1000); if(left<=0) return null; }
+  else if(!t.running && t.sec>0){ left=t.sec; }   // pausiert
+  else return null;
+  return { label:t.label||'Timer', left, paused:!t.running };
+}
+function paintTimer(){
+  const el=document.getElementById('stimer'); if(!el) return;
+  const info=timerInfo();
+  if(!info){ el.style.display='none'; return; }
+  el.style.display='flex';
+  el.innerHTML=`<span class="lbl">${info.label}${info.paused?' · Pause':''}</span><span class="clk">${fmtT(info.left)}</span>`;
+}
+setInterval(paintTimer,1000);
 
 function setCols(d,who){
   // Sätze (abgeschlossene Spiele) für Spieler 'who' + evtl. leere Kästen bis bestOf
@@ -163,12 +198,12 @@ function viewScore(d){
   const side=d.side==='L'?'L':'R';
   return `<div class="sb">
     <div class="top">
-      <div class="name p1"><span class="flagimg" style="width:44px;height:30px;${flagCss(d.c1)}"></span>${d.p1}${d.server===1?'<span class="dot"></span>':''}</div>
+      <div class="name p1">${flagSpan(d.c1,'flagimg','width:44px;height:30px')}${d.p1}${d.server===1?'<span class="dot"></span>':''}</div>
       <div class="center">
         <div class="gp"><b>${d.g1}</b><b>${d.g2}</b></div>
         <div class="serve">${side}</div>
       </div>
-      <div class="name p2">${d.server===2?'<span class="dot"></span>':''}${d.p2}<span class="flagimg" style="width:44px;height:30px;${flagCss(d.c2)}"></span></div>
+      <div class="name p2">${d.server===2?'<span class="dot"></span>':''}${d.p2}${flagSpan(d.c2,'flagimg','width:44px;height:30px')}</div>
     </div>
     <div class="big">
       <div class="bigbox"><span class="n">${d.pts1}</span></div>
@@ -185,12 +220,12 @@ function viewFull(d){
     <div class="title"><span>${[title,d.event,d.round].filter(Boolean).join(' — ')}</span>
       <span class="r">Court: ${COURT}&nbsp;&nbsp;${clock()}</span></div>
     <div class="rowline"><div class="frow">
-      <div class="flagcell flagimg" style="${flagCss(d.c1)}"></div>
+      ${flagDiv(d.c1,'flagcell flagimg')}
       <div class="name"><span class="t">${d.p1} <span class="nat">[${nat(d.c1)}]</span></span>${d.server===1?'<span class="dot"></span>':''}</div>
       <div class="cur">${d.pts1}</div></div>${setCells(cols1)}
     </div>
     <div class="rowline"><div class="frow">
-      <div class="flagcell flagimg" style="${flagCss(d.c2)}"></div>
+      ${flagDiv(d.c2,'flagcell flagimg')}
       <div class="name"><span class="t">${d.p2} <span class="nat">[${nat(d.c2)}]</span></span>${d.server===2?'<span class="dot"></span>':''}</div>
       <div class="cur">${d.pts2}</div></div>${setCells(cols2)}
     </div>
@@ -201,7 +236,7 @@ function viewModern(d){
   const cols1=setCols(d,1), cols2=setCols(d,2);
   const cells=cols=>cols.map(c=>`<div class="set skew"><span>${c?c.v:''}</span></div>`).join('');
   return `<div class="mod">
-    <div class="flagtop flagimg" style="${flagCss(d.c1)}"></div>
+    ${flagDiv(d.c1,'flagtop flagimg')}
     <div class="mrow">
       <div class="name skew"><span class="t">${d.p1}${d.server===1?' •':''}</span></div>
       <div class="cur skew"><span>${d.pts1}</span></div>${cells(cols1)}
@@ -210,7 +245,7 @@ function viewModern(d){
       <div class="name skew"><span class="t">${d.p2}${d.server===2?' •':''}</span></div>
       <div class="cur skew"><span>${d.pts2}</span></div>${cells(cols2)}
     </div>
-    <div class="flagbot flagimg" style="${flagCss(d.c2)}"></div>
+    ${flagDiv(d.c2,'flagbot flagimg')}
   </div>`;
 }
 
