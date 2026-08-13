@@ -394,7 +394,8 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}</div></div>
-      <div class="right"><span id="matchClock" class="clock">—</span>
+      <div class="right"><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+        <span id="matchClock" class="clock">—</span>
         <button id="fsBtn" class="iconbtn" onclick="toggleFull()">⛶ Vollbild</button>
         <button class="iconbtn" onclick="show('ovTimer')">⏱ Timer</button></div>
     </div>
@@ -509,6 +510,25 @@ function toggleFull(){
 document.addEventListener('fullscreenchange',()=>{
   const b=document.getElementById('fsBtn'); if(b) b.textContent=document.fullscreenElement?'⤢ Fenster':'⛶ Vollbild';
 });
+
+// ===== Bildschirm anlassen (Wake Lock) =====
+let wakeLock=null;
+async function requestWake(){
+  try{
+    if('wakeLock' in navigator && document.visibilityState==='visible'){
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', ()=>{ wakeLock=null; setWakeBadge(false); });
+      setWakeBadge(true);
+    }
+  }catch(e){ setWakeBadge(false); }
+}
+function setWakeBadge(on){
+  const b=document.getElementById('wakeBadge');
+  if(b){ b.textContent = on ? '🔆 Display an' : '🌙 Display'; b.style.color = on ? '#7CFF9B' : '#8aa0bf'; }
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') requestWake(); });
+['click','touchstart'].forEach(ev=>window.addEventListener(ev, ()=>{ if(!wakeLock) requestWake(); }, {passive:true}));
+requestWake();
 // ============ VERHALTENSSTRAFEN ============
 const CONDUCT_ORDER=['warning','stroke','game','match'];
 function nextConduct(list){ let hi=-1; (list||[]).forEach(e=>{const i=CONDUCT_ORDER.indexOf(e.type); if(i>hi)hi=i;}); return CONDUCT_ORDER[Math.min(hi+1,3)]; }
