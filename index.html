@@ -30,6 +30,24 @@
   .mtab:hover{color:var(--ink)}
   .mtab.active{background:var(--panel);border-color:var(--blue);color:var(--ink)}
   .mtab .count{background:#131a26}
+  .tphelp{margin-left:auto;background:#123a5a;color:#cfe8ff;border:1px solid #2f6bff;border-radius:11px;
+    padding:11px 16px;font-weight:800;font-size:13.5px;cursor:pointer}
+  .tphelp:hover{background:#164a72}
+  /* TP-Eingabehilfe */
+  #tpDlg{width:min(820px,96vw);max-height:88vh}
+  .tpbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .tpbar .sp{flex:1}
+  .tpwrap{overflow:auto;max-height:64vh;border:1px solid var(--line);border-radius:10px}
+  .tpgrp{background:#131a26;color:#8fd0ff;font-weight:800;letter-spacing:.5px;padding:8px 12px;position:sticky;top:0}
+  .tprow{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;padding:9px 12px;border-top:1px solid var(--line)}
+  .tprow.done{opacity:.5}
+  .tpno{font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
+  .tpmatch b{color:#fff}
+  .tpscore{font-variant-numeric:tabular-nums;font-weight:800;color:#cfe0ff;margin-top:2px}
+  .tpb{font-size:11px;font-weight:900;border-radius:5px;padding:1px 6px;margin-left:6px}
+  .tpb.wo{background:#123a5a;color:#8fd0ff}.tpb.ret{background:#5a1220;color:#ff9aa8}
+  .tpchk{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted)}
+  .tpchk input{width:20px;height:20px;accent-color:var(--green);cursor:pointer}
   /* TP-Übertrag-Checkbox */
   .tpcheck{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#cfe0ff;
     background:#101826;border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer;user-select:none}
@@ -172,6 +190,7 @@
       Bestätigte Ergebnisse <span class="count" id="doneCount">0</span></button>
     <button class="mtab" data-tab="sent" onclick="setMainTab('sent')">
       Übertragene Ergebnisse <span class="count" id="sentCount">0</span></button>
+    <button class="tphelp" onclick="openTpHelper()" title="Ergebnisse zum Eintragen in Tournament Planner">🖨 TP-Eingabehilfe</button>
   </div>
 
   <div id="panelSched">
@@ -238,6 +257,22 @@
     <button class="btn-ghost" onclick="addDlg.close()">Abbrechen</button>
     <button class="btn-primary" onclick="saveMatch()">Speichern</button>
   </div>
+</dialog>
+
+<dialog id="tpDlg">
+  <h3>🖨 TP-Eingabehilfe</h3>
+  <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">
+    Ergebnisse nach Event &amp; Match-Nr. sortiert – im Tournament Planner beim jeweiligen Match eintragen.
+    Der Sieger ist <b>fett</b>. Haken setzen = als „übertragen“ markiert.</div>
+  <div class="tpbar">
+    <label style="display:flex;align-items:center;gap:7px;font-size:13px">
+      <input type="checkbox" id="tpOnlyOpen" checked onchange="renderTp()"> nur noch nicht übertragene
+    </label>
+    <span class="sp"></span>
+    <button class="btn-ghost btn-sm" onclick="printTp()">Drucken</button>
+    <button class="btn-primary btn-sm" onclick="tpDlg.close()">Schließen</button>
+  </div>
+  <div class="tpwrap" id="tpBody"></div>
 </dialog>
 
 <dialog id="editDlg">
@@ -619,7 +654,91 @@ async function seed(){
 }
 async function clearAll(){ if(confirm('Wirklich ALLE Spiele löschen?')){ await Store.deleteAll(); toast('Gelöscht'); } }
 
-// ================= ERGEBNIS BEARBEITEN =================
+// ================= TP-EINGABEHILFE =================
+const tpDlg=document.getElementById('tpDlg');
+function tpNum(m){ const s=String(m.match_no||'').match(/\d+/); return s?parseInt(s[0],10):999999; }
+function tpConfirmed(){
+  let rows=MATCHES.filter(m=>m.status==='confirmed');
+  if(document.getElementById('tpOnlyOpen') && document.getElementById('tpOnlyOpen').checked) rows=rows.filter(m=>!m.transferred);
+  return rows;
+}
+function tpGroups(rows){
+  const groups={};
+  rows.forEach(m=>{ const k=(m.event||m.draw||'—'); (groups[k]=groups[k]||[]).push(m); });
+  Object.values(groups).forEach(arr=>arr.sort((a,b)=>tpNum(a)-tpNum(b) || 0));
+  return Object.keys(groups).sort().map(k=>({event:k,rows:groups[k]}));
+}
+function tpScoreText(m){
+  if(m.ending==='walkover') return 'Walkover';
+  const s=(m.score_text||'').trim();
+  return s || (m.result||'—');
+}
+function tpBadge(m){
+  if(m.ending==='walkover') return '<span class="tpb wo">W.O.</span>';
+  if(m.ending==='retired') return '<span class="tpb ret">RET</span>';
+  return '';
+}
+function openTpHelper(){ renderTp(); tpDlg.showModal(); }
+function renderTp(){
+  const groups=tpGroups(tpConfirmed());
+  const body=document.getElementById('tpBody');
+  if(!groups.length){ body.innerHTML='<div class="emptyrow">Keine Ergebnisse.</div>'; return; }
+  body.innerHTML=groups.map(g=>{
+    const rows=g.rows.map(m=>{
+      const n1=m.player1_name||'', n2=m.player2_name||'';
+      const p1=m.winner===1?`<b>${n1}</b>`:n1, p2=m.winner===2?`<b>${n2}</b>`:n2;
+      const no=String(m.match_no||'').replace(/^#/,'')||'–';
+      return `<div class="tprow ${m.transferred?'done':''}">
+        <div class="tpno">${no}</div>
+        <div>
+          <div class="tpmatch">${p1} <span style="color:var(--muted)">vs</span> ${p2} ${tpBadge(m)}</div>
+          <div class="tpscore">${tpScoreText(m)}</div>
+        </div>
+        <label class="tpchk"><input type="checkbox" ${m.transferred?'checked':''}
+          onchange="tpToggle('${m.id}',this.checked)">TP</label>
+      </div>`;
+    }).join('');
+    return `<div class="tpgrp">${g.event} · ${g.rows.length} Ergebnis(se)</div>${rows}`;
+  }).join('');
+}
+async function tpToggle(id,checked){
+  await Store.updateMatch(id,{transferred:!!checked});
+  const m=MATCHES.find(x=>x.id===id); if(m) m.transferred=!!checked; // sofort lokal spiegeln
+  renderTp();
+}
+function printTp(){
+  const groups=tpGroups(MATCHES.filter(m=>m.status==='confirmed'));
+  const title=(document.getElementById('appTitle').textContent||'Turnier').replace(/^🎾\s*/,'');
+  const esc=s=>String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const body=groups.map(g=>{
+    const rows=g.rows.map(m=>{
+      const w1=m.winner===1?'<b>':'',w1e=m.winner===1?'</b>':'';
+      const w2=m.winner===2?'<b>':'',w2e=m.winner===2?'</b>':'';
+      const badge=m.ending==='walkover'?' [W.O.]':m.ending==='retired'?' [ret.]':'';
+      const no=String(m.match_no||'').replace(/^#/,'')||'–';
+      return `<tr><td class="no">${esc(no)}</td>
+        <td>${w1}${esc(m.player1_name)}${w1e} vs ${w2}${esc(m.player2_name)}${w2e}${badge}</td>
+        <td class="sc">${esc(tpScoreText(m))}</td><td class="chk">☐</td></tr>`;
+    }).join('');
+    return `<h2>${esc(g.event)}</h2><table>
+      <tr><th>Nr</th><th>Begegnung (Sieger fett)</th><th>Sätze</th><th>TP</th></tr>${rows}</table>`;
+  }).join('');
+  const html=`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>TP-Eingabehilfe – ${esc(title)}</title>
+    <style>body{font-family:Arial,sans-serif;margin:24px;color:#111}
+    h1{font-size:18px;margin:0 0 4px} .sub{color:#555;font-size:12px;margin-bottom:16px}
+    h2{font-size:14px;margin:18px 0 6px;border-bottom:2px solid #333;padding-bottom:2px}
+    table{width:100%;border-collapse:collapse;margin-bottom:8px}
+    th,td{border:1px solid #ccc;padding:5px 8px;font-size:12.5px;text-align:left;vertical-align:top}
+    th{background:#eee} .no{width:38px;text-align:center;font-weight:700}
+    .sc{white-space:nowrap;font-variant-numeric:tabular-nums} .chk{width:30px;text-align:center;font-size:16px}
+    @media print{.noprint{display:none}}</style></head>
+    <body><h1>TP-Eingabehilfe – ${esc(title)}</h1>
+    <div class="sub">Erstellt: ${new Date().toLocaleString('de-DE')} · Sieger ist fett · Sätze im Format Spieler1-Spieler2</div>
+    ${body||'<p>Keine Ergebnisse.</p>'}
+    <script>window.onload=function(){window.print();}<\/script></body></html>`;
+  const w=window.open('','_blank'); if(!w){ toast('Popup blockiert – bitte erlauben'); return; }
+  w.document.write(html); w.document.close();
+}
 const editDlg=document.getElementById('editDlg');
 let editId=null;
 function openEdit(id){
