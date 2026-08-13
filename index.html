@@ -786,7 +786,9 @@ async function saveEdit(){
 // ================= BRANDING =================
 async function applyBranding(){
   const s=await Store.getSettings();
-  document.getElementById('bgfx').style.backgroundImage = s.backgroundUrl?`url("${s.backgroundUrl}")`:'none';
+  const bgel=document.getElementById('bgfx');
+  bgel.style.backgroundImage = s.backgroundUrl?`url("${s.backgroundUrl}")`:'none';
+  bgel.style.opacity = (s.bgOpacity!=null? s.bgOpacity : 0.5);
   const l=document.getElementById('logo');
   if(s.logoUrl){ l.src=s.logoUrl; l.style.display='block'; } else l.style.display='none';
   if(s.tournamentName) document.getElementById('appTitle').innerHTML='🎾 '+s.tournamentName;

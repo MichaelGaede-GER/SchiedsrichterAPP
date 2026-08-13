@@ -333,6 +333,7 @@ function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent
 function applyBranding(){
   const bg=document.getElementById('bgfx');
   bg.style.backgroundImage=(SETTINGS&&SETTINGS.backgroundUrl)?`url("${SETTINGS.backgroundUrl}")`:'none';
+  bg.style.opacity=(SETTINGS&&SETTINGS.bgOpacity!=null)?SETTINGS.bgOpacity:0.5;
 }
 function showConfirmOverlay(){
   const wn=M.matchWinner===1?match.player1_name:match.player2_name;

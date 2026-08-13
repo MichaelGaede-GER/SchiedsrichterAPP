@@ -129,6 +129,12 @@
       <div class="preview"><img id="bgPreview" alt="" style="display:none">
         <button class="btn-ghost" onclick="clearImg('bg')">Entfernen</button></div>
       <div class="hint">Große Bilder besser als Datei/URL einbinden (Upload landet als Daten in der Datenbank).</div>
+      <div class="field" style="margin-top:12px">
+        <label>Hintergrund-Deckkraft: <span id="bgOpVal">50%</span></label>
+        <input type="range" id="bgOpacity" min="0" max="100" value="50" style="width:100%"
+               oninput="bgOpVal.textContent=this.value+'%'; applyBranding();">
+        <div class="hint">0 % = unsichtbar, 100 % = voll. Nicht vergessen: unten „Einstellungen speichern“.</div>
+      </div>
     </div>
     <div class="field">
       <label>Greenscreen-Farbe (Stream-Anzeigen)</label>
@@ -184,7 +190,9 @@ function baseUrl(){ return location.href.replace(/[^/]*$/,''); }
 function applyBranding(){
   const bg=$('bgUrl').value.trim()||S.backgroundUrl;
   const lg=$('logoUrl').value.trim()||S.logoUrl;
-  $('bgfx').style.backgroundImage = bg?`url("${bg}")`:'none';
+  const bx=$('bgfx');
+  bx.style.backgroundImage = bg?`url("${bg}")`:'none';
+  const op=$('bgOpacity'); bx.style.opacity = op ? (Number(op.value)/100) : 0.5;
   const l=$('logo'); if(lg){ l.src=lg; l.style.display='block'; } else l.style.display='none';
 }
 
@@ -302,6 +310,8 @@ async function loadSettings(){
   $('green').value=S.green||'#82F84E'; $('greenHex').value=S.green||'#82F84E';
   $('logoUrl').value=S.logoUrl||''; showPreview('logo',S.logoUrl||'');
   $('bgUrl').value=S.backgroundUrl||''; showPreview('bg',S.backgroundUrl||'');
+  const opPct=Math.round(((S.bgOpacity!=null?S.bgOpacity:0.5))*100);
+  $('bgOpacity').value=opPct; $('bgOpVal').textContent=opPct+'%';
   applyBranding(); renderLinks();
   await loadTours();
 }
@@ -314,6 +324,7 @@ async function saveAll(){
     green:$('green').value,
     logoUrl:$('logoUrl').value.trim(),
     backgroundUrl:$('bgUrl').value.trim(),
+    bgOpacity: Number($('bgOpacity').value)/100,
   };
   try{ await Store.saveSettings(patch); toast('Gespeichert ✓'); }
   catch(e){ toast('Fehler: '+e.message); }

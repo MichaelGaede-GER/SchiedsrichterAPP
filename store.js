@@ -261,6 +261,7 @@ const Store = (() => {
         green: c.GREEN || '#82F84E',
         logoUrl: c.LOGO_URL || '',
         backgroundUrl: c.BACKGROUND_URL || '',
+        bgOpacity: (c.BG_OPACITY != null ? c.BG_OPACITY : 0.5),
         activeTournament: null,
       };
     },
