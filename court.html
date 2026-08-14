@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+<script src="i18n.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>Squash – Court</title>
@@ -114,6 +115,9 @@
 </head>
 <body>
 <div class="bgfx" id="bgfx"></div>
+<select data-lang-select onchange="I18N.set(this.value)" title="Sprache / Language"
+  style="position:fixed;top:8px;right:8px;z-index:50;background:rgba(20,28,40,.85);color:#e7edf5;border:1px solid #2a3444;border-radius:9px;padding:6px 8px;font:inherit;cursor:pointer">
+  <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
 <div id="app"></div>
 
 <div id="ovWarmup" class="overlay"><div class="card">
