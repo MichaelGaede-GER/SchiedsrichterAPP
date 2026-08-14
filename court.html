@@ -41,7 +41,7 @@
   .score{font-weight:800;font-size:clamp(90px,26vh,240px);line-height:1;font-variant-numeric:tabular-nums}
   .serve{position:absolute;top:14px;width:clamp(46px,7vh,72px);height:clamp(46px,7vh,72px);border-radius:50%;
     background:#e9edf3;color:#0b0b0b;display:flex;align-items:center;justify-content:center;
-    font-weight:900;font-size:clamp(24px,4vh,40px);line-height:1;box-shadow:0 0 0 4px rgba(255,255,255,.15)}
+    font-weight:900;font-size:clamp(24px,4vh,40px);line-height:1;box-shadow:0 0 0 4px rgba(255,255,255,.15);cursor:pointer}
   .panel.left .serve{left:16px}.panel.right .serve{right:16px}
   .gameball{position:absolute;top:12px;font-size:12px;font-weight:900;letter-spacing:1px;padding:4px 10px;border-radius:999px}
   .panel.left .gameball{right:14px}.panel.right .gameball{left:14px}
@@ -417,7 +417,7 @@ function render(){
     </div>
     <div class="board">
       <div class="panel left" onclick="point(1)">
-        ${serving1?`<div class="serve">${s.side}</div>`:''}
+        ${serving1?`<div class="serve" onclick="event.stopPropagation();toggleServeSide()" title="Aufschlagseite wechseln (R/L)">${s.side}</div>`:''}
         ${gb1?`<div class="gameball ${gb1==='match'?'gb-match':'gb-game'}">${gb1==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p1}</div>
       </div>
@@ -426,7 +426,7 @@ function render(){
         <button class="midbtn mid-timer" onclick="show('ovTimer')">⏱</button>
       </div>
       <div class="panel right" onclick="point(2)">
-        ${serving2?`<div class="serve">${s.side}</div>`:''}
+        ${serving2?`<div class="serve" onclick="event.stopPropagation();toggleServeSide()" title="Aufschlagseite wechseln (R/L)">${s.side}</div>`:''}
         ${gb2?`<div class="gameball ${gb2==='match'?'gb-match':'gb-game'}">${gb2==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p2}</div>
       </div>
@@ -513,6 +513,7 @@ function renderIdle(app){
 
 // ============ AKTIONEN ============
 function point(who){ if(!M||M.status!=='playing') return; M.point(who); afterChange(); }
+function toggleServeSide(){ if(!M||M.status!=='playing') return; M.side=(M.side==='R')?'L':'R'; render(); sync(); }
 function undo(){ if(!M) return; if(M.undo()){ refConfirmed=false; hide('ovConfirm'); hide('ovDone'); hide('ovRest'); afterChange(); } }
 function letDecide(what){ hide('ovLet'); if(what==='let') return; point(what); }
 function toggleFull(){
