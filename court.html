@@ -54,11 +54,11 @@
   .mid-undo{background:#2b2b2b;color:#fff;font-size:20px;font-weight:800}
   .mid-label{font-size:10px;color:var(--muted);margin-top:-8px}
 
-  .foot{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px 22px 20px;background:#0d0d0d;color:#cfe0ff}
+  .foot{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px 22px 20px;background:transparent;color:#cfe0ff}
   .footrow{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px}
   .footlogo{max-height:clamp(80px,17vh,170px);max-width:min(460px,58vw);opacity:.95}
   .footrow .refline{justify-self:end;text-align:right;font-size:27px}
-  .setpill{justify-self:center;background:#151515;border:1px solid #2a2a2a;border-radius:999px;padding:14px 46px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;font-size:clamp(30px,4.6vh,50px)}
+  .setpill{justify-self:center;background:#151515;border:1px solid #2a2a2a;border-radius:999px;padding:14px 46px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;font-size:clamp(30px,4.6vh,50px);cursor:pointer;user-select:none}
   .games{display:flex;gap:12px;justify-self:start;flex-wrap:wrap}
   .games .g{background:#151515;border:1px solid #2a2a2a;border-radius:9px;padding:8px 16px;font-size:25px;font-weight:700}
   .refline{color:#cfe0ff}.refline b{color:var(--muted);font-weight:600}
@@ -335,7 +335,7 @@ class SquashMatch {
 }
 
 // ============ ZUSTAND ============
-let ALLMATCHES=[]; let match=null; let M=null; let syncing=false; let SETTINGS=null; let refConfirmed=false;
+let ALLMATCHES=[]; let match=null; let M=null; let syncing=false; let SETTINGS=null; let refConfirmed=false; let showSetScores=false;
 function hide(id){ document.getElementById(id).classList.remove('show'); }
 function show(id){ document.getElementById(id).classList.add('show'); }
 function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
@@ -345,6 +345,7 @@ function applyBranding(){
   bg.style.backgroundImage=(SETTINGS&&SETTINGS.backgroundUrl)?`url("${SETTINGS.backgroundUrl}")`:'none';
   bg.style.opacity=(SETTINGS&&SETTINGS.bgOpacity!=null)?SETTINGS.bgOpacity:0.5;
 }
+function toggleSetView(){ showSetScores=!showSetScores; if(match&&M) render(); }
 function showConfirmOverlay(){
   const wn=M.matchWinner===1?match.player1_name:match.player2_name;
   setText('confWinner','🏆 '+wn);
@@ -436,7 +437,11 @@ function render(){
     <div class="foot">
       <div class="footrow">
         <span class="games">${s.games.map((g,i)=>`<span class="g">S${i+1}: ${g.p1}-${g.p2}</span>`).join('')}</span>
-        <span class="setpill">Satz ${s.gamesWon(1)} – ${s.gamesWon(2)}</span>
+        <span class="setpill" onclick="toggleSetView()" title="Antippen: Satzergebnisse anzeigen">${
+          (showSetScores && s.games.length)
+            ? 'Satz '+s.games.map(g=>g.p1+'-'+g.p2).join('  ')
+            : 'Satz '+s.gamesWon(1)+' – '+s.gamesWon(2)
+        }</span>
         <span class="refline">${match.referee?`<b>Schiri:</b> ${match.referee}`:''}</span>
       </div>
       ${(SETTINGS&&SETTINGS.logoUrl)?`<img class="footlogo" src="${SETTINGS.logoUrl}" alt="">`:''}
