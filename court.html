@@ -39,11 +39,10 @@
   .panel.right{border:5px solid var(--red);background:#0b0b0b}
   .panel:active{filter:brightness(1.25)}
   .score{font-weight:800;font-size:clamp(90px,26vh,240px);line-height:1;font-variant-numeric:tabular-nums}
-  .serve{position:absolute;top:14px;width:34px;height:34px;border-radius:50%;background:#2b2b2b}
-  .serve.on{background:#e9edf3;box-shadow:0 0 0 4px rgba(255,255,255,.15)}
+  .serve{position:absolute;top:14px;width:clamp(46px,7vh,72px);height:clamp(46px,7vh,72px);border-radius:50%;
+    background:#e9edf3;color:#0b0b0b;display:flex;align-items:center;justify-content:center;
+    font-weight:900;font-size:clamp(24px,4vh,40px);line-height:1;box-shadow:0 0 0 4px rgba(255,255,255,.15)}
   .panel.left .serve{left:16px}.panel.right .serve{right:16px}
-  .servebox{position:absolute;bottom:12px;font-size:13px;color:var(--muted);font-weight:700;background:#141414;border:1px solid #2a2a2a;border-radius:8px;padding:4px 9px}
-  .panel.left .servebox{left:14px}.panel.right .servebox{right:14px}
   .gameball{position:absolute;top:12px;font-size:12px;font-weight:900;letter-spacing:1px;padding:4px 10px;border-radius:999px}
   .panel.left .gameball{right:14px}.panel.right .gameball{left:14px}
   .gb-game{background:#f2b134;color:#241800}.gb-match{background:#2fbf71;color:#052012}
@@ -418,20 +417,18 @@ function render(){
     </div>
     <div class="board">
       <div class="panel left" onclick="point(1)">
-        <div class="serve ${serving1?'on':''}"></div>
+        ${serving1?`<div class="serve">${s.side}</div>`:''}
         ${gb1?`<div class="gameball ${gb1==='match'?'gb-match':'gb-game'}">${gb1==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p1}</div>
-        ${serving1?`<div class="servebox">Aufschlag · ${sideLabel(s.side)}</div>`:''}
       </div>
       <div class="mid">
         <button class="midbtn mid-undo" onclick="undo()">↶</button><div class="mid-label">Undo</div>
         <button class="midbtn mid-timer" onclick="show('ovTimer')">⏱</button>
       </div>
       <div class="panel right" onclick="point(2)">
-        <div class="serve ${serving2?'on':''}"></div>
+        ${serving2?`<div class="serve">${s.side}</div>`:''}
         ${gb2?`<div class="gameball ${gb2==='match'?'gb-match':'gb-game'}">${gb2==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p2}</div>
-        ${serving2?`<div class="servebox">Aufschlag · ${sideLabel(s.side)}</div>`:''}
       </div>
     </div>
     <div class="foot">
