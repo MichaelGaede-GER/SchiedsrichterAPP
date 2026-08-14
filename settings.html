@@ -200,6 +200,24 @@
     <div id="links" class="courts-links"></div>
   </div>
 
+  <div id="userAdminCard" style="display:none">
+    <h2>Benutzer & Rollen</h2>
+    <div class="card">
+      <div class="hint" style="margin-bottom:10px">
+        Konten legst du in Supabase an (Authentication → Users). Hier weist du jedem Konto seine Rolle zu.
+        <b>admin</b> = alles · <b>director</b> = Turnierleitung · <b>referee</b> = Court-Tablet (nur schiedsen) · <b>viewer</b> = nur ansehen.
+      </div>
+      <div style="overflow:auto">
+        <table style="width:100%;border-collapse:collapse" id="userTable">
+          <thead><tr style="text-align:left;color:var(--muted);font-size:12px">
+            <th style="padding:6px 8px">E-Mail</th><th style="padding:6px 8px">Rolle</th><th style="padding:6px 8px">Angelegt</th></tr></thead>
+          <tbody id="userBody"><tr><td colspan="3" class="hint" style="padding:10px">Lade…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="hint" style="margin-top:8px">Neue Konten/Passwörter werden in Supabase verwaltet – hier änderst du nur die Rolle.</div>
+    </div>
+  </div>
+
   <div class="savebar">
     <button class="btn-green" onclick="saveAll()">Einstellungen speichern</button>
     <span class="hint">Gilt auf allen Geräten (bei Supabase) bzw. in diesem Browser (Testmodus).</span>
@@ -212,6 +230,7 @@
 <script src="config.js"></script>
 <script src="store.js"></script>
 <script src="ranking.js"></script>
+<script src="auth.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 let S={};
@@ -267,6 +286,42 @@ function clearImg(which){ $(which+'Url').value=''; showPreview(which,''); applyB
 $('courts').addEventListener('input',renderLinks);
 $('green').addEventListener('input',()=>{$('greenHex').value=$('green').value;});
 $('greenHex').addEventListener('input',()=>{const v=$('greenHex').value.trim(); if(/^#?[0-9a-fA-F]{6}$/.test(v)) $('green').value=v.startsWith('#')?v:'#'+v;});
+
+// ===== Benutzer & Rollen (nur Admin) =====
+const ALL_ROLES=['admin','director','referee','viewer'];
+function renderAuthHeader(){
+  if(typeof Auth==='undefined' || !Auth.user()) return;
+  const hdr=document.querySelector('header'); if(!hdr || document.getElementById('userBadge')) return;
+  const b=document.createElement('span'); b.id='userBadge';
+  b.style.cssText='margin-left:12px;color:#8aa0bf;font-size:13px';
+  b.textContent='👤 '+(Auth.user().email||'')+' · '+Auth.roleLabel();
+  const out=document.createElement('button'); out.textContent='Abmelden';
+  out.style.cssText='margin-left:10px;background:#232d3d;color:#e7edf5;border:1px solid #2a3444;border-radius:9px;padding:7px 10px;cursor:pointer';
+  out.onclick=()=>Auth.signOut();
+  hdr.appendChild(b); hdr.appendChild(out);
+}
+async function initUserAdmin(){
+  const card=document.getElementById('userAdminCard'); if(card) card.style.display='';
+  try{
+    const users=await Auth.listUsers();
+    const body=document.getElementById('userBody');
+    if(!users.length){ body.innerHTML='<tr><td colspan="3" class="hint" style="padding:10px">Keine Konten gefunden.</td></tr>'; return; }
+    body.innerHTML=users.map(u=>{
+      const opts=ALL_ROLES.map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${Auth.ROLE_LABEL[r]||r}</option>`).join('');
+      const me=(Auth.user()&&u.id===Auth.user().id);
+      return `<tr style="border-top:1px solid var(--line)">
+        <td style="padding:8px">${u.email||'(ohne E-Mail)'} ${me?'<b style="font-size:10px;color:#7CFF9B">DU</b>':''}</td>
+        <td style="padding:8px"><select data-uid="${u.id}" onchange="changeRole(this)" ${me?'disabled title="eigene Rolle nicht änderbar"':''}
+          style="background:#0f141c;color:#e7edf5;border:1px solid #2a3444;border-radius:8px;padding:6px 8px">${opts}</select></td>
+        <td style="padding:8px;color:var(--muted);font-size:12px">${u.created_at?u.created_at.slice(0,10):''}</td></tr>`;
+    }).join('');
+  }catch(e){ document.getElementById('userBody').innerHTML='<tr><td colspan="3" class="hint" style="padding:10px">Fehler: '+e.message+'</td></tr>'; }
+}
+async function changeRole(sel){
+  const uid=sel.dataset.uid, role=sel.value;
+  try{ await Auth.setUserRole(uid,role); toast('Rolle gespeichert: '+(Auth.ROLE_LABEL[role]||role)); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
 
 // ================= TURNIERE =================
 let TOURS=[];
@@ -422,7 +477,11 @@ async function saveAll(){
   catch(e){ toast('Fehler: '+e.message); }
 }
 
-loadSettings();
+Auth.guard('manage').then(()=>{
+  loadSettings();
+  if(typeof Auth!=='undefined' && Auth.can('admin')) initUserAdmin();
+  renderAuthHeader();
+});
 </script>
 </body>
 </html>

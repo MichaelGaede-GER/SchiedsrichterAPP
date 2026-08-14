@@ -196,6 +196,7 @@ const Store = (() => {
   return {
     mode: backend.mode,
     ready: useSupabase,
+    client: () => (useSupabase ? sb : null),
     async listMatches() {
       await ensureActive();
       const all = await backend.listMatches();
@@ -305,6 +306,7 @@ const Store = (() => {
     },
   };
 })();
+try { window.Store = Store; } catch (e) {}
 
 // =====================================================================
 //  GEMEINSAME HELFER

@@ -257,6 +257,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="store.js"></script>
+<script src="auth.js"></script>
 <script>
 const CONFIG = window.CONFIG;
 const COURT = Number(new URLSearchParams(location.search).get('court')) || 1;
@@ -652,10 +653,12 @@ async function loadCourt(){
 function hideAll(){ ['ovWarmup','ovLet','ovTimer','ovRest','ovConfirm','ovDone','ovPenalty','ovInjury'].forEach(hide); }
 
 async function refreshSettings(){ SETTINGS=await Store.getSettings(); applyBranding(); loadCourt(); }
-Store.subscribeAll(loadCourt);
-Store.subscribeSettings(refreshSettings);
-refreshSettings();
-loadCourt();
+Auth.guard('score').then(()=>{
+  Store.subscribeAll(loadCourt);
+  Store.subscribeSettings(refreshSettings);
+  refreshSettings();
+  loadCourt();
+});
 </script>
 </body>
 </html>

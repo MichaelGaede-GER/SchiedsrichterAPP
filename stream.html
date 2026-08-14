@@ -95,6 +95,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="store.js"></script>
+<script src="auth.js"></script>
 <script>
 const params=new URLSearchParams(location.search);
 const COURT=Number(params.get('court'))||1;
@@ -274,10 +275,12 @@ async function load(){
   render();
 }
 setView(VIEW);
-Store.subscribeAll(load);
-Store.subscribeSettings(refreshSettings);
-refreshSettings();
-load();
+Auth.guard('view').then(()=>{
+  Store.subscribeAll(load);
+  Store.subscribeSettings(refreshSettings);
+  refreshSettings();
+  load();
+});
 setInterval(()=>{ if(VIEW==='fullscore') render(); },30000); // Uhr aktualisieren
 </script>
 </body>

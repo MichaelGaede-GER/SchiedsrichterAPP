@@ -97,6 +97,7 @@
   .btn-sm{padding:5px 9px;font-size:12px}
 
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+  body.role-readonly .manage-only{display:none!important}
   .toolbar .spacer{flex:1}
   input.search,select.filter{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
     border-radius:8px;padding:8px 10px;font:inherit}
@@ -194,7 +195,7 @@
       Bestätigte Ergebnisse <span class="count" id="doneCount">0</span></button>
     <button class="mtab" data-tab="sent" onclick="setMainTab('sent')">
       Übertragene Ergebnisse <span class="count" id="sentCount">0</span></button>
-    <button class="tphelp" onclick="openTpHelper()" title="Ergebnisse zum Eintragen in Tournament Planner">🖨 TP-Eingabehilfe</button>
+    <button class="tphelp manage-only" onclick="openTpHelper()" title="Ergebnisse zum Eintragen in Tournament Planner">🖨 TP-Eingabehilfe</button>
   </div>
 
   <div id="panelSched">
@@ -202,10 +203,10 @@
       <input id="search" class="search" placeholder="Suche Spieler / Event…" oninput="render()">
       <select id="courtFilter" class="filter" onchange="render()"><option value="">Alle Courts</option></select>
       <div class="spacer"></div>
-      <button class="btn-primary btn-sm" onclick="fileInput.click()">⬆ XLSX importieren</button>
-      <button class="btn-ghost btn-sm" onclick="openAdd()">+ Spiel</button>
-      <button class="btn-ghost btn-sm" onclick="seed()">Demo</button>
-      <button class="btn-ghost btn-sm" onclick="clearAll()">Alles löschen</button>
+      <button class="btn-primary btn-sm manage-only" onclick="fileInput.click()">⬆ XLSX importieren</button>
+      <button class="btn-ghost btn-sm manage-only" onclick="openAdd()">+ Spiel</button>
+      <button class="btn-ghost btn-sm manage-only" onclick="seed()">Demo</button>
+      <button class="btn-ghost btn-sm manage-only" onclick="clearAll()">Alles löschen</button>
       <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
     </div>
     <div class="card">
@@ -301,6 +302,7 @@
 <script src="config.js"></script>
 <script src="store.js"></script>
 <script src="ranking.js"></script>
+<script src="auth.js"></script>
 <script>
 const COURTS = window.CONFIG.COURTS || [1,2,3,4,5,6];
 const fileInput = document.getElementById('fileInput');
@@ -372,8 +374,9 @@ function renderCourts(){
           <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}</span><span class="sc">${p2}</span></div>
           <div class="meta"><span>Satz ${g1}–${g2} · Bo${live.best_of}</span>${badge}</div>
           <div class="actions">
-            ${fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
-                 : `<button class="btn-ghost btn-sm" onclick="unassign('${live.id}')">Vom Court nehmen</button>`}
+            ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
+              (fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
+                 : `<button class="btn-ghost btn-sm" onclick="unassign('${live.id}')">Vom Court nehmen</button>`)}
           </div>
         </div>`;
     }
@@ -412,7 +415,8 @@ function renderSched(){
       <div class="ev">
         <div class="evtop">
           <span>${m.event||m.draw||''} <span class="sub">${m.round||''} ${m.match_no?('· '+m.match_no):''}</span></span>
-          <button class="editbtn" title="Spiel bearbeiten" onclick="event.stopPropagation();openEditMatch('${m.id}')">✎ Bearbeiten</button>
+          ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
+            `<button class="editbtn" title="Spiel bearbeiten" onclick="event.stopPropagation();openEditMatch('${m.id}')">✎ Bearbeiten</button>`}
         </div>
         <div class="teams">
           <span class="team"><span class="p1n">${m.player1_name}</span>${flagImg(m.player1_country,m.player1_region)}</span>
@@ -424,10 +428,12 @@ function renderSched(){
       <div><select class="bo" onchange="setBo('${m.id}',this.value)">
         <option value="3"${m.best_of==3?' selected':''}>3</option>
         <option value="5"${m.best_of==5?' selected':''}>5</option></select></div>
-      <div>${m.court_no
+      <div>${(typeof Auth!=='undefined' && !Auth.can('manage'))
+        ? `<span style="color:var(--muted);font-size:11px">${m.court_label||(m.court_no?('C'+m.court_no):'')}</span>`
+        : (m.court_no
         ? `<button class="assignbtn ${busy?'busy':''}" ${busy?'disabled title="Court belegt"':''}
              onclick="assign('${m.id}',${m.court_no})">▶ Court ${m.court_no}</button>`
-        : `<span style="color:var(--muted);font-size:11px">ziehen</span>`}</div>`;
+        : `<span style="color:var(--muted);font-size:11px">ziehen</span>`)}</div>`;
     row.addEventListener('dragstart',e=>e.dataTransfer.setData('text/id',m.id));
     row.querySelector('.ev').addEventListener('click',()=>toggleSel(m.id));
     el.appendChild(row);
@@ -493,7 +499,9 @@ function updateSelBar(){ const bar=document.getElementById('selbar');
     document.getElementById('selText').textContent=`Ausgewählt: ${m.player1_name} vs ${m.player2_name}`; bar.classList.add('show'); }
   else bar.classList.remove('show'); }
 
-async function assign(id,cid){ const m=MATCHES.find(x=>x.id===id); if(!m) return;
+async function assign(id,cid){
+  if(typeof Auth!=='undefined' && !Auth.can('manage')){ toast('Keine Berechtigung'); return; }
+  const m=MATCHES.find(x=>x.id===id); if(!m) return;
   // Warnung, wenn das Spiel für einen anderen Court geplant war
   if(m.court_no && m.court_no!==cid){
     if(!confirm(`Achtung: Dieses Spiel ist für Court ${m.court_no} geplant.\nWirklich stattdessen auf Court ${cid} ansetzen?`)) return;
@@ -861,13 +869,41 @@ async function applyBranding(){
 }
 
 async function onSettingsChanged(){ try{ await applyBranding(); }catch(e){} load(); initRankingSync(); }
-Store.subscribeAll(load);
-Store.subscribeSettings(onSettingsChanged);
-Store.subscribeTournaments(onSettingsChanged);
-applyBranding();
-try{ renderCourts(); }catch(e){}
-load();
-initRankingSync();
+
+function applyRoleUI(){
+  const manage = (typeof Auth==='undefined') || Auth.can('manage');
+  const admin  = (typeof Auth==='undefined') || Auth.can('admin');
+  if(!manage) document.body.classList.add('role-readonly');
+  // Einstellungen nur für Verwalter
+  const setLink=document.querySelector('a.navlink[href="settings.html"]');
+  if(setLink) setLink.style.display = manage ? '' : 'none';
+  // Benutzer-Badge + Logout in den Kopf
+  if(typeof Auth!=='undefined' && Auth.user()){
+    let b=document.getElementById('userBadge');
+    if(!b){
+      const hdr=document.querySelector('header');
+      b=document.createElement('span'); b.id='userBadge'; b.className='mode';
+      b.style.cssText='margin-left:10px;cursor:default';
+      const out=document.createElement('button'); out.textContent='Abmelden';
+      out.className='navlink'; out.style.marginLeft='8px'; out.style.cursor='pointer';
+      out.onclick=()=>Auth.signOut();
+      hdr.appendChild(b); hdr.appendChild(out);
+    }
+    b.textContent='👤 '+(Auth.user().email||'')+' · '+Auth.roleLabel();
+  }
+}
+
+Auth.guard('view').then(()=>{
+  onSettingsChanged; // no-op ref
+  Store.subscribeAll(load);
+  Store.subscribeSettings(onSettingsChanged);
+  Store.subscribeTournaments(onSettingsChanged);
+  applyBranding();
+  try{ renderCourts(); }catch(e){}
+  load();
+  initRankingSync();
+  applyRoleUI();
+});
 </script>
 </body>
 </html>

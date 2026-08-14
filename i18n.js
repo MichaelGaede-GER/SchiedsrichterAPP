@@ -244,6 +244,27 @@
     'Turnier erstellt (bestehende Daten bleiben unberührt).': 'Tournament created (existing data untouched).',
     'Verknüpfung gelöst': 'Unlinked',
     'RET': 'RET', 'W.O.': 'W.O.',
+    // Anmeldung / Rollen
+    '🎾 Anmeldung': '🎾 Sign in',
+    'Bitte mit E-Mail und Passwort anmelden.': 'Please sign in with e-mail and password.',
+    'E-Mail': 'E-mail',
+    'Anmelden': 'Sign in',
+    'Anmelden…': 'Signing in…',
+    'Abmelden': 'Sign out',
+    'Abmelden / Konto wechseln': 'Sign out / switch account',
+    'Kein Zugriff': 'No access',
+    'E-Mail oder Passwort falsch.': 'Wrong e-mail or password.',
+    'Bitte E-Mail und Passwort eingeben.': 'Please enter e-mail and password.',
+    'E-Mail noch nicht bestätigt.': 'E-mail not confirmed yet.',
+    'Benutzer & Rollen': 'Users & roles',
+    'E-Mail': 'E-mail', 'Rolle': 'Role', 'Angelegt': 'Created',
+    'Lade…': 'Loading…',
+    'Keine Konten gefunden.': 'No accounts found.',
+    'Administrator': 'Administrator',
+    'Turnierleitung': 'Tournament desk',
+    'Schiedsrichter (Court)': 'Referee (court)',
+    'Nur ansehen': 'View only',
+    'Keine Berechtigung': 'No permission',
     '— Event wählen —': '— Choose event —',
     '— Kein Turnier (Altdaten) —': '— No tournament (legacy) —',
     '— zuerst verbinden —': '— connect first —',
@@ -271,7 +292,9 @@
     [/^●?\s*Supabase verbunden$/, '● Supabase connected'],
     [/^●?\s*Lokaler Testmodus$/, '● Local test mode'],
     [/^Nächste Spiele auf Court (.+)$/, 'Next matches on court $1'],
-    [/^Nächstes Spiel auf Court (.+)$/, 'Next match on court $1']
+    [/^Nächstes Spiel auf Court (.+)$/, 'Next match on court $1'],
+    [/^Rolle gespeichert: (.+)$/, 'Role saved: $1'],
+    [/^Dein Konto \((.+)\) hat für diese Ansicht keine Berechtigung\.$/, 'Your account ($1) has no permission for this view.']
   ];
 
   function translate(str) {
