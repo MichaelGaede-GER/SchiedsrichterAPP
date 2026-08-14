@@ -65,6 +65,13 @@
     box._focus = function () { setTimeout(function () { (mail.value ? pass : mail).focus(); }, 60); };
   }
   function msg(t) { if (msgEl) msgEl.textContent = t || ''; }
+  var loadEl = null;
+  function showLoading() {
+    if (loadEl) return;
+    loadEl = el('div', 'position:fixed;inset:0;z-index:9998;display:flex;align-items:center;justify-content:center;background:#0d1118;color:#8aa0bf;font:15px system-ui,Segoe UI,Roboto,sans-serif', 'Lade…');
+    (document.body || document.documentElement).appendChild(loadEl);
+  }
+  function hideLoading() { if (loadEl) { loadEl.remove(); loadEl = null; } }
   function mapErr(m) {
     m = m || 'Anmeldung fehlgeschlagen';
     if (/Invalid login credentials/i.test(m)) return 'E-Mail oder Passwort falsch.';
@@ -104,17 +111,19 @@
   async function guard(need) {
     // Lokaler Testmodus: keine Anmeldung, volle Rechte
     if (!sb) { ROLE = 'admin'; USER = { email: '(lokal)' }; return { user: USER, role: ROLE }; }
+    showLoading();
     // Session prüfen
     var s = null;
     try { s = (await sb.auth.getSession()).data.session; } catch (e) {}
-    if (!s) { showLogin(); await whenAuthed(); }
+    if (!s) { hideLoading(); showLogin(); await whenAuthed(); }
     else { USER = s.user; await loadRole(); }
     // Berechtigung prüfen
     if (need && !can(need)) {
+      hideLoading();
       showBlock('Kein Zugriff', 'Dein Konto (' + (ROLE_LABEL[ROLE] || ROLE) + ') hat für diese Ansicht keine Berechtigung.');
       return new Promise(function () {}); // bleibt bewusst offen -> Seite lädt nicht
     }
-    hideOverlay();
+    hideLoading(); hideOverlay();
     return { user: USER, role: ROLE };
   }
 
@@ -142,16 +151,17 @@
   // ---------- Auth-Events ----------
   if (sb) {
     sb.auth.onAuthStateChange(function (event, session) {
-      if (event === 'SIGNED_IN' && session) {
+      if (event === 'SIGNED_OUT') { USER = null; ROLE = 'viewer'; return; }
+      if (session && session.user) {
         USER = session.user;
         loadRole().then(function () {
-          hideOverlay();
-          var rs = resolvers.splice(0); rs.forEach(function (res) { res({ user: USER, role: ROLE }); });
-          // Falls die Seite schon gewartet hat, aber Rechte fehlen: neu prüfen per Reload
-          if (rs.length === 0) location.reload();
+          // Wartet die Login-Maske gerade? Dann auflösen – guard() erledigt
+          // danach Rechteprüfung (Block oder Freigabe). Kein Reload!
+          if (resolvers.length) {
+            var rs = resolvers.splice(0);
+            rs.forEach(function (res) { res({ user: USER, role: ROLE }); });
+          }
         });
-      } else if (event === 'SIGNED_OUT') {
-        USER = null; ROLE = 'viewer';
       }
     });
   }
