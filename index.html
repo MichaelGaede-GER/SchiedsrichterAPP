@@ -296,6 +296,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 <script src="store.js"></script>
+<script src="ranking.js"></script>
 <script>
 const COURTS = window.CONFIG.COURTS || [1,2,3,4,5,6];
 const fileInput = document.getElementById('fileInput');
@@ -500,6 +501,7 @@ async function unassign(id){ await Store.unassign(id); toast('Zurück in die Ans
 async function confirmR(id){
   const m=MATCHES.find(x=>x.id===id); const court=m?m.court_id:null;
   await Store.confirmResult(id);
+  await rankingWriteBack(m);
   const s=await Store.getSettings();
   if(s.autoAssign && court){
     const next=await Store.nextScheduledForCourt(court);
@@ -508,6 +510,57 @@ async function confirmR(id){
       catch(e){ toast('Bestätigt · '+e.message); } }
     else toast(`Bestätigt · kein weiteres Spiel für Court ${court}`);
   } else toast('Ergebnis bestätigt');
+}
+
+// ---- Rangliste: Ergebnis zurückschreiben ----
+function parseSetsText(t){ return String(t||'').trim().split(/\s+/)
+  .map(g=>{const p=g.split('-'); return [parseInt(p[0],10),parseInt(p[1],10)];})
+  .filter(s=>Number.isFinite(s[0])&&Number.isFinite(s[1])); }
+async function rankingWriteBack(m){
+  if(!m || !m.ext || m.ext.source!=='ranking') return;
+  if(typeof Ranking==='undefined' || !Ranking.configured()){ toast('Rangliste nicht verbunden – Ergebnis lokal bestätigt'); return; }
+  try{
+    if(m.ending==='retired' || m.ending==='walkover'){
+      const injured = m.winner===1 ? m.ext.awayReg : m.ext.homeReg;
+      await Ranking.retire(m.ext, injured);
+      toast('An Rangliste: Aufgabe/Walkover übertragen ✓');
+    } else {
+      const sets=parseSetsText(m.score_text);
+      let hs=0,as=0; sets.forEach(s=>{ if(s[0]>s[1])hs++; else if(s[1]>s[0])as++; });
+      await Ranking.writeResult(m.ext, sets, hs, as);
+      toast('Ergebnis an Rangliste zurückgeschrieben ✓');
+    }
+  }catch(e){ toast('Rangliste-Rückschreiben fehlgeschlagen: '+e.message); }
+}
+
+// ---- Rangliste: neue Spiele live nachladen ----
+let rkUnsub=null, rkSyncing=false;
+async function initRankingSync(){
+  const s=await Store.getSettings();
+  const ev=s.rankingEvent;
+  if(rkUnsub){ try{ rkUnsub(); }catch(e){} rkUnsub=null; }
+  if(ev && ev.id && typeof Ranking!=='undefined' && Ranking.configured()){
+    try{ rkUnsub = Ranking.subscribe(ev.id, ()=>syncFromRanking()); }catch(e){}
+    syncFromRanking();
+  }
+}
+async function syncFromRanking(){
+  if(rkSyncing) return; rkSyncing=true;
+  try{
+    const s=await Store.getSettings(); const ev=s.rankingEvent;
+    if(!ev||!ev.id||typeof Ranking==='undefined'||!Ranking.configured()) return;
+    if(ev.tournamentId && Store.activeTournament && Store.activeTournament()!==ev.tournamentId) return; // nur ins verknüpfte Turnier
+    const open=await Ranking.loadOpenMatches(ev.id);
+    const have=new Set(MATCHES.map(m=>m.import_key).filter(Boolean));
+    const news=open.filter(m=>!have.has('rk:'+m.ext.matchId));
+    if(news.length){
+      const rows=news.map(m=>Object.assign({status:'scheduled',state:null,result:null,winner:null,
+        score_text:null,court_id:null,import_key:('rk:'+m.ext.matchId)},m));
+      await Store.insertMany(rows);
+      toast(news.length+' neue Spiele aus Rangliste geladen');
+    }
+  }catch(e){ /* leise */ }
+  finally{ rkSyncing=false; }
 }
 async function setBo(id,v){ await Store.updateMatch(id,{best_of:Number(v)}); }
 
@@ -803,13 +856,14 @@ async function applyBranding(){
   }catch(e){}
 }
 
-async function onSettingsChanged(){ try{ await applyBranding(); }catch(e){} load(); }
+async function onSettingsChanged(){ try{ await applyBranding(); }catch(e){} load(); initRankingSync(); }
 Store.subscribeAll(load);
 Store.subscribeSettings(onSettingsChanged);
 Store.subscribeTournaments(onSettingsChanged);
 applyBranding();
 try{ renderCourts(); }catch(e){}
 load();
+initRankingSync();
 </script>
 </body>
 </html>

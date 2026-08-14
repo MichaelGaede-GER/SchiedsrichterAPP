@@ -93,6 +93,35 @@
       Beim Einspielen wird daraus ein <b>neues</b> Turnier erstellt (bestehende Daten bleiben unberührt).</div>
   </div>
 
+  <h2>Vereinsrangliste-Anbindung</h2>
+  <div class="card">
+    <div class="hint" style="margin-bottom:10px">Verbindet die Schiedsrichter-App direkt mit deiner Vereinsrangliste (Supabase).
+      Zugangsdaten bleiben <b>nur auf diesem Gerät</b> (nicht in der geteilten Datenbank). Bitte ein eigenes
+      <b>Schiedsrichter-Konto</b> verwenden (siehe <code>ranking-rls.sql</code>).</div>
+    <div class="grid2">
+      <div class="field"><label>Rangliste Supabase-URL</label><input type="text" id="rkUrl" placeholder="https://xxxx.supabase.co"></div>
+      <div class="field"><label>Rangliste anon-Key</label><input type="text" id="rkKey" placeholder="eyJ…"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Schiedsrichter E-Mail</label><input type="text" id="rkEmail" placeholder="schiedsrichter@verein.de"></div>
+      <div class="field"><label>Passwort</label><input type="password" id="rkPass" placeholder="••••••••"></div>
+    </div>
+    <div class="row">
+      <button class="btn-ghost" onclick="rkConnect()">Verbinden &amp; testen</button>
+      <span id="rkStatus" class="hint"></span>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label>Event auswählen &amp; importieren</label>
+      <div class="row">
+        <select id="rkEvent" style="flex:1;min-width:220px"><option value="">— zuerst verbinden —</option></select>
+        <button class="btn-green" onclick="rkImport()">Event importieren</button>
+      </div>
+      <div class="hint">Legt ein neues Turnier an, lädt die offenen Spiele in Planreihenfolge und aktiviert die
+        Live-Verknüpfung: neue Spiele erscheinen automatisch, bestätigte Ergebnisse werden zurückgeschrieben.</div>
+    </div>
+    <div id="rkLinked" class="hint"></div>
+  </div>
+
   <h2>Turnier-Anzeigename</h2>
   <div class="card">
     <div class="field">
@@ -178,6 +207,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="store.js"></script>
+<script src="ranking.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 let S={};
@@ -302,6 +332,63 @@ $('backupFile').addEventListener('change',async e=>{
   }catch(err){ toast('Backup-Fehler: '+err.message); }
 });
 
+// ================= VEREINSRANGLISTE =================
+function rkLoadForm(){
+  const c=Ranking.loadConn()||{};
+  const DEF_URL='https://akqgioywwlbtzmkotsun.supabase.co';
+  const DEF_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrcWdpb3l3d2xidHpta290c3VuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1OTkzNzUsImV4cCI6MjEwMTE3NTM3NX0.bWyfuS9ukYGkENOk7z6SeZ0Kr1IJ8LT2yRlKORraS-k';
+  $('rkUrl').value=c.url||DEF_URL; $('rkKey').value=c.anonKey||DEF_KEY;
+  $('rkEmail').value=c.email||''; $('rkPass').value=c.password||'';
+  rkShowLinked();
+}
+async function rkShowLinked(){
+  const s=await Store.getSettings();
+  const el=$('rkLinked');
+  if(s.rankingEvent && s.rankingEvent.id){
+    el.innerHTML=`Verknüpft mit Event <b>${s.rankingEvent.name||s.rankingEvent.id}</b>.
+      <button class="btn-ghost" style="margin-left:8px;padding:4px 10px" onclick="rkUnlink()">Verknüpfung lösen</button>`;
+  } else el.textContent='Noch kein Event verknüpft.';
+}
+async function rkConnect(){
+  const conn={ url:$('rkUrl').value.trim(), anonKey:$('rkKey').value.trim(),
+    email:$('rkEmail').value.trim(), password:$('rkPass').value };
+  if(!conn.url||!conn.anonKey){ $('rkStatus').textContent='URL und anon-Key nötig.'; return; }
+  Ranking.saveConn(conn);
+  $('rkStatus').textContent='Verbinde…';
+  try{
+    await Ranking.test();
+    const evs=await Ranking.listEvents();
+    $('rkEvent').innerHTML='<option value="">— Event wählen —</option>'+
+      evs.map(e=>`<option value="${e.id}">${e.name||e.id}</option>`).join('');
+    $('rkStatus').textContent='✓ Verbunden ('+evs.length+' Events).'; $('rkStatus').style.color='#7CFF9B';
+  }catch(e){ $('rkStatus').textContent='Fehler: '+e.message; $('rkStatus').style.color='#ff9a9d'; }
+}
+async function rkImport(){
+  const eid=$('rkEvent').value; if(!eid){ toast('Bitte ein Event wählen'); return; }
+  const name=$('rkEvent').selectedOptions[0].textContent.trim();
+  try{
+    $('rkStatus').textContent='Lade Spiele…';
+    const open=await Ranking.loadOpenMatches(eid);
+    // neues Turnier anlegen & aktivieren
+    const t=await Store.createTournament('Rangliste: '+name);
+    await Store.setActiveTournament(t.id);
+    // Spiele einfügen (mit ext-Verknüpfung)
+    const rows=open.map(m=>Object.assign({
+      status:'scheduled', state:null, result:null, winner:null, score_text:null,
+      court_id:null, import_key:('rk:'+m.ext.matchId),
+    }, m));
+    if(rows.length) await Store.insertMany(rows);
+    // Verknüpfung merken (für Live-Sync + Rückschreiben)
+    await Store.saveSettings({ rankingEvent:{ id:eid, name, tournamentId:t.id } });
+    $('rkStatus').textContent='✓ '+rows.length+' Spiele importiert & Turnier aktiviert.'; $('rkStatus').style.color='#7CFF9B';
+    await loadTours(); rkShowLinked();
+  }catch(e){ $('rkStatus').textContent='Fehler: '+e.message; $('rkStatus').style.color='#ff9a9d'; }
+}
+async function rkUnlink(){ await Store.saveSettings({ rankingEvent:null }); rkShowLinked(); toast('Verknüpfung gelöst'); }
+['rkUrl','rkKey','rkEmail','rkPass'].forEach(id=>$(id).addEventListener('change',()=>{
+  Ranking.saveConn({ url:$('rkUrl').value.trim(), anonKey:$('rkKey').value.trim(), email:$('rkEmail').value.trim(), password:$('rkPass').value });
+}));
+
 async function loadSettings(){
   S=await Store.getSettings();
   $('tournamentName').value=S.tournamentName||'';
@@ -314,6 +401,7 @@ async function loadSettings(){
   $('bgOpacity').value=opPct; $('bgOpVal').textContent=opPct+'%';
   applyBranding(); renderLinks();
   await loadTours();
+  rkLoadForm();
 }
 
 async function saveAll(){
