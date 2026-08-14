@@ -54,7 +54,9 @@
   .mid-undo{background:#2b2b2b;color:#fff;font-size:20px;font-weight:800}
   .mid-label{font-size:10px;color:var(--muted);margin-top:-8px}
 
-  .foot{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:22px;padding:14px 18px;background:#0d0d0d;font-size:27px;color:#cfe0ff;flex-wrap:wrap}
+  .foot{flex:0 0 auto;position:relative;display:flex;align-items:center;justify-content:space-between;gap:22px;padding:14px 18px;background:#0d0d0d;font-size:27px;color:#cfe0ff;flex-wrap:wrap}
+  .footlogo{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);max-height:54px;max-width:200px;opacity:.92;display:none;pointer-events:none}
+  .footright{display:flex;align-items:center;gap:18px;flex-wrap:wrap;justify-content:flex-end}
   .setpill{background:#151515;border:1px solid #2a2a2a;border-radius:999px;padding:9px 22px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums}
   .games{display:flex;gap:12px}
   .games .g{background:#151515;border:1px solid #2a2a2a;border-radius:9px;padding:8px 16px;font-size:25px;font-weight:700}
@@ -121,7 +123,9 @@
 <div id="app"></div>
 
 <div id="ovWarmup" class="overlay"><div class="card">
-  <h2>Aufwärmen</h2>
+  <img id="warmLogo" class="brandlogo" style="display:none" alt="">
+  <h2 id="warmTitle">Nächstes Spiel auf Court</h2>
+  <div style="opacity:.7;margin:-6px 0 8px;letter-spacing:.5px">Aufwärmen</div>
   <div id="warmClock" class="timerbig">5:00</div>
   <div class="row">
     <button class="btn btn-gray" onclick="Timer.toggle()">Start / Pause</button>
@@ -368,12 +372,13 @@ function showDoneOverlay(){
 const Timer={ sec:0,running:false,label:'',_iv:null,onEnd:null,
   fmt(s){ s=Math.max(0,s); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); },
   start(sec,label,onEnd){ this.sec=sec; this.label=label||''; this.running=true; this.onEnd=onEnd||null; this._run(); this._paint(); pushTimer(); },
+  prime(sec,label){ clearInterval(this._iv); this.sec=sec; this.label=label||''; this.running=false; this.onEnd=null; this._paint(); pushTimer(); },
   _run(){ clearInterval(this._iv); this._iv=setInterval(()=>{ if(this.running){ this.sec--;
     if(this.sec<=0){ this.sec=0; this.running=false; this._paint(); pushTimer();
       const cb=this.onEnd; this.onEnd=null; if(cb) cb(); return; } this._paint(); } },1000); },
-  toggle(){ this.running=!this.running; this._paint(); pushTimer(); },
+  toggle(){ this.running=!this.running; if(this.running) this._run(); this._paint(); pushTimer(); },
   stop(){ this.running=false; this.sec=0; this.onEnd=null; this._paint(); pushTimer(); },
-  reset(kind){ if(kind==='warmup') this.start(CONFIG.WARMUP_SECONDS,'Aufwärmen'); },
+  reset(kind){ if(kind==='warmup') this.prime(CONFIG.WARMUP_SECONDS,'Aufwärmen'); },
   snapshot(){ return { label:this.label, running:this.running, sec:this.sec,
     endsAt: this.running ? Date.now()+this.sec*1000 : null }; },
   _paint(){ const t=this.fmt(this.sec);
@@ -429,8 +434,11 @@ function render(){
     </div>
     <div class="foot">
       <span class="games">${s.games.map((g,i)=>`<span class="g">S${i+1}: ${g.p1}-${g.p2}</span>`).join('')}</span>
-      <span class="setpill">Satz ${s.gamesWon(1)} – ${s.gamesWon(2)}</span>
-      ${match.referee?`<span class="refline"><b>Schiri:</b> ${match.referee}</span>`:''}
+      ${(SETTINGS&&SETTINGS.logoUrl)?`<img class="footlogo" src="${SETTINGS.logoUrl}" alt="" style="display:block">`:''}
+      <span class="footright">
+        <span class="setpill">Satz ${s.gamesWon(1)} – ${s.gamesWon(2)}</span>
+        ${match.referee?`<span class="refline"><b>Schiri:</b> ${match.referee}</span>`:''}
+      </span>
     </div>
   </div>`;
   setTimeout(()=>{ const a=document.getElementById('letP1'),b=document.getElementById('letP2');
@@ -645,10 +653,17 @@ async function loadCourt(){
       p2:{name:live.player2_name,country:live.player2_country} });
     if(live.state) M.hydrate(live.state);
     render(); hideAll();
-    if(M.status==='warmup'){ Timer.start(CONFIG.WARMUP_SECONDS,'Aufwärmen'); show('ovWarmup'); }
+    if(M.status==='warmup'){ showWarmup(); }
     else if(M.status==='between'){ show('ovRest'); }
     else if(M.status==='finished'){ finishFlow(); }
   } else { render(); }
+}
+function showWarmup(){
+  Timer.prime(CONFIG.WARMUP_SECONDS,'Aufwärmen');   // Timer bereit, aber NICHT laufend
+  const lg=document.getElementById('warmLogo');
+  if(lg){ if(SETTINGS&&SETTINGS.logoUrl){ lg.src=SETTINGS.logoUrl; lg.style.display='block'; } else lg.style.display='none'; }
+  setText('warmTitle','Nächstes Spiel auf Court '+COURT);
+  show('ovWarmup');
 }
 function hideAll(){ ['ovWarmup','ovLet','ovTimer','ovRest','ovConfirm','ovDone','ovPenalty','ovInjury'].forEach(hide); }
 
