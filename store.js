@@ -263,6 +263,13 @@ const Store = (() => {
         logoUrl: c.LOGO_URL || '',
         backgroundUrl: c.BACKGROUND_URL || '',
         bgOpacity: (c.BG_OPACITY != null ? c.BG_OPACITY : 0.5),
+        warmupP1: 120,      // Aufwärmen Phase 1 (Sek)
+        warmupP2: 120,      // Aufwärmen Phase 2 (Sek, nach Seitenwechsel)
+        warmupFinal: 60,    // letzte Minute vor Spielbeginn
+        restSeconds: 120,   // Pause zwischen den Sätzen (Sek)
+        liveRotate: 12,     // Live-Anzeige: Sekunden pro Ansicht
+        liveMode: 'rotate', // 'live' | 'prep' | 'done' | 'rotate'
+        sponsors: [],       // Sponsor-Logos (URLs/DataURLs) für die Live-Leiste
         activeTournament: null,
       };
     },

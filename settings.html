@@ -227,11 +227,31 @@
   <h2>📺 Live-Anzeige (Vollbild)</h2>
   <div class="card">
     <div class="field">
+      <label>Angezeigte Seite</label>
+      <select id="liveMode">
+        <option value="live">Nur Laufende Spiele</option>
+        <option value="prep">Nur In Vorbereitung</option>
+        <option value="done">Nur Beendete Spiele</option>
+        <option value="rotate">Wechsel aller 3 Seiten</option>
+      </select>
+    </div>
+    <div class="field">
       <label>Wechselzeit zwischen den Ansichten (Sekunden)</label>
       <input type="number" id="liveRotate" min="3" step="1" placeholder="12">
+      <div class="hint">Gilt nur im Modus „Wechsel aller 3 Seiten".</div>
     </div>
-    <div class="hint">Große Zuschauer-Anzeige mit Logo &amp; Turniername, die automatisch zwischen
-      <b>Laufende Spiele</b>, <b>Spiele in Vorbereitung</b> und <b>Beendete Spiele</b> wechselt.</div>
+    <div class="field">
+      <label>Sponsoren-Leiste (Logos unten)</label>
+      <div class="row">
+        <button class="btn-ghost" onclick="sponsorFile.click()">Logos hochladen…</button>
+        <input type="file" id="sponsorFile" accept="image/*" multiple style="display:none">
+        <input type="text" id="sponsorUrl" placeholder="oder Bild-URL einfügen" style="flex:1;min-width:200px">
+        <button class="btn-ghost" onclick="addSponsorUrl()">+ URL</button>
+      </div>
+      <div id="sponsorList" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px"></div>
+      <div class="hint">Die Logos erscheinen als Sponsorenleiste am unteren Rand der Live-Anzeige.</div>
+    </div>
+    <div class="hint">Große Zuschauer-Anzeige mit Logo &amp; Turniername.</div>
     <div id="liveLink" class="courts-links" style="margin-top:10px"></div>
   </div>
 
@@ -327,6 +347,29 @@ function clearImg(which){ $(which+'Url').value=''; showPreview(which,''); applyB
 $('courts').addEventListener('input',renderLinks);
 $('green').addEventListener('input',()=>{$('greenHex').value=$('green').value;});
 $('greenHex').addEventListener('input',()=>{const v=$('greenHex').value.trim(); if(/^#?[0-9a-fA-F]{6}$/.test(v)) $('green').value=v.startsWith('#')?v:'#'+v;});
+
+// ===== Sponsoren-Leiste =====
+let SPONSORS=[];
+function renderSponsors(){
+  const el=$('sponsorList'); if(!el) return;
+  if(!SPONSORS.length){ el.innerHTML='<span class="hint">Noch keine Logos.</span>'; return; }
+  el.innerHTML=SPONSORS.map((src,i)=>`<span style="position:relative;display:inline-flex;align-items:center;
+    background:#fff;border-radius:8px;padding:6px 10px">
+      <img src="${src}" style="height:38px;max-width:120px;object-fit:contain">
+      <button onclick="removeSponsor(${i})" title="Entfernen" style="position:absolute;top:-8px;right:-8px;
+        width:22px;height:22px;border-radius:50%;border:0;background:#c02b3a;color:#fff;cursor:pointer;font-weight:900">×</button>
+    </span>`).join('');
+}
+function removeSponsor(i){ SPONSORS.splice(i,1); renderSponsors(); }
+function addSponsorUrl(){ const u=$('sponsorUrl').value.trim(); if(!u) return; SPONSORS.push(u); $('sponsorUrl').value=''; renderSponsors(); }
+$('sponsorFile').addEventListener('change',async e=>{
+  const files=[...e.target.files]; e.target.value='';
+  for(const f of files){
+    const dataUrl=await new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(f); });
+    SPONSORS.push(dataUrl);
+  }
+  renderSponsors(); toast('Logos hinzugefügt (noch speichern!)');
+});
 
 // ===== Benutzer & Rollen (nur Admin) =====
 const ALL_ROLES=['admin','director','referee','viewer'];
@@ -499,6 +542,9 @@ async function loadSettings(){
   $('warmupFinal').value=S.warmupFinal!=null?S.warmupFinal:60;
   $('restSeconds').value=S.restSeconds!=null?S.restSeconds:120;
   $('liveRotate').value=S.liveRotate!=null?S.liveRotate:12;
+  $('liveMode').value=S.liveMode||'rotate';
+  SPONSORS=Array.isArray(S.sponsors)?S.sponsors.slice():[];
+  renderSponsors();
   $('green').value=S.green||'#82F84E'; $('greenHex').value=S.green||'#82F84E';
   $('logoUrl').value=S.logoUrl||''; showPreview('logo',S.logoUrl||'');
   $('bgUrl').value=S.backgroundUrl||''; showPreview('bg',S.backgroundUrl||'');
@@ -519,6 +565,8 @@ async function saveAll(){
     warmupFinal:parseInt($('warmupFinal').value,10)||0,
     restSeconds:parseInt($('restSeconds').value,10)||0,
     liveRotate:parseInt($('liveRotate').value,10)||12,
+    liveMode:$('liveMode').value||'rotate',
+    sponsors:SPONSORS,
     green:$('green').value,
     logoUrl:$('logoUrl').value.trim(),
     backgroundUrl:$('bgUrl').value.trim(),

@@ -28,9 +28,11 @@
   .dots{display:flex;gap:10px;margin-left:auto}
   .dot{width:14px;height:14px;border-radius:50%;background:#2b3a52}
   .dot.on{background:var(--gold)}
-  main{flex:1 1 auto;overflow:auto;padding:10px 26px 26px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:16px;align-content:start}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+  main{flex:1 1 auto;overflow:hidden;padding:10px 26px 14px;min-height:0}
+  .grid{display:grid;gap:14px;align-content:start;height:100%}
+  #viewPrep,#viewDone{overflow:auto;grid-template-columns:repeat(auto-fill,minmax(560px,1fr))}
+  #viewLive{overflow:hidden;grid-auto-rows:1fr}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden}
   .card .top{display:flex;align-items:center;gap:12px}
   .courtbadge{background:#0e2a1c;color:var(--green);border:1px solid #1f6b46;border-radius:10px;
     padding:5px 12px;font-weight:900;font-size:clamp(15px,2vh,20px);letter-spacing:.5px;white-space:nowrap}
@@ -39,14 +41,24 @@
   .metaline{color:var(--muted);font-size:clamp(14px,1.9vh,19px);font-weight:700;margin-left:auto}
   .prow{display:flex;align-items:center;gap:14px}
   .cflag{width:44px;height:30px;border-radius:5px;background-size:cover;background-position:center;flex:0 0 auto;box-shadow:0 0 0 1px #0006}
-  .pname{font-size:clamp(20px,2.9vh,32px);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pname{font-size:clamp(18px,2.7vh,32px);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pname.win{color:#fff}
   .pname.lose{color:var(--muted)}
-  .pscore{margin-left:auto;font-size:clamp(26px,4vh,46px);font-weight:900;font-variant-numeric:tabular-nums;min-width:1.4em;text-align:right}
-  .foot{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:clamp(14px,1.9vh,19px);font-weight:700}
+  .pscore{margin-left:auto;font-size:clamp(22px,3.6vh,46px);font-weight:900;font-variant-numeric:tabular-nums;min-width:1.4em;text-align:right}
+  .foot{display:flex;align-items:center;gap:12px;font-size:clamp(14px,1.9vh,20px);font-weight:700}
+  .foot .ref{color:var(--gold)}
+  .foot .fmeta{margin-left:auto;color:var(--muted)}
   .setpill{background:#0f1622;border:1px solid var(--line);border-radius:999px;padding:4px 14px;color:#cfe0ff;font-variant-numeric:tabular-nums}
   .empty{color:var(--muted);font-size:clamp(20px,3vh,30px);text-align:center;padding:60px 0}
   .shirtdot{width:20px;height:20px;border-radius:5px;flex:0 0 auto;box-shadow:0 0 0 1px #0007}
+  /* Sponsorenleiste */
+  .sponsorbar{flex:0 0 auto;height:12vh;min-height:74px;background:#0d1420;border-top:1px solid var(--line);
+    display:flex;align-items:center;overflow:hidden}
+  .strack{display:flex;align-items:center;gap:26px;padding:0 26px;margin:0 auto;white-space:nowrap}
+  .strack.marquee{animation:marq 30s linear infinite;margin:0}
+  @keyframes marq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .schip{background:#fff;border-radius:10px;padding:8px 14px;display:inline-flex;align-items:center;flex:0 0 auto}
+  .schip img{height:9vh;max-height:82px;max-width:230px;object-fit:contain;display:block}
 </style>
 </head>
 <body>
@@ -72,6 +84,7 @@
     <div id="viewPrep"  class="grid" style="display:none"></div>
     <div id="viewDone"  class="grid" style="display:none"></div>
   </main>
+  <div class="sponsorbar" id="sponsorbar" style="display:none"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -100,7 +113,7 @@ async function load(){
   DONE = MATCHES.filter(m=>m.status==='confirmed')
     .sort((a,b)=>(b.sort_ts||0)-(a.sort_ts||0));
   renderAll();
-  ensureValidView();
+  refreshView();
 }
 
 function liveCard(m){
@@ -125,7 +138,10 @@ function liveCard(m){
       <span class="pname">${esc(m.player2_name)}</span>
       <span class="pscore">${cur.p2||0}</span>
     </div>
-    <div class="foot">${m.event?esc(m.event):''} ${m.round?('· '+esc(m.round)):''} ${m.match_no?('· '+esc(m.match_no)):''}</div>
+    <div class="foot">
+      ${m.referee?`<span class="ref">🧑‍⚖️ ${esc(m.referee)}</span>`:''}
+      <span class="fmeta">${m.event?esc(m.event):''} ${m.round?('· '+esc(m.round)):''} ${m.match_no?('· '+esc(m.match_no)):''}</span>
+    </div>
   </div>`;
 }
 function prepCard(m){
@@ -157,8 +173,13 @@ function doneCard(m){
   </div>`;
 }
 
+function liveCols(n){ if(n<=1) return 1; if(n<=2) return 2; if(n<=6) return 3; if(n<=12) return 4; return 5; }
 function renderAll(){
-  document.getElementById('viewLive').innerHTML = LIVE.length?LIVE.map(liveCard).join(''):'<div class="empty">Keine laufenden Spiele</div>';
+  const vl=document.getElementById('viewLive');
+  vl.innerHTML = LIVE.length?LIVE.map(liveCard).join(''):'<div class="empty">Keine laufenden Spiele</div>';
+  if(LIVE.length){ const cols=liveCols(LIVE.length); const rows=Math.ceil(LIVE.length/cols);
+    vl.style.gridTemplateColumns=`repeat(${cols},1fr)`; vl.style.gridTemplateRows=`repeat(${rows},1fr)`; }
+  else { vl.style.gridTemplateColumns='1fr'; vl.style.gridTemplateRows='1fr'; }
   document.getElementById('viewPrep').innerHTML = PREP.length?PREP.map(prepCard).join(''):'<div class="empty">Keine Spiele in Vorbereitung</div>';
   document.getElementById('viewDone').innerHTML = DONE.length?DONE.map(doneCard).join(''):'<div class="empty">Keine beendeten Spiele</div>';
 }
@@ -170,6 +191,8 @@ const VIEWS=[
   {id:'viewDone', text:'Beendete Spiele', color:'#d7b3ff', arr:()=>DONE},
 ];
 let vi=0; let rotTimer=null;
+const MODE_IDX={live:0,prep:1,done:2};
+function liveMode(){ return (SET&&SET.liveMode)||'rotate'; }
 function showView(i){
   vi=((i%VIEWS.length)+VIEWS.length)%VIEWS.length;
   VIEWS.forEach((v,idx)=>{ document.getElementById(v.id).style.display = idx===vi?'grid':'none'; });
@@ -179,23 +202,47 @@ function showView(i){
   dots.innerHTML=VIEWS.map((v,idx)=>`<span class="dot ${idx===vi?'on':''}"></span>`).join('');
 }
 function nonEmptyCount(){ return VIEWS.filter(v=>v.arr().length>0).length; }
-function ensureValidView(){
-  // Falls aktuelle Ansicht leer ist und andere Inhalte haben -> zur nächsten mit Inhalt
-  if(VIEWS[vi].arr().length===0 && nonEmptyCount()>0){ rotate(); } else { showView(vi); }
-}
 function rotate(){
   const any=nonEmptyCount();
-  if(any===0){ showView(0); return; }           // alles leer -> Laufend zeigen
+  if(any===0){ showView(0); return; }
   for(let step=1;step<=VIEWS.length;step++){
     const n=(vi+step)%VIEWS.length;
     if(VIEWS[n].arr().length>0){ showView(n); return; }
   }
   showView(vi);
 }
-function startRotation(){
-  if(rotTimer) clearInterval(rotTimer);
-  const sec=(SET&&SET.liveRotate!=null)?SET.liveRotate:12;
-  rotTimer=setInterval(rotate, Math.max(3,sec)*1000);
+function applyMode(){
+  if(rotTimer){ clearInterval(rotTimer); rotTimer=null; }
+  const mode=liveMode();
+  const dots=document.getElementById('dots');
+  if(mode==='rotate'){
+    dots.style.display='flex';
+    if(VIEWS[vi].arr().length===0 && nonEmptyCount()>0) rotate(); else showView(vi);
+    const sec=(SET&&SET.liveRotate!=null)?SET.liveRotate:12;
+    rotTimer=setInterval(rotate, Math.max(3,sec)*1000);
+  } else {
+    dots.style.display='none';
+    showView(MODE_IDX[mode]!=null?MODE_IDX[mode]:0);
+  }
+}
+function refreshView(){
+  const mode=liveMode();
+  if(mode==='rotate'){ if(VIEWS[vi].arr().length===0 && nonEmptyCount()>0) rotate(); else showView(vi); }
+  else { showView(MODE_IDX[mode]!=null?MODE_IDX[mode]:0); }
+}
+
+// ---- Sponsorenleiste ----
+function renderSponsors(){
+  const bar=document.getElementById('sponsorbar');
+  const list=(SET&&Array.isArray(SET.sponsors))?SET.sponsors:[];
+  if(!list.length){ bar.style.display='none'; bar.innerHTML=''; return; }
+  bar.style.display='flex';
+  const chips=list.map(src=>`<span class="schip"><img src="${src}" alt=""></span>`).join('');
+  bar.innerHTML=`<div class="strack">${chips}</div>`;
+  requestAnimationFrame(()=>{
+    const track=bar.querySelector('.strack');
+    if(track && track.scrollWidth > bar.clientWidth+4){ track.innerHTML=chips+chips; track.classList.add('marquee'); }
+  });
 }
 
 // ---- Branding / Uhr / Vollbild ----
@@ -207,7 +254,8 @@ async function applyBranding(){
   const l=document.getElementById('logo');
   if(SET.logoUrl){ l.src=SET.logoUrl; l.style.display='block'; } else l.style.display='none';
   document.getElementById('appTitle').textContent = SET.tournamentName ? SET.tournamentName : 'Squash · Live-Übersicht';
-  startRotation();
+  renderSponsors();
+  applyMode();
 }
 function tickClock(){ const d=new Date();
   document.getElementById('clock').textContent = d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
