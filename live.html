@@ -114,6 +114,11 @@ function flagUrlC(code){ if(!code) return ''; const c=String(code).toLowerCase()
 function flagImg(code, region){ const url=(typeof regionFlagUrl==='function'?regionFlagUrl(region,80):'')||flagUrlC(code);
   return url?`<span class="cflag" style="background-image:url('${url}')"></span>`:'<span class="cflag" style="background:#223"></span>'; }
 function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function abbrevName(full){
+  const parts=String(full||'').trim().split(/\s+/).filter(Boolean);
+  if(parts.length<=1) return full||'';
+  return parts[0].charAt(0).toUpperCase()+'. '+parts.slice(1).join(' ');
+}
 function courtLabel(m){ return 'COURT '+(m.court_id||m.court_no||'—'); }
 
 // ---- Daten laden & gruppieren ----
@@ -143,13 +148,13 @@ function liveCard(m){
     <div class="prow">
       ${sh1?`<span class="shirtdot" style="background:${esc(sh1)}"></span>`:''}
       ${flagImg(m.player1_country,m.player1_region)}
-      <span class="pname">${esc(m.player1_name)}</span>
+      <span class="pname">${esc(abbrevName(m.player1_name))}</span>
       <span class="pscore">${cur.p1||0}</span>
     </div>
     <div class="prow">
       ${sh2?`<span class="shirtdot" style="background:${esc(sh2)}"></span>`:''}
       ${flagImg(m.player2_country,m.player2_region)}
-      <span class="pname">${esc(m.player2_name)}</span>
+      <span class="pname">${esc(abbrevName(m.player2_name))}</span>
       <span class="pscore">${cur.p2||0}</span>
     </div>
     ${m.referee?`<div class="refline">🧑‍⚖️ ${esc(m.referee)}</div>`:''}
@@ -191,7 +196,7 @@ function renderAll(){
   vl.innerHTML = LIVE.length?LIVE.map(liveCard).join(''):'<div class="empty">Keine laufenden Spiele</div>';
   if(LIVE.length){ const cols=liveCols(LIVE.length); const rows=Math.ceil(LIVE.length/cols);
     vl.style.gridTemplateColumns=`repeat(${cols},1fr)`; vl.style.gridTemplateRows=`repeat(${rows},1fr)`;
-    vl.classList.toggle('dense', LIVE.length>9); }
+    vl.classList.toggle('dense', LIVE.length>6); }
   else { vl.style.gridTemplateColumns='1fr'; vl.style.gridTemplateRows='1fr'; vl.classList.remove('dense'); }
   document.getElementById('viewPrep').innerHTML = PREP.length?PREP.map(prepCard).join(''):'<div class="empty">Keine Spiele in Vorbereitung</div>';
   document.getElementById('viewDone').innerHTML = DONE.length?DONE.map(doneCard).join(''):'<div class="empty">Keine beendeten Spiele</div>';
