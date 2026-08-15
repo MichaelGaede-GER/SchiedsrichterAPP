@@ -189,6 +189,30 @@
     </div>
   </div>
 
+  <h2>⏱ Timer‑Zeiten (Aufwärmen &amp; Pausen)</h2>
+  <div class="card">
+    <div class="grid2">
+      <div class="field">
+        <label>Aufwärmen Phase 1 (Sekunden)</label>
+        <input type="number" id="warmupP1" min="0" step="5" placeholder="120">
+      </div>
+      <div class="field">
+        <label>Aufwärmen Phase 2 – nach Seitenwechsel (Sekunden)</label>
+        <input type="number" id="warmupP2" min="0" step="5" placeholder="120">
+      </div>
+      <div class="field">
+        <label>Letzte Minute vor Spielbeginn (Sekunden)</label>
+        <input type="number" id="warmupFinal" min="0" step="5" placeholder="60">
+      </div>
+      <div class="field">
+        <label>Pause zwischen den Sätzen (Sekunden)</label>
+        <input type="number" id="restSeconds" min="0" step="5" placeholder="120">
+      </div>
+    </div>
+    <div class="hint">Aufwärmen läuft in zwei Phasen (je Standard 2 Min., dazwischen Seitenwechsel),
+      danach die letzte Minute. Bei 60/30/15 Sekunden Restzeit kommen Ansage und Warnton.</div>
+  </div>
+
   <h2>Courts</h2>
   <div class="card">
     <div class="field">
@@ -453,6 +477,10 @@ async function loadSettings(){
   $('tournamentName').value=S.tournamentName||'';
   $('courts').value=(S.courts||[]).join(',');
   $('autoAssign').checked=!!S.autoAssign;
+  $('warmupP1').value=S.warmupP1!=null?S.warmupP1:120;
+  $('warmupP2').value=S.warmupP2!=null?S.warmupP2:120;
+  $('warmupFinal').value=S.warmupFinal!=null?S.warmupFinal:60;
+  $('restSeconds').value=S.restSeconds!=null?S.restSeconds:120;
   $('green').value=S.green||'#82F84E'; $('greenHex').value=S.green||'#82F84E';
   $('logoUrl').value=S.logoUrl||''; showPreview('logo',S.logoUrl||'');
   $('bgUrl').value=S.backgroundUrl||''; showPreview('bg',S.backgroundUrl||'');
@@ -468,6 +496,10 @@ async function saveAll(){
   const patch={
     tournamentName:$('tournamentName').value.trim(),
     courts, autoAssign:$('autoAssign').checked,
+    warmupP1:parseInt($('warmupP1').value,10)||0,
+    warmupP2:parseInt($('warmupP2').value,10)||0,
+    warmupFinal:parseInt($('warmupFinal').value,10)||0,
+    restSeconds:parseInt($('restSeconds').value,10)||0,
     green:$('green').value,
     logoUrl:$('logoUrl').value.trim(),
     backgroundUrl:$('bgUrl').value.trim(),

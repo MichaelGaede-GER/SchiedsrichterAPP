@@ -43,9 +43,11 @@
     background:#e9edf3;color:#0b0b0b;display:flex;align-items:center;justify-content:center;
     font-weight:900;font-size:clamp(24px,4vh,40px);line-height:1;box-shadow:0 0 0 4px rgba(255,255,255,.15);cursor:pointer}
   .panel.left .serve{left:16px}.panel.right .serve{right:16px}
-  .shirtbtn{position:fixed;bottom:14px;width:60px;height:60px;z-index:8;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55))}
-  .shirtbtn:active{transform:scale(.94)}
+  .pshirt{position:absolute;bottom:12px;cursor:pointer;z-index:4;line-height:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55))}
+  .panel.left .pshirt{left:14px}.panel.right .pshirt{right:14px}
+  #warmPhaseLabel.big{font-size:clamp(40px,8vh,96px);color:#ffd54a;font-weight:900;letter-spacing:1px}
+  .swatch{width:56px;height:56px;border-radius:50%;border:3px solid #ffffff22;cursor:pointer}
+  .swatch:active{transform:scale(.92)}
   .gameball{position:absolute;top:12px;font-size:12px;font-weight:900;letter-spacing:1px;padding:4px 10px;border-radius:999px}
   .panel.left .gameball{right:14px}.panel.right .gameball{left:14px}
   .gb-game{background:#f2b134;color:#241800}.gb-match{background:#2fbf71;color:#052012}
@@ -124,9 +126,9 @@
   style="position:fixed;top:8px;right:8px;z-index:50;background:rgba(20,28,40,.85);color:#e7edf5;border:1px solid #2a3444;border-radius:9px;padding:6px 8px;font:inherit;cursor:pointer">
   <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
 <div id="app"></div>
-<div id="shirt1" class="shirtbtn" style="left:14px;display:none" onclick="pickShirt(1)" title="Shirt-Farbe Spieler 1"></div>
-<div id="shirt2" class="shirtbtn" style="right:14px;display:none" onclick="pickShirt(2)" title="Shirt-Farbe Spieler 2"></div>
-<input type="color" id="shirtInput" style="position:fixed;left:-9999px;top:-9999px" onchange="applyShirt(this.value)">
+<div id="bigBanner" style="position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.78)">
+  <div id="bigBannerText" style="font-size:clamp(52px,13vh,150px);font-weight:900;color:#ffd54a;text-align:center;letter-spacing:2px;text-transform:uppercase;padding:0 20px"></div>
+</div>
 
 <div id="ovWarmup" class="overlay"><div class="card">
   <img id="warmLogo" class="brandlogo" style="display:none" alt="">
@@ -141,6 +143,14 @@
   <div class="row">
     <button id="warmP1" class="choice blue" onclick="startPlay(1)">Spieler 1</button>
     <button id="warmP2" class="choice red" onclick="startPlay(2)">Spieler 2</button>
+  </div>
+</div></div>
+
+<div id="ovShirt" class="overlay"><div class="card">
+  <h2 id="shirtTitle">Shirt-Farbe</h2>
+  <div id="shirtPalette" style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;max-width:440px;margin:6px auto 0"></div>
+  <div class="row" style="margin-top:20px">
+    <button class="btn btn-gray" onclick="hide('ovShirt')">Schließen</button>
   </div>
 </div></div>
 
@@ -432,7 +442,7 @@ async function pushTimer(){ if(!match||!M) return; try{ await Store.updateMatch(
 // ============ RENDER ============
 function render(){
   const app=document.getElementById('app');
-  if(!match){ renderIdle(app); renderShirts(); return; }
+  if(!match){ renderIdle(app); return; }
   const p1=match.player1_name,p2=match.player2_name,c1=match.player1_country,c2=match.player2_country;
   const r1=match.player1_region,r2=match.player2_region;
   const s=M, serving1=s.server===1, serving2=s.server===2;
@@ -459,6 +469,7 @@ function render(){
         ${serving1?`<div class="serve" onclick="event.stopPropagation();toggleServeSide()" title="Aufschlagseite wechseln (R/L)">${s.side}</div>`:''}
         ${gb1?`<div class="gameball ${gb1==='match'?'gb-match':'gb-game'}">${gb1==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p1}</div>
+        <div class="pshirt" onclick="event.stopPropagation();pickShirt(1)" title="Shirt-Farbe Spieler 1">${shirtSVG(M.shirt1)}</div>
       </div>
       <div class="mid">
         <button class="midbtn mid-undo" onclick="undo()">↶</button><div class="mid-label">Undo</div>
@@ -468,6 +479,7 @@ function render(){
         ${serving2?`<div class="serve" onclick="event.stopPropagation();toggleServeSide()" title="Aufschlagseite wechseln (R/L)">${s.side}</div>`:''}
         ${gb2?`<div class="gameball ${gb2==='match'?'gb-match':'gb-game'}">${gb2==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p2}</div>
+        <div class="pshirt" onclick="event.stopPropagation();pickShirt(2)" title="Shirt-Farbe Spieler 2">${shirtSVG(M.shirt2)}</div>
       </div>
     </div>
     <div class="foot">
@@ -491,7 +503,6 @@ function render(){
     attachLongPress(document.getElementById('pill2'),()=>openPenalty(2));
   },0);
   Timer._paint();
-  renderShirts();
 }
 
 // Conduct-Badges an den Namen
@@ -556,22 +567,29 @@ function point(who){ if(!M||M.status!=='playing') return; M.point(who); afterCha
 function toggleServeSide(){ if(!M||M.status!=='playing') return; M.side=(M.side==='R')?'L':'R'; render(); sync(); }
 
 // ---- Shirt-Farben ----
+const SHIRT_COLORS=['#e23b3b','#2f6bff','#22c55e','#eab308','#f97316','#a855f7','#ec4899','#06b6d4','#0e1116','#f1f5f9','#64748b','#7c3f1d'];
 function shirtSVG(color){
   const c=color||'#3a3f4a';
-  return `<svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true">
+  return `<svg viewBox="0 0 48 48" width="54" height="54" aria-hidden="true">
     <path d="M17 5 L8 10 L12 20 L17 17.5 V43 H31 V17.5 L36 20 L40 10 L31 5 Q24 11 17 5 Z"
       fill="${c}" stroke="rgba(0,0,0,.55)" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
 }
 let shirtEditing=1;
-function pickShirt(p){ if(!M) return; shirtEditing=p; const inp=document.getElementById('shirtInput');
-  inp.value=(p===1?M.shirt1:M.shirt2)||'#e23b3b'; inp.click(); }
-function applyShirt(color){ if(!M) return; if(shirtEditing===1) M.shirt1=color; else M.shirt2=color; renderShirts(); sync(); }
-function renderShirts(){
-  const s1=document.getElementById('shirt1'), s2=document.getElementById('shirt2');
-  if(!s1||!s2) return;
-  if(match&&M){ s1.innerHTML=shirtSVG(M.shirt1); s2.innerHTML=shirtSVG(M.shirt2);
-    s1.style.display='flex'; s2.style.display='flex'; }
-  else { s1.style.display='none'; s2.style.display='none'; }
+function pickShirt(p){
+  if(!M) return; shirtEditing=p;
+  const name=(p===1?match.player1_name:match.player2_name)||('Spieler '+p);
+  setText('shirtTitle','Shirt-Farbe – '+name);
+  const cur=(p===1?M.shirt1:M.shirt2);
+  const pal=document.getElementById('shirtPalette');
+  pal.innerHTML = SHIRT_COLORS.map(c=>
+      `<div class="swatch" style="background:${c};${cur===c?'border-color:#fff':''}" onclick="applyShirt('${c}')"></div>`
+    ).join('') +
+    `<div class="swatch" title="keine Farbe" style="background:repeating-linear-gradient(45deg,#333,#333 6px,#555 6px,#555 12px)" onclick="applyShirt('')"></div>`;
+  show('ovShirt');
+}
+function applyShirt(color){
+  if(!M) return; if(shirtEditing===1) M.shirt1=color||null; else M.shirt2=color||null;
+  hide('ovShirt'); render(); sync();
 }
 function undo(){ if(!M) return; if(M.undo()){ refConfirmed=false; hide('ovConfirm'); hide('ovDone'); hide('ovRest'); afterChange(); } }
 function letDecide(what){ hide('ovLet'); if(what==='let') return; point(what); }
@@ -727,45 +745,64 @@ function warmPhaseList(){
   const g=(k,d)=>{ const v=(SETTINGS&&SETTINGS[k]!=null)?SETTINGS[k]:d; return v; };
   return [
     {sec:g('warmupP1',120), label:'Aufwärmen – Phase 1'},
-    {sec:g('warmupP2',120), label:'Seiten wechseln – Phase 2'},
-    {sec:g('warmupFinal',60), label:'Letzte Minute vor Spielbeginn'},
+    {sec:g('warmupP2',120), label:'Aufwärmen – Phase 2'},
+    {sec:g('warmupFinal',60), label:'1 MINUTE – MATCH START'},
   ].filter(p=>p.sec>0);
 }
+function bigBanner(text,ms){
+  const b=document.getElementById('bigBanner'), t=document.getElementById('bigBannerText');
+  if(!b) return; t.textContent=text; b.style.display='flex';
+  clearTimeout(b._h); if(ms){ b._h=setTimeout(()=>{ b.style.display='none'; }, ms); }
+}
+function hideBigBanner(){ const b=document.getElementById('bigBanner'); if(b) b.style.display='none'; }
 function showWarmup(){
   warmPhase=0;
   const lg=document.getElementById('warmLogo');
   if(lg){ if(SETTINGS&&SETTINGS.logoUrl){ lg.src=SETTINGS.logoUrl; lg.style.display='block'; } else lg.style.display='none'; }
   setText('warmTitle','Nächstes Spiel auf Court '+COURT);
-  primeWarmPhase();
+  document.getElementById('warmPhaseLabel').classList.remove('big');
+  primeWarmPhase();            // Phase 1 bereit (pausiert) – Schiri startet
   show('ovWarmup');
 }
 function primeWarmPhase(){
   const phases=warmPhaseList();
-  if(!phases.length || warmPhase>=phases.length){
-    setText('warmPhaseLabel','Bereit – wer schlägt zuerst auf?');
-    Timer.prime(0,'');
-    return;
-  }
+  const lbl=document.getElementById('warmPhaseLabel'); lbl.classList.remove('big');
+  if(!phases.length || warmPhase>=phases.length){ setText('warmPhaseLabel','Bereit – wer schlägt zuerst auf?'); Timer.prime(0,''); return; }
   const p=phases[warmPhase];
-  setText('warmPhaseLabel', p.label + (phases.length>1?`  (${warmPhase+1}/${phases.length})`:''));
+  setText('warmPhaseLabel', p.label);
   Timer.prime(p.sec, p.label);
-  Timer.onEnd=onWarmPhaseEnd;
-  Timer._announce=true;
+  Timer.onEnd=onWarmPhaseEnd; Timer._announce=true;
   Timer._msg15=(warmPhase===phases.length-1)?'15 Sekunden – Spieler bitte auf den Court!':'noch 15 Sekunden';
+}
+function startWarmPhase(idx){
+  const phases=warmPhaseList(); if(idx>=phases.length) return;
+  warmPhase=idx; const p=phases[idx];
+  document.getElementById('warmPhaseLabel').classList.remove('big');
+  setText('warmPhaseLabel', p.label);
+  const isFinal=(idx===phases.length-1);
+  Timer.start(p.sec, p.label, onWarmPhaseEnd,
+    {announce:true, msg15: isFinal?'15 Sekunden – Spieler bitte auf den Court!':'noch 15 Sekunden'});
 }
 function onWarmPhaseEnd(){
   const phases=warmPhaseList();
-  if(warmPhase < phases.length-1){
-    warmPhase++;
-    toast(warmPhase===1?'Seiten wechseln!':'Nächste Phase – Start drücken');
-    primeWarmPhase();                 // pausiert -> Schiri startet manuell
+  const isLast=(warmPhase>=phases.length-1);
+  if(isLast){
+    // Endphase vorbei -> großer Aufschlag-Prompt, Buttons bleiben sichtbar
+    const lbl=document.getElementById('warmPhaseLabel');
+    setText('warmPhaseLabel','Wer schlägt auf?'); lbl.classList.add('big');
+    return;
+  }
+  const wasFirst=(warmPhase===0);
+  const next=warmPhase+1;
+  if(wasFirst){
+    // 3 Sekunden großer Seitenwechsel-Hinweis, dann Phase 2 automatisch
+    bigBanner('Seitenwechsel', 3000);
+    setTimeout(()=>{ hideBigBanner(); startWarmPhase(next); }, 3000);
   } else {
-    warmPhase=phases.length;
-    primeWarmPhase();                 // zeigt „Bereit …“
-    toast('Aufwärmen beendet – wer schlägt zuerst auf?');
+    startWarmPhase(next);      // letzte Phase automatisch starten
   }
 }
-function hideAll(){ ['ovWarmup','ovLet','ovTimer','ovRest','ovConfirm','ovDone','ovPenalty','ovInjury'].forEach(hide); }
+function hideAll(){ ['ovWarmup','ovLet','ovTimer','ovRest','ovConfirm','ovDone','ovPenalty','ovInjury','ovShirt'].forEach(hide); }
 
 async function refreshSettings(){ SETTINGS=await Store.getSettings(); applyBranding(); loadCourt(); }
 Auth.guard('score').then(()=>{
