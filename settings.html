@@ -224,6 +224,17 @@
     <div id="links" class="courts-links"></div>
   </div>
 
+  <h2>📺 Live-Anzeige (Vollbild)</h2>
+  <div class="card">
+    <div class="field">
+      <label>Wechselzeit zwischen den Ansichten (Sekunden)</label>
+      <input type="number" id="liveRotate" min="3" step="1" placeholder="12">
+    </div>
+    <div class="hint">Große Zuschauer-Anzeige mit Logo &amp; Turniername, die automatisch zwischen
+      <b>Laufende Spiele</b>, <b>Spiele in Vorbereitung</b> und <b>Beendete Spiele</b> wechselt.</div>
+    <div id="liveLink" class="courts-links" style="margin-top:10px"></div>
+  </div>
+
   <div id="userAdminCard" style="display:none">
     <h2>Benutzer & Rollen</h2>
     <div class="card">
@@ -274,8 +285,14 @@ function applyBranding(){
 }
 
 function renderLinks(){
-  const list=($('courts').value||'').split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
   const base=baseUrl();
+  const ll=document.getElementById('liveLink');
+  if(ll){ const url=base+'live.html';
+    ll.innerHTML=`<div class="clink"><div class="lrow"><span class="tag">Live-Anzeige</span>
+      <code title="${url}">${url}</code>
+      <button class="btn-ghost" onclick="navigator.clipboard.writeText('${url}');toast('Link kopiert')">Kopieren</button>
+      <a class="btn-ghost" href="${url}" target="_blank" style="text-decoration:none">Öffnen</a></div></div>`; }
+  const list=($('courts').value||'').split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
   const rows=list.map(n=>{
     const links=[
       ['Schiedsrichter-Tablet', `court.html?court=${n}`],
@@ -481,6 +498,7 @@ async function loadSettings(){
   $('warmupP2').value=S.warmupP2!=null?S.warmupP2:120;
   $('warmupFinal').value=S.warmupFinal!=null?S.warmupFinal:60;
   $('restSeconds').value=S.restSeconds!=null?S.restSeconds:120;
+  $('liveRotate').value=S.liveRotate!=null?S.liveRotate:12;
   $('green').value=S.green||'#82F84E'; $('greenHex').value=S.green||'#82F84E';
   $('logoUrl').value=S.logoUrl||''; showPreview('logo',S.logoUrl||'');
   $('bgUrl').value=S.backgroundUrl||''; showPreview('bg',S.backgroundUrl||'');
@@ -500,6 +518,7 @@ async function saveAll(){
     warmupP2:parseInt($('warmupP2').value,10)||0,
     warmupFinal:parseInt($('warmupFinal').value,10)||0,
     restSeconds:parseInt($('restSeconds').value,10)||0,
+    liveRotate:parseInt($('liveRotate').value,10)||12,
     green:$('green').value,
     logoUrl:$('logoUrl').value.trim(),
     backgroundUrl:$('bgUrl').value.trim(),

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<script src="i18n.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Squash – Live-Übersicht</title>
+<style>
+  :root{--bg:#0b0f16;--panel:#131b28;--panel2:#0f1622;--line:#243247;--ink:#eef3fb;--muted:#8aa0bf;
+    --blue:#4a90ff;--red:#ff6b6b;--green:#7CFF9B;--gold:#ffd54a}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;overflow:hidden}
+  .bgfx{position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;opacity:.16}
+  .app{position:relative;z-index:1;height:100vh;display:flex;flex-direction:column}
+  header{flex:0 0 auto;display:flex;align-items:center;gap:18px;padding:16px 26px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#0f1724,#0b0f16)}
+  header img.logo{height:64px;max-width:260px;object-fit:contain}
+  header h1{font-size:clamp(24px,3.4vh,40px);margin:0;font-weight:900;letter-spacing:.3px}
+  header .sp{flex:1}
+  header .clock{font-variant-numeric:tabular-nums;font-weight:800;color:var(--muted);font-size:clamp(18px,2.6vh,28px)}
+  .iconbtn{background:#1a2434;color:var(--ink);border:1px solid var(--line);border-radius:10px;
+    padding:9px 13px;font:inherit;font-weight:700;cursor:pointer}
+  select.lang{background:#1a2434;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font:inherit;cursor:pointer}
+  .viewhead{flex:0 0 auto;display:flex;align-items:center;gap:16px;padding:14px 26px 6px}
+  .viewhead h2{margin:0;font-size:clamp(22px,3.2vh,38px);font-weight:900}
+  .viewhead h2 .accent{color:var(--gold)}
+  .dots{display:flex;gap:10px;margin-left:auto}
+  .dot{width:14px;height:14px;border-radius:50%;background:#2b3a52}
+  .dot.on{background:var(--gold)}
+  main{flex:1 1 auto;overflow:auto;padding:10px 26px 26px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:16px;align-content:start}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+  .card .top{display:flex;align-items:center;gap:12px}
+  .courtbadge{background:#0e2a1c;color:var(--green);border:1px solid #1f6b46;border-radius:10px;
+    padding:5px 12px;font-weight:900;font-size:clamp(15px,2vh,20px);letter-spacing:.5px;white-space:nowrap}
+  .courtbadge.prep{background:#0e2036;color:#8fd0ff;border-color:#2f6bff}
+  .courtbadge.done{background:#241a2e;color:#d7b3ff;border-color:#8250b6}
+  .metaline{color:var(--muted);font-size:clamp(14px,1.9vh,19px);font-weight:700;margin-left:auto}
+  .prow{display:flex;align-items:center;gap:14px}
+  .cflag{width:44px;height:30px;border-radius:5px;background-size:cover;background-position:center;flex:0 0 auto;box-shadow:0 0 0 1px #0006}
+  .pname{font-size:clamp(20px,2.9vh,32px);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pname.win{color:#fff}
+  .pname.lose{color:var(--muted)}
+  .pscore{margin-left:auto;font-size:clamp(26px,4vh,46px);font-weight:900;font-variant-numeric:tabular-nums;min-width:1.4em;text-align:right}
+  .foot{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:clamp(14px,1.9vh,19px);font-weight:700}
+  .setpill{background:#0f1622;border:1px solid var(--line);border-radius:999px;padding:4px 14px;color:#cfe0ff;font-variant-numeric:tabular-nums}
+  .empty{color:var(--muted);font-size:clamp(20px,3vh,30px);text-align:center;padding:60px 0}
+  .shirtdot{width:20px;height:20px;border-radius:5px;flex:0 0 auto;box-shadow:0 0 0 1px #0007}
+</style>
+</head>
+<body>
+<div class="bgfx" id="bgfx"></div>
+<div class="app">
+  <header>
+    <img id="logo" class="logo" alt="" style="display:none">
+    <h1 id="appTitle">Squash · Live-Übersicht</h1>
+    <span class="sp"></span>
+    <span class="clock" id="clock">—</span>
+    <select class="lang" data-lang-select onchange="I18N.set(this.value)" title="Sprache / Language">
+      <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
+    <button class="iconbtn" id="fsBtn" onclick="toggleFull()">⛶ Vollbild</button>
+  </header>
+
+  <div class="viewhead">
+    <h2 id="viewTitle"><span class="accent">●</span> <span id="viewTitleText">Laufende Spiele</span></h2>
+    <div class="dots" id="dots"></div>
+  </div>
+
+  <main>
+    <div id="viewLive"  class="grid"></div>
+    <div id="viewPrep"  class="grid" style="display:none"></div>
+    <div id="viewDone"  class="grid" style="display:none"></div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="store.js"></script>
+<script src="auth.js"></script>
+<script>
+let MATCHES=[]; let SET=null;
+let LIVE=[], PREP=[], DONE=[];
+
+// ---- Flaggen ----
+function flagUrlC(code){ if(!code) return ''; const c=String(code).toLowerCase();
+  const map={eng:'gb-eng',sct:'gb-sct',wls:'gb-wls'}; return `https://flagcdn.com/h80/${map[c]||c}.png`; }
+function flagImg(code, region){ const url=(typeof regionFlagUrl==='function'?regionFlagUrl(region,80):'')||flagUrlC(code);
+  return url?`<span class="cflag" style="background-image:url('${url}')"></span>`:'<span class="cflag" style="background:#223"></span>'; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function courtLabel(m){ return 'COURT '+(m.court_id||m.court_no||'—'); }
+
+// ---- Daten laden & gruppieren ----
+async function load(){
+  try{ MATCHES=await Store.listMatches(); }catch(e){ MATCHES=[]; }
+  LIVE = MATCHES.filter(m=>m.status==='live')
+    .sort((a,b)=>(a.court_id||a.court_no||0)-(b.court_id||b.court_no||0));
+  PREP = MATCHES.filter(m=>m.status==='scheduled' && !m.court_id)
+    .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
+  DONE = MATCHES.filter(m=>m.status==='confirmed')
+    .sort((a,b)=>(b.sort_ts||0)-(a.sort_ts||0));
+  renderAll();
+  ensureValidView();
+}
+
+function liveCard(m){
+  const s=m.state||{};
+  const gw1=s.gamesWon1!=null?s.gamesWon1:0, gw2=s.gamesWon2!=null?s.gamesWon2:0;
+  const cur=s.cur||{p1:0,p2:0};
+  const sh1=m.state&&m.state.shirt1, sh2=m.state&&m.state.shirt2;
+  return `<div class="card">
+    <div class="top">
+      <span class="courtbadge">${esc(courtLabel(m))}</span>
+      <span class="metaline">Satz ${gw1}–${gw2} · Bo${m.best_of||5}</span>
+    </div>
+    <div class="prow">
+      ${sh1?`<span class="shirtdot" style="background:${esc(sh1)}"></span>`:''}
+      ${flagImg(m.player1_country,m.player1_region)}
+      <span class="pname">${esc(m.player1_name)}</span>
+      <span class="pscore">${cur.p1||0}</span>
+    </div>
+    <div class="prow">
+      ${sh2?`<span class="shirtdot" style="background:${esc(sh2)}"></span>`:''}
+      ${flagImg(m.player2_country,m.player2_region)}
+      <span class="pname">${esc(m.player2_name)}</span>
+      <span class="pscore">${cur.p2||0}</span>
+    </div>
+    <div class="foot">${m.event?esc(m.event):''} ${m.round?('· '+esc(m.round)):''} ${m.match_no?('· '+esc(m.match_no)):''}</div>
+  </div>`;
+}
+function prepCard(m){
+  const court = m.court_no?('Court '+m.court_no):'';
+  return `<div class="card">
+    <div class="top">
+      <span class="courtbadge prep">${esc(m.scheduled_time||court||'geplant')}</span>
+      <span class="metaline">${esc(m.event||'')} ${m.round?('· '+esc(m.round)):''} ${court?('· '+esc(court)):''}</span>
+    </div>
+    <div class="prow">${flagImg(m.player1_country,m.player1_region)}<span class="pname">${esc(m.player1_name)}</span></div>
+    <div class="prow">${flagImg(m.player2_country,m.player2_region)}<span class="pname">${esc(m.player2_name)}</span></div>
+  </div>`;
+}
+function doneCard(m){
+  const w=m.winner;
+  return `<div class="card">
+    <div class="top">
+      <span class="courtbadge done">${esc(m.event||'Ergebnis')}</span>
+      <span class="metaline">${m.round?esc(m.round):''} ${m.match_no?('· '+esc(m.match_no)):''}</span>
+    </div>
+    <div class="prow">${flagImg(m.player1_country,m.player1_region)}
+      <span class="pname ${w===1?'win':'lose'}">${esc(m.player1_name)}</span>
+      <span class="pscore">${(m.result||'').split('-')[0]||''}</span></div>
+    <div class="prow">${flagImg(m.player2_country,m.player2_region)}
+      <span class="pname ${w===2?'win':'lose'}">${esc(m.player2_name)}</span>
+      <span class="pscore">${(m.result||'').split('-')[1]||''}</span></div>
+    <div class="foot">${m.ending==='walkover'?'W.O.':m.ending==='retired'?'Retired':''}
+      ${m.score_text?`<span class="setpill">${esc(m.score_text)}</span>`:''}</div>
+  </div>`;
+}
+
+function renderAll(){
+  document.getElementById('viewLive').innerHTML = LIVE.length?LIVE.map(liveCard).join(''):'<div class="empty">Keine laufenden Spiele</div>';
+  document.getElementById('viewPrep').innerHTML = PREP.length?PREP.map(prepCard).join(''):'<div class="empty">Keine Spiele in Vorbereitung</div>';
+  document.getElementById('viewDone').innerHTML = DONE.length?DONE.map(doneCard).join(''):'<div class="empty">Keine beendeten Spiele</div>';
+}
+
+// ---- Ansichten & Rotation ----
+const VIEWS=[
+  {id:'viewLive', text:'Laufende Spiele', color:'var(--green)', arr:()=>LIVE},
+  {id:'viewPrep', text:'In Vorbereitung', color:'#8fd0ff', arr:()=>PREP},
+  {id:'viewDone', text:'Beendete Spiele', color:'#d7b3ff', arr:()=>DONE},
+];
+let vi=0; let rotTimer=null;
+function showView(i){
+  vi=((i%VIEWS.length)+VIEWS.length)%VIEWS.length;
+  VIEWS.forEach((v,idx)=>{ document.getElementById(v.id).style.display = idx===vi?'grid':'none'; });
+  document.getElementById('viewTitleText').textContent = VIEWS[vi].text;
+  const acc=document.querySelector('#viewTitle .accent'); if(acc) acc.style.color=VIEWS[vi].color;
+  const dots=document.getElementById('dots');
+  dots.innerHTML=VIEWS.map((v,idx)=>`<span class="dot ${idx===vi?'on':''}"></span>`).join('');
+}
+function nonEmptyCount(){ return VIEWS.filter(v=>v.arr().length>0).length; }
+function ensureValidView(){
+  // Falls aktuelle Ansicht leer ist und andere Inhalte haben -> zur nächsten mit Inhalt
+  if(VIEWS[vi].arr().length===0 && nonEmptyCount()>0){ rotate(); } else { showView(vi); }
+}
+function rotate(){
+  const any=nonEmptyCount();
+  if(any===0){ showView(0); return; }           // alles leer -> Laufend zeigen
+  for(let step=1;step<=VIEWS.length;step++){
+    const n=(vi+step)%VIEWS.length;
+    if(VIEWS[n].arr().length>0){ showView(n); return; }
+  }
+  showView(vi);
+}
+function startRotation(){
+  if(rotTimer) clearInterval(rotTimer);
+  const sec=(SET&&SET.liveRotate!=null)?SET.liveRotate:12;
+  rotTimer=setInterval(rotate, Math.max(3,sec)*1000);
+}
+
+// ---- Branding / Uhr / Vollbild ----
+async function applyBranding(){
+  SET=await Store.getSettings();
+  const bg=document.getElementById('bgfx');
+  bg.style.backgroundImage = SET.backgroundUrl?`url("${SET.backgroundUrl}")`:'none';
+  bg.style.opacity = (SET.bgOpacity!=null?SET.bgOpacity:0.5);
+  const l=document.getElementById('logo');
+  if(SET.logoUrl){ l.src=SET.logoUrl; l.style.display='block'; } else l.style.display='none';
+  document.getElementById('appTitle').textContent = SET.tournamentName ? SET.tournamentName : 'Squash · Live-Übersicht';
+  startRotation();
+}
+function tickClock(){ const d=new Date();
+  document.getElementById('clock').textContent = d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+setInterval(tickClock,1000); tickClock();
+function toggleFull(){ const el=document.documentElement;
+  if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  else { (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); } }
+document.addEventListener('fullscreenchange',()=>{ const b=document.getElementById('fsBtn'); if(b) b.textContent=document.fullscreenElement?'⤢ Fenster':'⛶ Vollbild'; });
+
+Auth.guard('view').then(()=>{
+  applyBranding();
+  Store.subscribeAll(load);
+  Store.subscribeSettings(applyBranding);
+  Store.subscribeTournaments(load);
+  load();
+});
+</script>
+</body>
+</html>
