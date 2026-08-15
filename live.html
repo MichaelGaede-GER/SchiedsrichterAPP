@@ -46,8 +46,21 @@
   .pname.lose{color:var(--muted)}
   .pscore{margin-left:auto;font-size:clamp(22px,3.6vh,46px);font-weight:900;font-variant-numeric:tabular-nums;min-width:1.4em;text-align:right}
   .foot{display:flex;align-items:center;gap:12px;font-size:clamp(14px,1.9vh,20px);font-weight:700}
-  .foot .ref{color:var(--gold)}
   .foot .fmeta{margin-left:auto;color:var(--muted)}
+  .refline{font-weight:800;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    font-size:clamp(16px,2.2vh,24px);line-height:1.1}
+  /* Dichte Belegung (>9 Live-Spiele): kompakter, aber Schiedsrichter bleibt lesbar */
+  #viewLive.dense{gap:8px}
+  #viewLive.dense .card{padding:7px 10px;gap:2px;justify-content:center}
+  #viewLive.dense .top{gap:8px}
+  #viewLive.dense .cflag{width:30px;height:20px}
+  #viewLive.dense .courtbadge{font-size:clamp(12px,1.5vh,16px);padding:2px 8px}
+  #viewLive.dense .metaline{font-size:clamp(11px,1.4vh,15px)}
+  #viewLive.dense .prow{gap:9px}
+  #viewLive.dense .pname{font-size:clamp(15px,2vh,23px)}
+  #viewLive.dense .pscore{font-size:clamp(16px,2.6vh,30px);min-width:1em}
+  #viewLive.dense .refline{font-size:clamp(14px,1.8vh,20px);color:#fff}
+  #viewLive.dense .foot{display:none}
   .setpill{background:#0f1622;border:1px solid var(--line);border-radius:999px;padding:4px 14px;color:#cfe0ff;font-variant-numeric:tabular-nums}
   .empty{color:var(--muted);font-size:clamp(20px,3vh,30px);text-align:center;padding:60px 0}
   .shirtdot{width:20px;height:20px;border-radius:5px;flex:0 0 auto;box-shadow:0 0 0 1px #0007}
@@ -107,7 +120,8 @@ function courtLabel(m){ return 'COURT '+(m.court_id||m.court_no||'—'); }
 async function load(){
   try{ MATCHES=await Store.listMatches(); }catch(e){ MATCHES=[]; }
   LIVE = MATCHES.filter(m=>m.status==='live')
-    .sort((a,b)=>(a.court_id||a.court_no||0)-(b.court_id||b.court_no||0));
+    .sort((a,b)=>(a.court_id||a.court_no||0)-(b.court_id||b.court_no||0))
+    .slice(0,15);
   PREP = MATCHES.filter(m=>m.status==='scheduled' && !m.court_id)
     .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
   DONE = MATCHES.filter(m=>m.status==='confirmed')
@@ -138,10 +152,8 @@ function liveCard(m){
       <span class="pname">${esc(m.player2_name)}</span>
       <span class="pscore">${cur.p2||0}</span>
     </div>
-    <div class="foot">
-      ${m.referee?`<span class="ref">🧑‍⚖️ ${esc(m.referee)}</span>`:''}
-      <span class="fmeta">${m.event?esc(m.event):''} ${m.round?('· '+esc(m.round)):''} ${m.match_no?('· '+esc(m.match_no)):''}</span>
-    </div>
+    ${m.referee?`<div class="refline">🧑‍⚖️ ${esc(m.referee)}</div>`:''}
+    <div class="foot"><span class="fmeta">${m.event?esc(m.event):''} ${m.round?('· '+esc(m.round)):''} ${m.match_no?('· '+esc(m.match_no)):''}</span></div>
   </div>`;
 }
 function prepCard(m){
@@ -173,13 +185,14 @@ function doneCard(m){
   </div>`;
 }
 
-function liveCols(n){ if(n<=1) return 1; if(n<=2) return 2; if(n<=6) return 3; if(n<=12) return 4; return 5; }
+function liveCols(n){ if(n<=2) return n; if(n<=4) return 2; if(n<=9) return 3; if(n<=12) return 4; return 5; }
 function renderAll(){
   const vl=document.getElementById('viewLive');
   vl.innerHTML = LIVE.length?LIVE.map(liveCard).join(''):'<div class="empty">Keine laufenden Spiele</div>';
   if(LIVE.length){ const cols=liveCols(LIVE.length); const rows=Math.ceil(LIVE.length/cols);
-    vl.style.gridTemplateColumns=`repeat(${cols},1fr)`; vl.style.gridTemplateRows=`repeat(${rows},1fr)`; }
-  else { vl.style.gridTemplateColumns='1fr'; vl.style.gridTemplateRows='1fr'; }
+    vl.style.gridTemplateColumns=`repeat(${cols},1fr)`; vl.style.gridTemplateRows=`repeat(${rows},1fr)`;
+    vl.classList.toggle('dense', LIVE.length>9); }
+  else { vl.style.gridTemplateColumns='1fr'; vl.style.gridTemplateRows='1fr'; vl.classList.remove('dense'); }
   document.getElementById('viewPrep').innerHTML = PREP.length?PREP.map(prepCard).join(''):'<div class="empty">Keine Spiele in Vorbereitung</div>';
   document.getElementById('viewDone').innerHTML = DONE.length?DONE.map(doneCard).join(''):'<div class="empty">Keine beendeten Spiele</div>';
 }
