@@ -58,10 +58,19 @@ const Store = (() => {
         .upsert({ id: 'app', data: obj, updated_at: new Date().toISOString() });
       if (error) throw error;
     },
+    async getTournamentSettings(tid) {
+      const { data, error } = await sb.from('tournaments').select('settings').eq('id', tid).maybeSingle();
+      if (error) throw error; return (data && data.settings) || {};
+    },
+    async saveTournamentSettings(tid, obj) {
+      const { error } = await sb.from('tournaments').update({ settings: obj }).eq('id', tid);
+      if (error) throw error;
+    },
     subscribeSettings(callback) {
       const ch = sb.channel('settings-all')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' },
-            () => callback()).subscribe();
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => callback())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, () => callback())
+        .subscribe();
       return () => sb.removeChannel(ch);
     },
     async listTournaments() {
@@ -140,9 +149,16 @@ const Store = (() => {
       localStorage.setItem('squash_settings', JSON.stringify(obj));
       if (bc) bc.postMessage({ t: 'settings' });
     },
+    async getTournamentSettings(tid) {
+      try { return JSON.parse(localStorage.getItem('squash_settings_' + tid) || '{}'); } catch { return {}; }
+    },
+    async saveTournamentSettings(tid, obj) {
+      localStorage.setItem('squash_settings_' + tid, JSON.stringify(obj));
+      if (bc) bc.postMessage({ t: 'settings' });
+    },
     subscribeSettings(callback) {
-      const onMsg = e => { if (e.data && e.data.t === 'settings') callback(); };
-      const onStorage = e => { if (e.key === 'squash_settings') callback(); };
+      const onMsg = e => { if (e.data && (e.data.t === 'settings' || e.data.t === 'tours')) callback(); };
+      const onStorage = e => { if (e.key === 'squash_settings' || (e.key && e.key.indexOf('squash_settings_') === 0)) callback(); };
       if (bc) bc.addEventListener('message', onMsg);
       window.addEventListener('storage', onStorage);
       return () => { if (bc) bc.removeEventListener('message', onMsg); window.removeEventListener('storage', onStorage); };
@@ -274,18 +290,38 @@ const Store = (() => {
       };
     },
     async getSettings() {
-      let raw = {};
-      try { raw = await backend.getSettingsRaw(); } catch (e) { raw = {}; }
-      const merged = Object.assign(this._defaults(), raw || {});
-      ACTIVE = merged.activeTournament || null;
-      return merged;
+      let g = {};
+      try { g = await backend.getSettingsRaw(); } catch (e) { g = {}; }
+      // aktives Turnier weiterhin (Phase 2) aus der globalen Ablage
+      if (g && g.activeTournament != null) ACTIVE = g.activeTournament || null;
+      let t = {};
+      if (ACTIVE && backend.getTournamentSettings) {
+        try { t = await backend.getTournamentSettings(ACTIVE) || {}; } catch (e) { t = {}; }
+      }
+      // Reihenfolge: Standardwerte < globale Settings < Turnier-Settings
+      return Object.assign(this._defaults(), g || {}, t || {});
     },
     async saveSettings(patch) {
-      let raw = {};
-      try { raw = await backend.getSettingsRaw(); } catch (e) { raw = {}; }
-      const next = Object.assign({}, raw, patch);
-      if ('activeTournament' in patch) ACTIVE = patch.activeTournament || null;
-      await backend.saveSettingsRaw(next);
+      patch = patch || {};
+      // activeTournament bleibt global (Phase 3 verlagert das pro Gerät)
+      if ('activeTournament' in patch) {
+        let g = {};
+        try { g = await backend.getSettingsRaw(); } catch (e) { g = {}; }
+        g.activeTournament = patch.activeTournament || null;
+        ACTIVE = g.activeTournament;
+        await backend.saveSettingsRaw(g);
+      }
+      const rest = Object.assign({}, patch); delete rest.activeTournament;
+      if (Object.keys(rest).length === 0) return;
+      if (ACTIVE && backend.getTournamentSettings && backend.saveTournamentSettings) {
+        let t = {};
+        try { t = await backend.getTournamentSettings(ACTIVE) || {}; } catch (e) { t = {}; }
+        await backend.saveTournamentSettings(ACTIVE, Object.assign({}, t, rest));
+      } else {
+        let g = {};
+        try { g = await backend.getSettingsRaw(); } catch (e) { g = {}; }
+        await backend.saveSettingsRaw(Object.assign({}, g, rest));
+      }
     },
 
     // nächstes geplantes Spiel eines Courts (nach Uhrzeit, im aktiven Turnier)
