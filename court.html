@@ -396,9 +396,9 @@ const Timer={ sec:0,running:false,label:'',_iv:null,onEnd:null,_announce:false,_
     this._announce=false; this._msg15=''; this._paint(); pushTimer(); },
   _run(){ clearInterval(this._iv); this._iv=setInterval(()=>{ if(this.running){ this.sec--;
     if(this._announce){
-      if(this.sec===60){ toast('noch 60 Sekunden'); beep(880,.22); }
-      else if(this.sec===30){ toast('noch 30 Sekunden'); beep(880,.22); }
-      else if(this.sec===15){ toast(this._msg15||'noch 15 Sekunden'); beep(1046,.5); }
+      if(this.sec===60){ toast('noch 60 Sekunden', 6000); beep(880,.22); }
+      else if(this.sec===30){ toast('noch 30 Sekunden', 6000); beep(880,.22); }
+      else if(this.sec===15){ toast(this._msg15||'noch 15 Sekunden', 10000); beep(1046,.5); }
     }
     if(this.sec<=0){ this.sec=0; this.running=false; if(this._announce) beep(660,.5); this._paint(); pushTimer();
       const cb=this.onEnd; this.onEnd=null; if(cb) cb(); return; } this._paint(); } },1000); },
@@ -412,14 +412,14 @@ const Timer={ sec:0,running:false,label:'',_iv:null,onEnd:null,_announce:false,_
     setText('matchClock', this.running||this.sec>0 ? (this.label+' '+t) : '—'); } };
 
 // Ansage-Toast + Warnton
-function toast(msg){
+function toast(msg, ms){
+  ms = ms || 3200;
   let t=document.getElementById('ctoast');
-  if(!t){ t=document.createElement('div'); t.id='ctoast';
-    t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#1b2536;color:#e7edf5;'+
-      'border:1px solid #2f3e57;border-radius:12px;padding:14px 24px;font-size:22px;font-weight:800;z-index:9000;'+
-      'box-shadow:0 10px 34px rgba(0,0,0,.55);opacity:0;transition:opacity .2s;text-align:center;max-width:90vw';
-    document.body.appendChild(t); }
-  t.textContent=msg; t.style.opacity='1'; clearTimeout(t._h); t._h=setTimeout(()=>{t.style.opacity='0';},3200);
+  if(!t){ t=document.createElement('div'); t.id='ctoast'; document.body.appendChild(t); }
+  t.style.cssText='position:fixed;left:50%;bottom:9vh;transform:translateX(-50%);background:#1b2536;color:#fff;'+
+    'border:2px solid #3a4f70;border-radius:18px;padding:20px 40px;font-size:clamp(30px,5.5vh,62px);font-weight:900;'+
+    'z-index:9000;box-shadow:0 14px 44px rgba(0,0,0,.6);opacity:1;transition:opacity .25s;text-align:center;max-width:92vw;line-height:1.15';
+  t.textContent=msg; clearTimeout(t._h); t._h=setTimeout(()=>{ t.style.opacity='0'; }, ms);
 }
 let _actx=null;
 function beep(freq,dur,type){ freq=freq||880; dur=dur||0.25; type=type||'sine';
