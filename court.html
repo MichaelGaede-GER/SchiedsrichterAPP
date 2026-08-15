@@ -43,6 +43,9 @@
     background:#e9edf3;color:#0b0b0b;display:flex;align-items:center;justify-content:center;
     font-weight:900;font-size:clamp(24px,4vh,40px);line-height:1;box-shadow:0 0 0 4px rgba(255,255,255,.15);cursor:pointer}
   .panel.left .serve{left:16px}.panel.right .serve{right:16px}
+  .shirtbtn{position:fixed;bottom:14px;width:60px;height:60px;z-index:8;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55))}
+  .shirtbtn:active{transform:scale(.94)}
   .gameball{position:absolute;top:12px;font-size:12px;font-weight:900;letter-spacing:1px;padding:4px 10px;border-radius:999px}
   .panel.left .gameball{right:14px}.panel.right .gameball{left:14px}
   .gb-game{background:#f2b134;color:#241800}.gb-match{background:#2fbf71;color:#052012}
@@ -121,11 +124,14 @@
   style="position:fixed;top:8px;right:8px;z-index:50;background:rgba(20,28,40,.85);color:#e7edf5;border:1px solid #2a3444;border-radius:9px;padding:6px 8px;font:inherit;cursor:pointer">
   <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
 <div id="app"></div>
+<div id="shirt1" class="shirtbtn" style="left:14px;display:none" onclick="pickShirt(1)" title="Shirt-Farbe Spieler 1"></div>
+<div id="shirt2" class="shirtbtn" style="right:14px;display:none" onclick="pickShirt(2)" title="Shirt-Farbe Spieler 2"></div>
+<input type="color" id="shirtInput" style="position:fixed;left:-9999px;top:-9999px" onchange="applyShirt(this.value)">
 
 <div id="ovWarmup" class="overlay"><div class="card">
   <img id="warmLogo" class="brandlogo" style="display:none" alt="">
   <h2 id="warmTitle">Nächstes Spiel auf Court</h2>
-  <div style="opacity:.7;margin:-6px 0 8px;letter-spacing:.5px">Aufwärmen</div>
+  <div id="warmPhaseLabel" style="opacity:.8;margin:-6px 0 8px;letter-spacing:.5px;font-weight:700">Aufwärmen</div>
   <div id="warmClock" class="timerbig">5:00</div>
   <div class="row">
     <button class="btn btn-gray" onclick="Timer.toggle()">Start / Pause</button>
@@ -212,8 +218,8 @@
   <h2>Timer</h2>
   <div id="tMenuClock" class="timerbig">–</div>
   <div class="row">
-    <button class="btn btn-blue" onclick="Timer.start(CONFIG.WARMUP_SECONDS,'Aufwärmen')">Aufwärmen</button>
-    <button class="btn btn-blue" onclick="Timer.start(CONFIG.REST_SECONDS,'Satzpause')">Satzpause 90s</button>
+    <button class="btn btn-blue" onclick="Timer.start((SETTINGS&&SETTINGS.warmupP1!=null)?SETTINGS.warmupP1:120,'Aufwärmen',null,{announce:true})">Aufwärmen</button>
+    <button class="btn btn-blue" onclick="Timer.start((SETTINGS&&SETTINGS.restSeconds!=null)?SETTINGS.restSeconds:120,'Satzpause',null,{announce:true,msg15:'15 Sekunden – Spieler bitte auf den Court!'})">Satzpause</button>
     <button class="btn btn-gray" onclick="Timer.start(90,'Timeout')">Timeout 90s</button>
   </div>
   <div class="row">
@@ -281,7 +287,7 @@ function flagImg(code, region){ const url = regionFlagUrl(region,80) || flagUrlC
 // ============ REGEL-ENGINE (PARS bis 11) ============
 class SquashMatch {
   constructor(cfg={}){ this.bestOf=cfg.bestOf||3; this.pointsToWin=CONFIG.POINTS_TO_WIN||11;
-    this.p1=cfg.p1; this.p2=cfg.p2; this.reset(); }
+    this.p1=cfg.p1; this.p2=cfg.p2; this.reset(); this.shirt1=cfg.shirt1||null; this.shirt2=cfg.shirt2||null; }
   reset(){ this.games=[]; this.g={p1:0,p2:0}; this.server=null; this.side='R';
     this.status='warmup'; this.matchWinner=null; this._nextServer=null; this.history=[];
     this.conduct={p1:[],p2:[]}; this.ending=null; }
@@ -326,11 +332,12 @@ class SquashMatch {
     gamesWon1:this.gamesWon(1), gamesWon2:this.gamesWon(2),
     cur:{p1:this.g.p1,p2:this.g.p2,server:this.server,side:this.side},
     matchWinner:this.matchWinner, _nextServer:this._nextServer, history:this.history,
-    conduct:this.conduct, ending:this.ending }; }
+    conduct:this.conduct, ending:this.ending, shirt1:this.shirt1, shirt2:this.shirt2 }; }
   hydrate(s){ if(!s) return; this.status=s.status; this.bestOf=s.bestOf; this.games=s.games||[];
     this.g={p1:s.cur.p1,p2:s.cur.p2}; this.server=s.cur.server; this.side=s.cur.side;
     this.matchWinner=s.matchWinner; this._nextServer=s._nextServer; this.history=s.history||[];
-    this.conduct=s.conduct||{p1:[],p2:[]}; this.ending=s.ending||null; }
+    this.conduct=s.conduct||{p1:[],p2:[]}; this.ending=s.ending||null;
+    this.shirt1=s.shirt1||null; this.shirt2=s.shirt2||null; }
 }
 
 // ============ ZUSTAND ============
@@ -370,21 +377,53 @@ function showDoneOverlay(){
 }
 
 // ============ TIMER ============
-const Timer={ sec:0,running:false,label:'',_iv:null,onEnd:null,
+const Timer={ sec:0,running:false,label:'',_iv:null,onEnd:null,_announce:false,_msg15:'',
   fmt(s){ s=Math.max(0,s); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); },
-  start(sec,label,onEnd){ this.sec=sec; this.label=label||''; this.running=true; this.onEnd=onEnd||null; this._run(); this._paint(); pushTimer(); },
-  prime(sec,label){ clearInterval(this._iv); this.sec=sec; this.label=label||''; this.running=false; this.onEnd=null; this._paint(); pushTimer(); },
+  start(sec,label,onEnd,opts){ this.sec=sec; this.label=label||''; this.running=true; this.onEnd=onEnd||null;
+    this._announce=!!(opts&&opts.announce); this._msg15=(opts&&opts.msg15)||'noch 15 Sekunden';
+    this._run(); this._paint(); pushTimer(); },
+  prime(sec,label){ clearInterval(this._iv); this.sec=sec; this.label=label||''; this.running=false; this.onEnd=null;
+    this._announce=false; this._msg15=''; this._paint(); pushTimer(); },
   _run(){ clearInterval(this._iv); this._iv=setInterval(()=>{ if(this.running){ this.sec--;
-    if(this.sec<=0){ this.sec=0; this.running=false; this._paint(); pushTimer();
+    if(this._announce){
+      if(this.sec===60){ toast('noch 60 Sekunden'); beep(880,.22); }
+      else if(this.sec===30){ toast('noch 30 Sekunden'); beep(880,.22); }
+      else if(this.sec===15){ toast(this._msg15||'noch 15 Sekunden'); beep(1046,.5); }
+    }
+    if(this.sec<=0){ this.sec=0; this.running=false; if(this._announce) beep(660,.5); this._paint(); pushTimer();
       const cb=this.onEnd; this.onEnd=null; if(cb) cb(); return; } this._paint(); } },1000); },
   toggle(){ this.running=!this.running; if(this.running) this._run(); this._paint(); pushTimer(); },
-  stop(){ this.running=false; this.sec=0; this.onEnd=null; this._paint(); pushTimer(); },
-  reset(kind){ if(kind==='warmup') this.prime(CONFIG.WARMUP_SECONDS,'Aufwärmen'); },
+  stop(){ this.running=false; this.sec=0; this.onEnd=null; this._announce=false; this._paint(); pushTimer(); },
+  reset(kind){ if(kind==='warmup') primeWarmPhase(); },
   snapshot(){ return { label:this.label, running:this.running, sec:this.sec,
     endsAt: this.running ? Date.now()+this.sec*1000 : null }; },
   _paint(){ const t=this.fmt(this.sec);
     setText('warmClock',t); setText('restClock',t); setText('tMenuClock',t); setText('injClock',t);
     setText('matchClock', this.running||this.sec>0 ? (this.label+' '+t) : '—'); } };
+
+// Ansage-Toast + Warnton
+function toast(msg){
+  let t=document.getElementById('ctoast');
+  if(!t){ t=document.createElement('div'); t.id='ctoast';
+    t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#1b2536;color:#e7edf5;'+
+      'border:1px solid #2f3e57;border-radius:12px;padding:14px 24px;font-size:22px;font-weight:800;z-index:9000;'+
+      'box-shadow:0 10px 34px rgba(0,0,0,.55);opacity:0;transition:opacity .2s;text-align:center;max-width:90vw';
+    document.body.appendChild(t); }
+  t.textContent=msg; t.style.opacity='1'; clearTimeout(t._h); t._h=setTimeout(()=>{t.style.opacity='0';},3200);
+}
+let _actx=null;
+function beep(freq,dur,type){ freq=freq||880; dur=dur||0.25; type=type||'sine';
+  try{ _actx=_actx||new (window.AudioContext||window.webkitAudioContext)();
+    if(_actx.state==='suspended') _actx.resume();
+    const o=_actx.createOscillator(), g=_actx.createGain(); o.type=type; o.frequency.value=freq;
+    o.connect(g); g.connect(_actx.destination);
+    const t0=_actx.currentTime;
+    g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(0.35,t0+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    o.start(t0); o.stop(t0+dur+0.02);
+  }catch(e){}
+}
+window.addEventListener('pointerdown',()=>{ try{ if(_actx&&_actx.state==='suspended')_actx.resume(); }catch(e){} },{passive:true});
 
 // Timer-Stand in die Spieldaten schreiben (für Stream-Anzeige)
 function withTimer(st){ if(st) st.timer=Timer.snapshot(); return st; }
@@ -393,7 +432,7 @@ async function pushTimer(){ if(!match||!M) return; try{ await Store.updateMatch(
 // ============ RENDER ============
 function render(){
   const app=document.getElementById('app');
-  if(!match){ renderIdle(app); return; }
+  if(!match){ renderIdle(app); renderShirts(); return; }
   const p1=match.player1_name,p2=match.player2_name,c1=match.player1_country,c2=match.player2_country;
   const r1=match.player1_region,r2=match.player2_region;
   const s=M, serving1=s.server===1, serving2=s.server===2;
@@ -412,7 +451,7 @@ function render(){
     </div>
     <div class="names">
       <div class="p1"><div class="namepill" id="pill1">${flagImg(c1,r1)}<span class="txt">${p1}</span></div>${conductBadges(1)}</div>
-      <div class="center-top"><button class="rbtn" onclick="show('ovLet')">R?</button></div>
+      <div class="center-top"><button class="rbtn" onclick="show('ovLet')">LET</button></div>
       <div class="p2"><div class="namepill" id="pill2">${flagImg(c2,r2)}<span class="txt">${p2}</span></div>${conductBadges(2)}</div>
     </div>
     <div class="board">
@@ -452,6 +491,7 @@ function render(){
     attachLongPress(document.getElementById('pill2'),()=>openPenalty(2));
   },0);
   Timer._paint();
+  renderShirts();
 }
 
 // Conduct-Badges an den Namen
@@ -514,6 +554,25 @@ function renderIdle(app){
 // ============ AKTIONEN ============
 function point(who){ if(!M||M.status!=='playing') return; M.point(who); afterChange(); }
 function toggleServeSide(){ if(!M||M.status!=='playing') return; M.side=(M.side==='R')?'L':'R'; render(); sync(); }
+
+// ---- Shirt-Farben ----
+function shirtSVG(color){
+  const c=color||'#3a3f4a';
+  return `<svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true">
+    <path d="M17 5 L8 10 L12 20 L17 17.5 V43 H31 V17.5 L36 20 L40 10 L31 5 Q24 11 17 5 Z"
+      fill="${c}" stroke="rgba(0,0,0,.55)" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+}
+let shirtEditing=1;
+function pickShirt(p){ if(!M) return; shirtEditing=p; const inp=document.getElementById('shirtInput');
+  inp.value=(p===1?M.shirt1:M.shirt2)||'#e23b3b'; inp.click(); }
+function applyShirt(color){ if(!M) return; if(shirtEditing===1) M.shirt1=color; else M.shirt2=color; renderShirts(); sync(); }
+function renderShirts(){
+  const s1=document.getElementById('shirt1'), s2=document.getElementById('shirt2');
+  if(!s1||!s2) return;
+  if(match&&M){ s1.innerHTML=shirtSVG(M.shirt1); s2.innerHTML=shirtSVG(M.shirt2);
+    s1.style.display='flex'; s2.style.display='flex'; }
+  else { s1.style.display='none'; s2.style.display='none'; }
+}
 function undo(){ if(!M) return; if(M.undo()){ refConfirmed=false; hide('ovConfirm'); hide('ovDone'); hide('ovRest'); afterChange(); } }
 function letDecide(what){ hide('ovLet'); if(what==='let') return; point(what); }
 function toggleFull(){
@@ -627,7 +686,8 @@ function afterChange(){
     const last=M.games[M.games.length-1];
     setText('restInfo', `Satz ${M.games.length} beendet: ${last.p1}-${last.p2}. `
       +`Aufschlag Satz ${M.games.length+1}: ${M._nextServer===1?match.player1_name:match.player2_name}`);
-    Timer.start(CONFIG.REST_SECONDS,'Satzpause'); show('ovRest');
+    Timer.start((SETTINGS&&SETTINGS.restSeconds!=null)?SETTINGS.restSeconds:120,'Satzpause', null,
+      {announce:true, msg15:'15 Sekunden – Spieler bitte auf den Court!'}); show('ovRest');
   }
   if(M.status==='finished'){ finishFlow(); }
 }
@@ -662,12 +722,48 @@ async function loadCourt(){
     else if(M.status==='finished'){ finishFlow(); }
   } else { render(); }
 }
+let warmPhase=0;
+function warmPhaseList(){
+  const g=(k,d)=>{ const v=(SETTINGS&&SETTINGS[k]!=null)?SETTINGS[k]:d; return v; };
+  return [
+    {sec:g('warmupP1',120), label:'Aufwärmen – Phase 1'},
+    {sec:g('warmupP2',120), label:'Seiten wechseln – Phase 2'},
+    {sec:g('warmupFinal',60), label:'Letzte Minute vor Spielbeginn'},
+  ].filter(p=>p.sec>0);
+}
 function showWarmup(){
-  Timer.prime(CONFIG.WARMUP_SECONDS,'Aufwärmen');   // Timer bereit, aber NICHT laufend
+  warmPhase=0;
   const lg=document.getElementById('warmLogo');
   if(lg){ if(SETTINGS&&SETTINGS.logoUrl){ lg.src=SETTINGS.logoUrl; lg.style.display='block'; } else lg.style.display='none'; }
   setText('warmTitle','Nächstes Spiel auf Court '+COURT);
+  primeWarmPhase();
   show('ovWarmup');
+}
+function primeWarmPhase(){
+  const phases=warmPhaseList();
+  if(!phases.length || warmPhase>=phases.length){
+    setText('warmPhaseLabel','Bereit – wer schlägt zuerst auf?');
+    Timer.prime(0,'');
+    return;
+  }
+  const p=phases[warmPhase];
+  setText('warmPhaseLabel', p.label + (phases.length>1?`  (${warmPhase+1}/${phases.length})`:''));
+  Timer.prime(p.sec, p.label);
+  Timer.onEnd=onWarmPhaseEnd;
+  Timer._announce=true;
+  Timer._msg15=(warmPhase===phases.length-1)?'15 Sekunden – Spieler bitte auf den Court!':'noch 15 Sekunden';
+}
+function onWarmPhaseEnd(){
+  const phases=warmPhaseList();
+  if(warmPhase < phases.length-1){
+    warmPhase++;
+    toast(warmPhase===1?'Seiten wechseln!':'Nächste Phase – Start drücken');
+    primeWarmPhase();                 // pausiert -> Schiri startet manuell
+  } else {
+    warmPhase=phases.length;
+    primeWarmPhase();                 // zeigt „Bereit …“
+    toast('Aufwärmen beendet – wer schlägt zuerst auf?');
+  }
 }
 function hideAll(){ ['ovWarmup','ovLet','ovTimer','ovRest','ovConfirm','ovDone','ovPenalty','ovInjury'].forEach(hide); }
 
