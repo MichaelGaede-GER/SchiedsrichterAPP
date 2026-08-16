@@ -873,12 +873,12 @@ async function applyBranding(){
 async function onSettingsChanged(){ try{ await applyBranding(); }catch(e){} load(); initRankingSync(); }
 
 function applyRoleUI(){
-  const manage = (typeof Auth==='undefined') || Auth.can('manage');
-  const admin  = (typeof Auth==='undefined') || Auth.can('admin');
-  if(!manage) document.body.classList.add('role-readonly');
-  // Einstellungen nur für Verwalter
+  const manage   = (typeof Auth==='undefined') || Auth.can('manage');
+  const settings = (typeof Auth==='undefined') || Auth.can('settings');
+  document.body.classList.toggle('role-readonly', !manage);
+  // Einstellungen nur für Admin/Director
   const setLink=document.querySelector('a.navlink[href="settings.html"]');
-  if(setLink) setLink.style.display = manage ? '' : 'none';
+  if(setLink) setLink.style.display = settings ? '' : 'none';
   // Benutzer-Badge + Logout in den Kopf
   if(typeof Auth!=='undefined' && Auth.user()){
     let b=document.getElementById('userBadge');
@@ -913,6 +913,8 @@ async function onTourPick(v){
   } else if(v==='__none'){ await Store.setActiveTournament(null); }
   else { await Store.setActiveTournament(v); }
   await fillTourPick();
+  try{ if(typeof Auth!=='undefined' && Auth.refreshRole) await Auth.refreshRole(); }catch(e){}
+  try{ applyRoleUI(); }catch(e){}
   try{ await applyBranding(); }catch(e){}
   load(); initRankingSync();
 }

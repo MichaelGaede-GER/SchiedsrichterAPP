@@ -255,6 +255,34 @@
     <div id="liveLink" class="courts-links" style="margin-top:10px"></div>
   </div>
 
+  <div id="membersCard" style="display:none">
+    <h2>👥 Turnier‑Mitglieder &amp; Rollen</h2>
+    <div class="card">
+      <div class="hint" style="margin-bottom:10px">
+        Zugriff für das <b>aktive Turnier</b>. Konten müssen in Supabase existieren; hier fügst du sie per E‑Mail hinzu und vergibst die Rolle.
+        <b>admin</b> = alles · <b>director</b> = Turnierleitung · <b>office</b> = Dateneingabe/Ergebnisse · <b>referee</b> = Court‑Tablet · <b>viewer</b> = Anzeige/nur ansehen.
+      </div>
+      <div class="row">
+        <input type="email" id="memEmail" placeholder="konto@beispiel.de" style="flex:1;min-width:200px">
+        <select id="memRole">
+          <option value="referee">Referee (Court)</option>
+          <option value="viewer">Viewer (Anzeige)</option>
+          <option value="office">Tournament Office</option>
+          <option value="director">Tournament Director</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button class="btn-green" onclick="addMember()">Hinzufügen</button>
+      </div>
+      <div style="overflow:auto;margin-top:10px">
+        <table style="width:100%;border-collapse:collapse" id="memTable">
+          <thead><tr style="text-align:left;color:var(--muted);font-size:12px">
+            <th style="padding:6px 8px">E‑Mail</th><th style="padding:6px 8px">Rolle</th><th style="padding:6px 8px"></th></tr></thead>
+          <tbody id="memBody"><tr><td colspan="3" class="hint" style="padding:10px">Lade…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div id="userAdminCard" style="display:none">
     <h2>Benutzer & Rollen</h2>
     <div class="card">
@@ -370,6 +398,47 @@ $('sponsorFile').addEventListener('change',async e=>{
   }
   renderSponsors(); toast('Logos hinzugefügt (noch speichern!)');
 });
+
+// ===== Turnier-Mitglieder (Admin/Director) =====
+const MEM_ROLES=['admin','director','office','referee','viewer'];
+async function initMembers(){
+  const card=document.getElementById('membersCard');
+  const tid=Store.activeTournament();
+  if(!tid){ if(card){ card.style.display=''; document.getElementById('memBody').innerHTML='<tr><td colspan="3" class="hint" style="padding:10px">Kein aktives Turnier gewählt.</td></tr>'; } return; }
+  if(card) card.style.display='';
+  try{
+    const members=await Auth.listMembers(tid);
+    const body=document.getElementById('memBody');
+    if(!members.length){ body.innerHTML='<tr><td colspan="3" class="hint" style="padding:10px">Noch keine Mitglieder.</td></tr>'; return; }
+    body.innerHTML=members.map(u=>{
+      const opts=MEM_ROLES.map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${Auth.ROLE_LABEL[r]||r}</option>`).join('');
+      const me=(Auth.user()&&u.user_id===Auth.user().id);
+      return `<tr style="border-top:1px solid var(--line)">
+        <td style="padding:8px">${u.email||'(ohne E-Mail)'} ${me?'<b style="font-size:10px;color:#7CFF9B">DU</b>':''}</td>
+        <td style="padding:8px"><select onchange="changeMemberRole('${u.user_id}',this.value)"
+          style="background:#0f141c;color:#e7edf5;border:1px solid #2a3444;border-radius:8px;padding:6px 8px">${opts}</select></td>
+        <td style="padding:8px"><button class="btn-ghost" onclick="removeMember('${u.user_id}')">Entfernen</button></td></tr>`;
+    }).join('');
+  }catch(e){ document.getElementById('memBody').innerHTML='<tr><td colspan="3" class="hint" style="padding:10px">Fehler: '+e.message+'</td></tr>'; }
+}
+async function addMember(){
+  const tid=Store.activeTournament(); if(!tid){ toast('Kein aktives Turnier'); return; }
+  const email=($('memEmail').value||'').trim(); const role=$('memRole').value;
+  if(!email){ toast('Bitte E-Mail eingeben'); return; }
+  try{ await Auth.addMember(tid,email,role); $('memEmail').value=''; await initMembers(); toast('Mitglied hinzugefügt'); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
+async function changeMemberRole(uid,role){
+  const tid=Store.activeTournament(); if(!tid) return;
+  try{ await Auth.setMemberRole(tid,uid,role); toast('Rolle gespeichert'); }
+  catch(e){ toast('Fehler: '+e.message); await initMembers(); }
+}
+async function removeMember(uid){
+  const tid=Store.activeTournament(); if(!tid) return;
+  if(!confirm('Dieses Mitglied aus dem Turnier entfernen?')) return;
+  try{ await Auth.removeMember(tid,uid); await initMembers(); toast('Entfernt'); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
 
 // ===== Benutzer & Rollen (nur Admin) =====
 const ALL_ROLES=['admin','director','referee','viewer'];
@@ -576,9 +645,10 @@ async function saveAll(){
   catch(e){ toast('Fehler: '+e.message); }
 }
 
-Auth.guard('manage').then(()=>{
+Auth.guard('settings').then(()=>{
   loadSettings();
-  if(typeof Auth!=='undefined' && Auth.can('admin')) initUserAdmin();
+  if(typeof Auth!=='undefined' && Auth.isPlatformAdmin && Auth.isPlatformAdmin()) initUserAdmin();
+  if(typeof Auth!=='undefined' && Auth.can && Auth.can('members')) initMembers();
   renderAuthHeader();
 });
 </script>

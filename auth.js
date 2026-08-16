@@ -1,20 +1,22 @@
 /* =====================================================================
-   auth.js – Anmeldung & Rollen für die Schiedsrichter-App
-   Nutzt denselben Supabase-Client wie store.js (gemeinsame Session).
-   Rollen: admin, director, referee, viewer.
-   Ohne Supabase (lokaler Testmodus) ist alles offen (Rolle 'admin').
+   auth.js – Anmeldung & Rollen (turnierbezogen)
+   Rolle gilt pro AKTIVEM Turnier (tournament_members). Plattform-Admin
+   (profiles.role='admin') ist überall Admin. Lokaler Testmodus = admin.
+   Rollen: admin, director, office, referee, viewer.
    ===================================================================== */
 (function () {
   var CAPS = {
-    admin:    { manage: true,  admin: true,  score: true,  view: true },
-    director: { manage: true,  admin: false, score: true,  view: true },
-    referee:  { manage: false, admin: false, score: true,  view: true },
-    viewer:   { manage: false, admin: false, score: false, view: true }
+    admin:    { view:1, score:1, manage:1, settings:1, members:1, destroy:1 },
+    director: { view:1, score:1, manage:1, settings:1, members:1, destroy:1 },
+    office:   { view:1, score:1, manage:1 },
+    referee:  { view:1, score:1 },
+    viewer:   { view:1 }
   };
-  var ROLE_LABEL = { admin: 'Administrator', director: 'Turnierleitung', referee: 'Schiedsrichter (Court)', viewer: 'Nur ansehen' };
+  var ROLE_LABEL = { admin:'Administrator', director:'Tournament Director',
+    office:'Tournament Office', referee:'Schiedsrichter (Court)', viewer:'Nur ansehen' };
 
   var sb = (typeof Store !== 'undefined' && Store.client) ? Store.client() : null;
-  var USER = null, ROLE = 'viewer';
+  var USER = null, ROLE = null, PLATFORM_ADMIN = false, MEMBERSHIPS = 0;
 
   // ---------- UI: Overlay ----------
   function el(tag, css, html) { var e = document.createElement(tag); if (css) e.style.cssText = css; if (html != null) e.innerHTML = html; return e; }
@@ -93,14 +95,30 @@
     card.appendChild(out);
   }
 
-  // ---------- Rolle laden ----------
+  // ---------- Rolle laden (für das AKTIVE Turnier) ----------
   async function loadRole() {
-    ROLE = 'viewer';
+    ROLE = null; PLATFORM_ADMIN = false; MEMBERSHIPS = 0;
     if (!USER) return ROLE;
+    // Plattform-Admin?
     try {
-      var r = await sb.from('profiles').select('role').eq('id', USER.id).maybeSingle();
-      if (r && r.data && r.data.role) ROLE = r.data.role;
-    } catch (e) { /* keine profiles-Zeile -> viewer */ }
+      var p = await sb.from('profiles').select('role').eq('id', USER.id).maybeSingle();
+      if (p && p.data && p.data.role === 'admin') PLATFORM_ADMIN = true;
+    } catch (e) {}
+    // Anzahl Turnier-Mitgliedschaften (für den Turnier-Picker-Zugang)
+    try {
+      var c = await sb.from('tournament_members').select('tournament_id', { count: 'exact', head: true }).eq('user_id', USER.id);
+      MEMBERSHIPS = c.count || 0;
+    } catch (e) {}
+    if (PLATFORM_ADMIN) { ROLE = 'admin'; return ROLE; }
+    // Rolle für das aktive Turnier
+    var tid = null;
+    try { tid = (typeof Store !== 'undefined' && Store.ensureActiveTournament) ? await Store.ensureActiveTournament() : (Store.activeTournament && Store.activeTournament()); } catch (e) {}
+    if (tid) {
+      try {
+        var m = await sb.from('tournament_members').select('role').eq('tournament_id', tid).eq('user_id', USER.id).maybeSingle();
+        ROLE = (m && m.data && m.data.role) || null;
+      } catch (e) { ROLE = null; }
+    }
     return ROLE;
   }
 
@@ -110,34 +128,47 @@
 
   async function guard(need) {
     // Lokaler Testmodus: keine Anmeldung, volle Rechte
-    if (!sb) { ROLE = 'admin'; USER = { email: '(lokal)' }; return { user: USER, role: ROLE }; }
+    if (!sb) { PLATFORM_ADMIN = true; ROLE = 'admin'; USER = { email: '(lokal)' }; return { user: USER, role: ROLE }; }
     showLoading();
-    // Session prüfen
     var s = null;
     try { s = (await sb.auth.getSession()).data.session; } catch (e) {}
     if (!s) { hideLoading(); showLogin(); await whenAuthed(); }
     else { USER = s.user; await loadRole(); }
-    // Berechtigung prüfen
-    if (need && !can(need)) {
+    // Zugriffslogik
+    var ok;
+    if (need === 'view') {
+      // Zutritt (z. B. Verwaltung) auch, wenn das aktuell gewählte Turnier
+      // (noch) nicht seins ist – Hauptsache irgendeine Mitgliedschaft.
+      ok = PLATFORM_ADMIN || ROLE != null || MEMBERSHIPS > 0;
+    } else {
+      ok = can(need);
+    }
+    if (need && !ok) {
       hideLoading();
-      showBlock('Kein Zugriff', 'Dein Konto (' + (ROLE_LABEL[ROLE] || ROLE) + ') hat für diese Ansicht keine Berechtigung.');
-      return new Promise(function () {}); // bleibt bewusst offen -> Seite lädt nicht
+      var msg = (MEMBERSHIPS === 0 && !PLATFORM_ADMIN)
+        ? 'Dein Konto ist noch keinem Turnier zugeordnet. Bitte von einem Administrator hinzufügen lassen.'
+        : ('Dein Konto hat für diese Ansicht keine Berechtigung' + (ROLE ? (' (' + (ROLE_LABEL[ROLE] || ROLE) + ')') : '') + '.');
+      showBlock('Kein Zugriff', msg);
+      return new Promise(function () {});
     }
     hideLoading(); hideOverlay();
     return { user: USER, role: ROLE };
   }
 
-  function can(cap) { var c = CAPS[ROLE] || CAPS.viewer; return !!c[cap]; }
+  function can(cap) { var c = CAPS[ROLE]; return !!(c && c[cap]); }
   function role() { return ROLE; }
-  function roleLabel() { return ROLE_LABEL[ROLE] || ROLE; }
+  function roleLabel() { return ROLE ? (ROLE_LABEL[ROLE] || ROLE) : '—'; }
   function user() { return USER; }
+  function isPlatformAdmin() { return PLATFORM_ADMIN; }
+  function membershipCount() { return MEMBERSHIPS; }
+  async function refreshRole() { await loadRole(); return ROLE; }
 
   async function signOut() {
     try { if (sb) await sb.auth.signOut(); } catch (e) {}
     location.reload();
   }
 
-  // ---------- Benutzer-/Rollenverwaltung (nur admin) ----------
+  // ---------- Globale Benutzer (nur Plattform-Admin) ----------
   async function listUsers() {
     if (!sb) return [];
     var r = await sb.from('profiles').select('id,email,role,created_at').order('created_at');
@@ -145,6 +176,24 @@
   }
   async function setUserRole(id, newRole) {
     var r = await sb.from('profiles').update({ role: newRole }).eq('id', id);
+    if (r.error) throw r.error;
+  }
+
+  // ---------- Mitglieder eines Turniers (Admin/Director) via RPC ----------
+  async function listMembers(tid) {
+    if (!sb) return []; var r = await sb.rpc('list_tournament_members', { p_tid: tid });
+    if (r.error) throw r.error; return r.data || [];
+  }
+  async function addMember(tid, email, mrole) {
+    var r = await sb.rpc('add_tournament_member', { p_tid: tid, p_email: email, p_role: mrole });
+    if (r.error) throw r.error; return r.data;
+  }
+  async function setMemberRole(tid, uid, mrole) {
+    var r = await sb.rpc('set_tournament_member_role', { p_tid: tid, p_user_id: uid, p_role: mrole });
+    if (r.error) throw r.error;
+  }
+  async function removeMember(tid, uid) {
+    var r = await sb.rpc('remove_tournament_member', { p_tid: tid, p_user_id: uid });
     if (r.error) throw r.error;
   }
 
@@ -168,7 +217,9 @@
 
   window.Auth = {
     guard: guard, can: can, role: role, roleLabel: roleLabel, user: user,
+    isPlatformAdmin: isPlatformAdmin, membershipCount: membershipCount, refreshRole: refreshRole,
     signOut: signOut, listUsers: listUsers, setUserRole: setUserRole,
+    listMembers: listMembers, addMember: addMember, setMemberRole: setMemberRole, removeMember: removeMember,
     ROLE_LABEL: ROLE_LABEL
   };
 })();
