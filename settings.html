@@ -334,20 +334,27 @@ function applyBranding(){
 
 function renderLinks(){
   const base=baseUrl();
+  const tid = (Store.activeTournament && Store.activeTournament()) || '';
+  const tq = tid ? ('t='+encodeURIComponent(tid)) : '';                 // Turnier-Parameter
+  const tname = (window.__activeTourName||'');
+  const withT = (rel)=> rel + (tq ? (rel.indexOf('?')>=0 ? '&'+tq : '?'+tq) : '');
+  const hint = tid ? '' :
+    '<div class="hint" style="color:#ffd08a;margin-bottom:8px">Kein Turnier aktiv – die Links zeigen dann das pro Gerät gewählte Turnier. Wähle oben ein Turnier, damit die Links fest dazu gehören.</div>';
+
   const ll=document.getElementById('liveLink');
-  if(ll){ const url=base+'live.html';
-    ll.innerHTML=`<div class="clink"><div class="lrow"><span class="tag">Live-Anzeige</span>
+  if(ll){ const url=base+withT('live.html');
+    ll.innerHTML=hint+`<div class="clink"><div class="lrow"><span class="tag">Live-Anzeige${tname?(' · '+tname):''}</span>
       <code title="${url}">${url}</code>
-      <button class="btn-ghost" onclick="navigator.clipboard.writeText('${url}');toast('Link kopiert')">Kopieren</button>
+      <button class="btn-ghost" onclick="copyText('${url}')">Kopieren</button>
       <a class="btn-ghost" href="${url}" target="_blank" style="text-decoration:none">Öffnen</a></div></div>`; }
   const list=($('courts').value||'').split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
   const rows=list.map(n=>{
     const links=[
-      ['Schiedsrichter-Tablet', `court.html?court=${n}`],
-      ['Vollbild-Anzeige',      `stream.html?court=${n}&view=scoreboard`],
-      ['Stream · PSA Line',     `stream.html?court=${n}&view=psaline`],
-      ['Stream · Fullscore',    `stream.html?court=${n}&view=fullscore`],
-      ['Stream · Modern',       `stream.html?court=${n}&view=modern`],
+      ['Schiedsrichter-Tablet', withT(`court.html?court=${n}`)],
+      ['Vollbild-Anzeige',      withT(`stream.html?court=${n}&view=scoreboard`)],
+      ['Stream · PSA Line',     withT(`stream.html?court=${n}&view=psaline`)],
+      ['Stream · Fullscore',    withT(`stream.html?court=${n}&view=fullscore`)],
+      ['Stream · Modern',       withT(`stream.html?court=${n}&view=modern`)],
     ];
     return `<div class="clink"><h4>Court ${n}</h4>`+
       links.map(([tag,rel])=>{const url=base+rel;
@@ -357,7 +364,7 @@ function renderLinks(){
           <button class="btn-ghost" onclick="window.open('${url}','_blank')">Öffnen</button></div>`;}).join('')+
       `</div>`;
   }).join('');
-  $('links').innerHTML=rows||'<span class="hint">Keine Courts.</span>';
+  $('links').innerHTML=(list.length?hint:'')+ (rows||'<span class="hint">Keine Courts.</span>');
 }
 function copyText(t){ navigator.clipboard&&navigator.clipboard.writeText(t).then(()=>toast('Link kopiert')); }
 
@@ -484,11 +491,18 @@ async function loadTours(){
   const sel=$('tourSelect');
   sel.innerHTML='<option value="">— Kein Turnier (Altdaten) —</option>'+
     TOURS.map(t=>`<option value="${t.id}" ${t.id===active?'selected':''}>${t.name}</option>`).join('');
+  const at=TOURS.find(t=>t.id===active); window.__activeTourName = at?at.name:'';
+  renderLinks();
 }
 async function onTourSelect(){
   const id=$('tourSelect').value||null;
   await Store.setActiveTournament(id);
-  toast(id?'Turnier aktiviert':'Kein Turnier aktiv');
+  const t=(TOURS||[]).find(x=>x.id===id); window.__activeTourName = t?t.name:'';
+  try{ if(typeof Auth!=='undefined' && Auth.refreshRole) await Auth.refreshRole(); }catch(e){}
+  toast(id?('Turnier aktiv: '+(t?t.name:'')):'Kein Turnier aktiv');
+  try{ await applyBranding(); }catch(e){}
+  renderLinks();
+  try{ if(typeof initMembers==='function') initMembers(); }catch(e){}
 }
 async function createTour(){
   const name=$('newTourName').value.trim();
