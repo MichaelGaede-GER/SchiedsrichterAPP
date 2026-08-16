@@ -170,12 +170,14 @@
 <header>
   <img id="logo" class="logo" alt="" style="display:none">
   <h1 id="appTitle">🎾 Squash&nbsp;·&nbsp;Turnierverwaltung</h1>
-  <span id="activeTour" class="mode" style="margin-left:auto"></span>
+  <select id="tourPick" onchange="onTourPick(this.value)" title="Aktives Turnier wählen"
+    style="margin-left:auto;background:var(--panel2,#1a2230);color:var(--ink,#e7edf5);border:1px solid var(--line,#2a3444);border-radius:9px;padding:8px 10px;font:inherit;font-weight:700;cursor:pointer;max-width:340px"></select>
   <select data-lang-select onchange="I18N.set(this.value)" title="Sprache / Language"
     style="margin-left:10px;background:var(--panel2,#1a2230);color:var(--ink,#e7edf5);border:1px solid var(--line,#2a3444);border-radius:9px;padding:7px 9px;font:inherit;cursor:pointer">
     <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
   <a class="navlink" href="settings.html" style="margin-left:10px">⚙️ Einstellungen</a>
   <span id="mode" class="mode">…</span>
+  <span id="activeTour" class="mode" style="display:none"></span>
 </header>
 
 <main>
@@ -893,11 +895,33 @@ function applyRoleUI(){
   }
 }
 
+async function fillTourPick(){
+  const sel=document.getElementById('tourPick'); if(!sel) return;
+  let tours=[]; try{ tours=await Store.listTournaments(); }catch(e){ tours=[]; }
+  const act=Store.activeTournament();
+  sel.innerHTML =
+    tours.map(t=>`<option value="${t.id}" ${t.id===act?'selected':''}>🏆 ${(''+t.name).replace(/</g,'&lt;')}</option>`).join('') +
+    `<option value="__none" ${!act?'selected':''}>— Kein Turnier —</option>` +
+    `<option value="__new">＋ Neues Turnier…</option>`;
+}
+async function onTourPick(v){
+  if(v==='__new'){
+    await fillTourPick();
+    const name=prompt('Name des neuen Turniers:'); if(!name) return;
+    try{ const t=await Store.createTournament(name.trim()); await Store.setActiveTournament(t.id); }
+    catch(e){ toast('Fehler: '+e.message); return; }
+  } else if(v==='__none'){ await Store.setActiveTournament(null); }
+  else { await Store.setActiveTournament(v); }
+  await fillTourPick();
+  try{ await applyBranding(); }catch(e){}
+  load(); initRankingSync();
+}
+
 Auth.guard('view').then(()=>{
-  onSettingsChanged; // no-op ref
   Store.subscribeAll(load);
   Store.subscribeSettings(onSettingsChanged);
-  Store.subscribeTournaments(onSettingsChanged);
+  Store.subscribeTournaments(()=>{ fillTourPick(); onSettingsChanged(); });
+  fillTourPick();
   applyBranding();
   try{ renderCourts(); }catch(e){}
   load();

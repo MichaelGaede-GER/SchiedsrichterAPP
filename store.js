@@ -201,10 +201,19 @@ const Store = (() => {
   if (useSupabase) initSupabase();
 
   let ACTIVE; // undefined = noch nicht geladen, null = kein aktives Turnier, sonst id
+  const ACTIVE_KEY = 'squash_active_tournament';
   async function ensureActive() {
     if (ACTIVE === undefined) {
-      try { const s = await backend.getSettingsRaw(); ACTIVE = (s && s.activeTournament) || null; }
-      catch (e) { ACTIVE = null; }
+      let v = null;
+      try { v = localStorage.getItem(ACTIVE_KEY); } catch (e) {}
+      if (v !== null) {
+        ACTIVE = v || null;                 // '' = bewusst kein Turnier
+      } else {
+        // Einmalige Übernahme des bisher global gespeicherten aktiven Turniers
+        try { const s = await backend.getSettingsRaw(); ACTIVE = (s && s.activeTournament) || null; }
+        catch (e) { ACTIVE = null; }
+        try { localStorage.setItem(ACTIVE_KEY, ACTIVE || ''); } catch (e) {}
+      }
     }
     return ACTIVE;
   }
@@ -242,7 +251,10 @@ const Store = (() => {
     renameTournament: (...a) => backend.renameTournament(...a),
     deleteTournament: (...a) => backend.deleteTournament(...a),
     activeTournament() { return ACTIVE || null; },
-    async setActiveTournament(id) { ACTIVE = id || null; await this.saveSettings({ activeTournament: ACTIVE }); },
+    async setActiveTournament(id) {
+      ACTIVE = id || null;
+      try { localStorage.setItem(ACTIVE_KEY, ACTIVE || ''); } catch (e) {}
+    },
     async adoptOrphans() { await ensureActive(); if (!ACTIVE) throw new Error('Kein aktives Turnier ausgewählt.'); await backend.adoptOrphans(ACTIVE); },
 
     // ---- Backup ----
@@ -290,10 +302,9 @@ const Store = (() => {
       };
     },
     async getSettings() {
+      await ensureActive();                  // aktives Turnier pro Gerät (localStorage)
       let g = {};
       try { g = await backend.getSettingsRaw(); } catch (e) { g = {}; }
-      // aktives Turnier weiterhin (Phase 2) aus der globalen Ablage
-      if (g && g.activeTournament != null) ACTIVE = g.activeTournament || null;
       let t = {};
       if (ACTIVE && backend.getTournamentSettings) {
         try { t = await backend.getTournamentSettings(ACTIVE) || {}; } catch (e) { t = {}; }
@@ -303,14 +314,9 @@ const Store = (() => {
     },
     async saveSettings(patch) {
       patch = patch || {};
-      // activeTournament bleibt global (Phase 3 verlagert das pro Gerät)
-      if ('activeTournament' in patch) {
-        let g = {};
-        try { g = await backend.getSettingsRaw(); } catch (e) { g = {}; }
-        g.activeTournament = patch.activeTournament || null;
-        ACTIVE = g.activeTournament;
-        await backend.saveSettingsRaw(g);
-      }
+      await ensureActive();
+      // aktives Turnier wird pro Gerät gespeichert (nicht global)
+      if ('activeTournament' in patch) { await this.setActiveTournament(patch.activeTournament); }
       const rest = Object.assign({}, patch); delete rest.activeTournament;
       if (Object.keys(rest).length === 0) return;
       if (ACTIVE && backend.getTournamentSettings && backend.saveTournamentSettings) {
