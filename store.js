@@ -429,6 +429,7 @@ const Store = (() => {
         liveRotate: 12,     // Live-Anzeige: Sekunden pro Ansicht
         liveMode: 'rotate', // 'live' | 'prep' | 'done' | 'rotate'
         sponsors: [],       // Sponsor-Logos (URLs/DataURLs) für die Live-Leiste
+        highlightLabels: ['Halbfinale','Finale'],  // Presets für Highlight-Markierung
         activeTournament: null,
       };
     },

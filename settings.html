@@ -224,6 +224,15 @@
     <div id="links" class="courts-links"></div>
   </div>
 
+  <h2>⭐ Highlights</h2>
+  <div class="card">
+    <div class="field">
+      <label>Auswahl-Optionen für Highlights (eine pro Zeile)</label>
+      <textarea id="hlLabels" rows="3" placeholder="Halbfinale&#10;Finale" style="width:100%;box-sizing:border-box"></textarea>
+      <div class="hint">Diese Optionen erscheinen im Dropdown, wenn die Turnierleitung ein Spiel als Highlight markiert. Zusätzlich ist immer ein freier Kommentar möglich.</div>
+    </div>
+  </div>
+
   <h2>🏟 Anlagen &amp; Courts</h2>
   <div class="card" id="venueCard">
     <div class="hint">Lege Squash‑Anlagen mit ihren Courts an, ordne dem aktiven Turnier eine oder mehrere Anlagen zu und wähle je Anlage die verwendeten Courts samt Funktion. Center = Finale, Halbfinale = Semi.</div>
@@ -763,6 +772,7 @@ async function loadSettings(){
   $('restSeconds').value=S.restSeconds!=null?S.restSeconds:120;
   $('liveRotate').value=S.liveRotate!=null?S.liveRotate:12;
   $('liveMode').value=S.liveMode||'rotate';
+  $('hlLabels').value=(Array.isArray(S.highlightLabels)?S.highlightLabels:['Halbfinale','Finale']).join('\n');
   SPONSORS=Array.isArray(S.sponsors)?S.sponsors.slice():[];
   renderSponsors();
   $('green').value=S.green||'#82F84E'; $('greenHex').value=S.green||'#82F84E';
@@ -786,6 +796,7 @@ async function saveAll(){
     restSeconds:parseInt($('restSeconds').value,10)||0,
     liveRotate:parseInt($('liveRotate').value,10)||12,
     liveMode:$('liveMode').value||'rotate',
+    highlightLabels:($('hlLabels').value||'').split('\n').map(s=>s.trim()).filter(Boolean),
     sponsors:SPONSORS,
     green:$('green').value,
     logoUrl:$('logoUrl').value.trim(),
