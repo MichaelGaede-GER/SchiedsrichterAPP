@@ -98,6 +98,58 @@ const Store = (() => {
       const { error } = await sb.from('matches').update({ tournament_id: toId }).is('tournament_id', null);
       if (error) throw error;
     },
+    // ---- Anlagen (Katalog) ----
+    async listVenues() {
+      const { data, error } = await sb.from('venues').select('id,name,city,venue_courts(court_no)').order('name');
+      if (error) throw error;
+      return (data || []).map(v => ({ id: v.id, name: v.name, city: v.city, courtCount: (v.venue_courts || []).length }));
+    },
+    async getVenueCourts(venueId) {
+      const { data, error } = await sb.from('venue_courts').select('court_no,name').eq('venue_id', venueId).order('court_no');
+      if (error) throw error; return data || [];
+    },
+    async createVenue(name, city, courtCount) {
+      const { data, error } = await sb.from('venues').insert({ name, city: city || null }).select('id').single();
+      if (error) throw error;
+      const id = data.id, n = Math.max(0, parseInt(courtCount, 10) || 0), rows = [];
+      for (let i = 1; i <= n; i++) rows.push({ venue_id: id, court_no: i });
+      if (rows.length) { const r = await sb.from('venue_courts').insert(rows); if (r.error) throw r.error; }
+      return { id, name, city: city || null, courtCount: n };
+    },
+    async setVenueCourtCount(venueId, courtCount) {
+      const n = Math.max(0, parseInt(courtCount, 10) || 0);
+      await sb.from('venue_courts').delete().eq('venue_id', venueId).gt('court_no', n);
+      const rows = []; for (let i = 1; i <= n; i++) rows.push({ venue_id: venueId, court_no: i });
+      if (rows.length) { const r = await sb.from('venue_courts').upsert(rows); if (r.error) throw r.error; }
+    },
+    async deleteVenue(venueId) {
+      const { error } = await sb.from('venues').delete().eq('id', venueId); if (error) throw error;
+    },
+    // ---- Turnier <-> Location ----
+    async getTournamentVenues(tid) {
+      const { data, error } = await sb.from('tournament_venues')
+        .select('venue_id,sort,venues(name,city)').eq('tournament_id', tid).order('sort');
+      if (error) throw error;
+      return (data || []).map(r => ({ venue_id: r.venue_id, sort: r.sort,
+        name: r.venues ? r.venues.name : '', city: r.venues ? r.venues.city : '' }));
+    },
+    async setTournamentVenues(tid, venueIds) {
+      await sb.from('tournament_venues').delete().eq('tournament_id', tid);
+      const rows = (venueIds || []).map((id, i) => ({ tournament_id: tid, venue_id: id, sort: i }));
+      if (rows.length) { const r = await sb.from('tournament_venues').insert(rows); if (r.error) throw r.error; }
+    },
+    // ---- Turnier-Courts (welche Courts + Funktion) ----
+    async getTournamentCourts(tid) {
+      const { data, error } = await sb.from('tournament_courts')
+        .select('venue_id,court_no,function,sort').eq('tournament_id', tid).order('sort');
+      if (error) throw error; return data || [];
+    },
+    async setTournamentCourts(tid, venueId, courts) {
+      await sb.from('tournament_courts').delete().eq('tournament_id', tid).eq('venue_id', venueId);
+      const rows = (courts || []).map((c, i) => ({ tournament_id: tid, venue_id: venueId,
+        court_no: c.court_no, function: c.function || 'normal', sort: c.sort != null ? c.sort : i }));
+      if (rows.length) { const r = await sb.from('tournament_courts').insert(rows); if (r.error) throw r.error; }
+    },
     subscribeTournaments(callback) {
       const ch = sb.channel('tours-all')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' },
@@ -188,6 +240,57 @@ const Store = (() => {
     async adoptOrphans(toId) {
       const rows = readLS(); rows.forEach(m => { if (!m.tournament_id) m.tournament_id = toId; }); writeLS(rows);
     },
+    // ---- Anlagen (Katalog) ----
+    async listVenues() {
+      let vs = []; try { vs = JSON.parse(localStorage.getItem('squash_venues') || '[]'); } catch (e) {}
+      return vs.map(v => ({ id: v.id, name: v.name, city: v.city || '', courtCount: (v.courts || []).length }));
+    },
+    async getVenueCourts(venueId) {
+      let vs = []; try { vs = JSON.parse(localStorage.getItem('squash_venues') || '[]'); } catch (e) {}
+      const v = vs.find(x => x.id === venueId); return v ? (v.courts || []).map(c => ({ court_no: c, name: null })) : [];
+    },
+    async createVenue(name, city, courtCount) {
+      let vs = []; try { vs = JSON.parse(localStorage.getItem('squash_venues') || '[]'); } catch (e) {}
+      const n = Math.max(0, parseInt(courtCount, 10) || 0), courts = [];
+      for (let i = 1; i <= n; i++) courts.push(i);
+      const v = { id: 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), name, city: city || '', courts };
+      vs.push(v); localStorage.setItem('squash_venues', JSON.stringify(vs));
+      if (bc) bc.postMessage({ t: 'venues' });
+      return { id: v.id, name, city: v.city, courtCount: n };
+    },
+    async setVenueCourtCount(venueId, courtCount) {
+      let vs = []; try { vs = JSON.parse(localStorage.getItem('squash_venues') || '[]'); } catch (e) {}
+      const v = vs.find(x => x.id === venueId); if (!v) return;
+      const n = Math.max(0, parseInt(courtCount, 10) || 0); v.courts = [];
+      for (let i = 1; i <= n; i++) v.courts.push(i);
+      localStorage.setItem('squash_venues', JSON.stringify(vs)); if (bc) bc.postMessage({ t: 'venues' });
+    },
+    async deleteVenue(venueId) {
+      let vs = []; try { vs = JSON.parse(localStorage.getItem('squash_venues') || '[]'); } catch (e) {}
+      localStorage.setItem('squash_venues', JSON.stringify(vs.filter(v => v.id !== venueId)));
+      if (bc) bc.postMessage({ t: 'venues' });
+    },
+    // ---- Turnier <-> Location ----
+    async getTournamentVenues(tid) {
+      let ids = []; try { ids = JSON.parse(localStorage.getItem('squash_tvenues_' + tid) || '[]'); } catch (e) {}
+      let vs = []; try { vs = JSON.parse(localStorage.getItem('squash_venues') || '[]'); } catch (e) {}
+      return ids.map((id, i) => { const v = vs.find(x => x.id === id) || {}; return { venue_id: id, sort: i, name: v.name || '', city: v.city || '' }; });
+    },
+    async setTournamentVenues(tid, venueIds) {
+      localStorage.setItem('squash_tvenues_' + tid, JSON.stringify(venueIds || []));
+      if (bc) bc.postMessage({ t: 'venues' });
+    },
+    // ---- Turnier-Courts ----
+    async getTournamentCourts(tid) {
+      try { return JSON.parse(localStorage.getItem('squash_tcourts_' + tid) || '[]'); } catch (e) { return []; }
+    },
+    async setTournamentCourts(tid, venueId, courts) {
+      let all = []; try { all = JSON.parse(localStorage.getItem('squash_tcourts_' + tid) || '[]'); } catch (e) {}
+      all = all.filter(c => c.venue_id !== venueId);
+      (courts || []).forEach((c, i) => all.push({ venue_id: venueId, court_no: c.court_no, function: c.function || 'normal', sort: c.sort != null ? c.sort : i }));
+      localStorage.setItem('squash_tcourts_' + tid, JSON.stringify(all));
+      if (bc) bc.postMessage({ t: 'venues' });
+    },
     subscribeTournaments(callback) {
       const onMsg = e => { if (e.data && e.data.t === 'tours') callback(); };
       const onStorage = e => { if (e.key === 'squash_tournaments') callback(); };
@@ -204,12 +307,21 @@ const Store = (() => {
   const ACTIVE_KEY = 'squash_active_tournament';
   async function ensureActive() {
     if (ACTIVE === undefined) {
+      // 1) Turnier aus der URL (?t=<id>) hat Vorrang – macht court/live/stream turnier-spezifisch
+      let fromUrl = null;
+      try { fromUrl = new URLSearchParams(location.search).get('t'); } catch (e) {}
+      if (fromUrl) {
+        ACTIVE = fromUrl;
+        try { localStorage.setItem(ACTIVE_KEY, fromUrl); } catch (e) {}
+        return ACTIVE;
+      }
+      // 2) Sonst pro Gerät gespeichertes Turnier
       let v = null;
       try { v = localStorage.getItem(ACTIVE_KEY); } catch (e) {}
       if (v !== null) {
         ACTIVE = v || null;                 // '' = bewusst kein Turnier
       } else {
-        // Einmalige Übernahme des bisher global gespeicherten aktiven Turniers
+        // 3) Einmalige Übernahme des bisher global gespeicherten aktiven Turniers
         try { const s = await backend.getSettingsRaw(); ACTIVE = (s && s.activeTournament) || null; }
         catch (e) { ACTIVE = null; }
         try { localStorage.setItem(ACTIVE_KEY, ACTIVE || ''); } catch (e) {}
@@ -251,11 +363,30 @@ const Store = (() => {
     renameTournament: (...a) => backend.renameTournament(...a),
     deleteTournament: (...a) => backend.deleteTournament(...a),
     activeTournament() { return ACTIVE || null; },
+    ensureActiveTournament() { return ensureActive(); },
     async setActiveTournament(id) {
       ACTIVE = id || null;
       try { localStorage.setItem(ACTIVE_KEY, ACTIVE || ''); } catch (e) {}
     },
     async adoptOrphans() { await ensureActive(); if (!ACTIVE) throw new Error('Kein aktives Turnier ausgewählt.'); await backend.adoptOrphans(ACTIVE); },
+
+    // ---- Anlagen / Locations / Courts ----
+    listVenues() { return backend.listVenues(); },
+    getVenueCourts(venueId) { return backend.getVenueCourts(venueId); },
+    createVenue(name, city, courtCount) { return backend.createVenue(name, city, courtCount); },
+    setVenueCourtCount(venueId, n) { return backend.setVenueCourtCount(venueId, n); },
+    deleteVenue(venueId) { return backend.deleteVenue(venueId); },
+    async getTournamentVenues(tid) { tid = tid || (await ensureActive()); if (!tid) return []; return backend.getTournamentVenues(tid); },
+    async setTournamentVenues(ids, tid) { tid = tid || (await ensureActive()); if (!tid) throw new Error('Kein aktives Turnier.'); return backend.setTournamentVenues(tid, ids); },
+    async getTournamentCourts(tid) { tid = tid || (await ensureActive()); if (!tid) return []; return backend.getTournamentCourts(tid); },
+    async setTournamentCourts(venueId, courts, tid) { tid = tid || (await ensureActive()); if (!tid) throw new Error('Kein aktives Turnier.'); return backend.setTournamentCourts(tid, venueId, courts); },
+    // Hilfsfunktion für die Index-/Anzeige-Filterung: genutzte Court-Nummern
+    async usedCourtNumbers(tid, venueId) {
+      tid = tid || (await ensureActive()); if (!tid) return [];
+      let cs = await backend.getTournamentCourts(tid);
+      if (venueId) cs = cs.filter(c => c.venue_id === venueId);
+      return cs.slice().sort((a, b) => (a.sort - b.sort) || (a.court_no - b.court_no)).map(c => c.court_no);
+    },
 
     // ---- Backup ----
     async exportBackup() {
