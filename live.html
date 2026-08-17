@@ -64,6 +64,7 @@
   .setpill{background:#0f1622;border:1px solid var(--line);border-radius:999px;padding:4px 14px;color:#cfe0ff;font-variant-numeric:tabular-nums}
   .empty{color:var(--muted);font-size:clamp(20px,3vh,30px);text-align:center;padding:60px 0}
   .shirtdot{width:20px;height:20px;border-radius:5px;flex:0 0 auto;box-shadow:0 0 0 1px #0007}
+  .seedl{color:#8fd0ff;font-weight:800;font-size:.7em;opacity:.95}
   /* Sponsorenleiste */
   .sponsorbar{flex:0 0 auto;height:12vh;min-height:74px;background:#0d1420;border-top:1px solid var(--line);
     display:flex;align-items:center;overflow:hidden}
@@ -114,6 +115,7 @@ function flagUrlC(code){ if(!code) return ''; const c=String(code).toLowerCase()
 function flagImg(code, region){ const url=(typeof regionFlagUrl==='function'?regionFlagUrl(region,80):'')||flagUrlC(code);
   return url?`<span class="cflag" style="background-image:url('${url}')"></span>`:'<span class="cflag" style="background:#223"></span>'; }
 function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function sdl(seed){ const t=(seed==null?'':String(seed)).trim(); return t?` <span class="seedl">[${esc(t)}]</span>`:''; }
 function abbrevName(full){
   const parts=String(full||'').trim().split(/\s+/).filter(Boolean);
   if(parts.length<=1) return full||'';
@@ -150,13 +152,13 @@ function liveCard(m){
     <div class="prow">
       ${sh1?`<span class="shirtdot" style="background:${esc(sh1)}"></span>`:''}
       ${flagImg(m.player1_country,m.player1_region)}
-      <span class="pname">${esc(abbrevName(m.player1_name))}</span>
+      <span class="pname">${esc(abbrevName(m.player1_name))}${sdl(m.player1_seed)}</span>
       <span class="pscore">${cur.p1||0}</span>
     </div>
     <div class="prow">
       ${sh2?`<span class="shirtdot" style="background:${esc(sh2)}"></span>`:''}
       ${flagImg(m.player2_country,m.player2_region)}
-      <span class="pname">${esc(abbrevName(m.player2_name))}</span>
+      <span class="pname">${esc(abbrevName(m.player2_name))}${sdl(m.player2_seed)}</span>
       <span class="pscore">${cur.p2||0}</span>
     </div>
     ${m.referee?`<div class="refline">🧑‍⚖️ ${esc(m.referee)}</div>`:''}
@@ -170,8 +172,8 @@ function prepCard(m){
       <span class="courtbadge prep">${esc(m.scheduled_time||court||'geplant')}</span>
       <span class="metaline">${esc(m.event||'')} ${m.round?('· '+esc(m.round)):''} ${court?('· '+esc(court)):''}</span>
     </div>
-    <div class="prow">${flagImg(m.player1_country,m.player1_region)}<span class="pname">${esc(m.player1_name)}</span></div>
-    <div class="prow">${flagImg(m.player2_country,m.player2_region)}<span class="pname">${esc(m.player2_name)}</span></div>
+    <div class="prow">${flagImg(m.player1_country,m.player1_region)}<span class="pname">${esc(m.player1_name)}${sdl(m.player1_seed)}</span></div>
+    <div class="prow">${flagImg(m.player2_country,m.player2_region)}<span class="pname">${esc(m.player2_name)}${sdl(m.player2_seed)}</span></div>
   </div>`;
 }
 function doneCard(m){
@@ -182,10 +184,10 @@ function doneCard(m){
       <span class="metaline">${m.round?esc(m.round):''} ${m.match_no?('· '+esc(m.match_no)):''}</span>
     </div>
     <div class="prow">${flagImg(m.player1_country,m.player1_region)}
-      <span class="pname ${w===1?'win':'lose'}">${esc(m.player1_name)}</span>
+      <span class="pname ${w===1?'win':'lose'}">${esc(m.player1_name)}${sdl(m.player1_seed)}</span>
       <span class="pscore">${(m.result||'').split('-')[0]||''}</span></div>
     <div class="prow">${flagImg(m.player2_country,m.player2_region)}
-      <span class="pname ${w===2?'win':'lose'}">${esc(m.player2_name)}</span>
+      <span class="pname ${w===2?'win':'lose'}">${esc(m.player2_name)}${sdl(m.player2_seed)}</span>
       <span class="pscore">${(m.result||'').split('-')[1]||''}</span></div>
     <div class="foot">${m.ending==='walkover'?'W.O.':m.ending==='retired'?'Retired':''}
       ${m.score_text?`<span class="setpill">${esc(m.score_text)}</span>`:''}</div>

@@ -126,6 +126,7 @@
   .team .fl{font-size:16px}
   .flagi{display:inline-block;width:24px;height:16px;border-radius:2px;background-size:cover;background-position:center;
     vertical-align:middle;flex:0 0 auto;box-shadow:0 0 0 1px rgba(255,255,255,.1)}
+  .seed{color:#8fd0ff;font-weight:700;font-size:.82em;opacity:.95}
   .evtop{display:flex;align-items:center;justify-content:space-between;gap:10px}
   .editbtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;
     padding:3px 9px;font-size:12px;cursor:pointer;flex:0 0 auto}
@@ -240,11 +241,15 @@
   </div>
   <div class="grid2">
     <div class="field"><label>Spieler 1</label><input id="f_p1" placeholder="Vorname Nachname"></div>
-    <div class="field"><label>Land 1 (z.B. de oder England)</label><input id="f_c1" value="de"></div>
+    <div class="field"><label>Land 1 (z.B. de, ENG, Spanien)</label><input id="f_c1" value="de"></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Spieler 2</label><input id="f_p2" placeholder="Vorname Nachname"></div>
     <div class="field"><label>Land 2</label><input id="f_c2" value="de"></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>Setzung 1 (optional, z.B. 3/4)</label><input id="f_seed1" placeholder="optional"></div>
+    <div class="field"><label>Setzung 2 (optional)</label><input id="f_seed2" placeholder="optional"></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Bundesland 1 (optional, z.B. BY)</label><input id="f_r1" placeholder="leer = Nationalflagge"></div>
@@ -337,6 +342,7 @@ function flagImg(code, region){
   const url = regionFlagUrl(region, 40) || flagUrlIdx(code);
   return url ? `<span class="flagi" style="background-image:url('${url}')"></span>` : '';
 }
+function sd(seed){ const t=(typeof seedText==='function')?seedText(seed):''; return t?` <span class="seed">${t}</span>`:''; }
 if (Store.ready){ modeEl.textContent='● Supabase verbunden'; modeEl.className='mode live'; }
 else { modeEl.textContent='● Lokaler Testmodus (nur dieser Browser)'; modeEl.className='mode local'; }
 
@@ -420,8 +426,8 @@ function courtCard(cid, venueId, fn){
                      : `<span class="badge playing">Läuft</span>`;
     div.innerHTML=`<div class="cnum">COURT ${cid}${tag}</div>
       <div class="live">
-        <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}</span><span class="sc">${p1}</span></div>
-        <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}</span><span class="sc">${p2}</span></div>
+        <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}${sd(live.player1_seed)}</span><span class="sc">${p1}</span></div>
+        <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}${sd(live.player2_seed)}</span><span class="sc">${p2}</span></div>
         <div class="meta"><span>Satz ${g1}–${g2} · Bo${live.best_of}</span>${badge}</div>
         <div class="actions">
           ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
@@ -483,9 +489,9 @@ function renderSched(){
             `<button class="editbtn" title="Spiel bearbeiten" onclick="event.stopPropagation();openEditMatch('${m.id}')">✎ Bearbeiten</button>`}
         </div>
         <div class="teams">
-          <span class="team"><span class="p1n">${m.player1_name}</span>${flagImg(m.player1_country,m.player1_region)}</span>
+          <span class="team"><span class="p1n">${m.player1_name}${sd(m.player1_seed)}</span>${flagImg(m.player1_country,m.player1_region)}</span>
           <span class="vs">vs</span>
-          <span class="team">${flagImg(m.player2_country,m.player2_region)}<span class="p2n">${m.player2_name}</span></span>
+          <span class="team">${flagImg(m.player2_country,m.player2_region)}<span class="p2n">${m.player2_name}${sd(m.player2_seed)}</span></span>
         </div>
       </div>
       <div class="ref">${m.referee?('<b>Schiri:</b> '+m.referee):'<span style="opacity:.6">—</span>'}</div>
@@ -522,9 +528,9 @@ function resultRowHtml(m,isSent){
   return `
     <div class="tm" style="color:var(--muted);font-size:12px">${m.event||m.draw||''}<br>${m.round||''}</div>
     <div class="teams">
-      <span class="team"><span class="p1n">${m.player1_name}</span>${flagImg(m.player1_country,m.player1_region)}</span>
+      <span class="team"><span class="p1n">${m.player1_name}${sd(m.player1_seed)}</span>${flagImg(m.player1_country,m.player1_region)}</span>
       <span class="vs">${m.result||''}</span>
-      <span class="team">${flagImg(m.player2_country,m.player2_region)}<span class="p2n">${m.player2_name}</span></span>
+      <span class="team">${flagImg(m.player2_country,m.player2_region)}<span class="p2n">${m.player2_name}${sd(m.player2_seed)}</span></span>
     </div>
     <div class="setboxes" ${sets?`title="Zum Kopieren klicken" style="cursor:copy" onclick="copyText('${sets}')"`:''}>${boxes}</div>
     <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
@@ -664,6 +670,7 @@ function openAdd(){
   document.getElementById('matchDlgTitle').textContent='Spiel hinzufügen';
   setF('f_draw','Ju11'); setF('f_round','RR1'); setF('f_p1',''); setF('f_c1','de');
   setF('f_p2',''); setF('f_c2','de'); setF('f_r1',''); setF('f_r2','');
+  setF('f_seed1',''); setF('f_seed2','');
   setF('f_court',''); setF('f_bo','3'); setF('f_time',''); setF('f_ref','');
   setF('f_ending',''); updWinnerVis();
   fillVenueSelect();
@@ -677,6 +684,7 @@ function openEditMatch(id){
   setF('f_p1',m.player1_name||''); setF('f_c1',m.player1_country||'');
   setF('f_p2',m.player2_name||''); setF('f_c2',m.player2_country||'');
   setF('f_r1',m.player1_region||''); setF('f_r2',m.player2_region||'');
+  setF('f_seed1',m.player1_seed||''); setF('f_seed2',m.player2_seed||'');
   setF('f_court',m.court_no||''); setF('f_bo',m.best_of||3);
   setF('f_time',m.scheduled_time||''); setF('f_ref',m.referee||'');
   setF('f_ending',m.ending||''); setF('f_winner',String(m.winner||1)); updWinnerVis();
@@ -691,9 +699,10 @@ async function saveMatch(){
   const ending=g('f_ending')||null;
   const patch={
     event:g('f_draw'), draw:g('f_draw'), round:g('f_round'),
-    player1_name:g('f_p1'), player1_country:countryToISO(g('f_c1'))||g('f_c1')||null,
-    player2_name:g('f_p2'), player2_country:countryToISO(g('f_c2'))||g('f_c2')||null,
+    player1_name:g('f_p1'), player1_country:countryToISO(g('f_c1'))||g('f_c1').toLowerCase()||null,
+    player2_name:g('f_p2'), player2_country:countryToISO(g('f_c2'))||g('f_c2').toLowerCase()||null,
     player1_region:g('f_r1')||null, player2_region:g('f_r2')||null,
+    player1_seed:g('f_seed1')||null, player2_seed:g('f_seed2')||null,
     best_of:Number(g('f_bo'))||3, court_no:courtNo, court_label:courtNo?('C'+courtNo):null,
     scheduled_time:time, sort_ts:(parseTimeMs(time)||null), referee:g('f_ref')||null,
     venue_id: (document.getElementById('f_venue') && document.getElementById('f_venue').value) || null,
@@ -785,6 +794,7 @@ fileInput.addEventListener('change', async e=>{
         event:r.event||'', draw:r.event||'', round:r.round||'', match_no:r.nr!=null?('#'+r.nr):'',
         player1_name:p1.name, player1_country:countryToISO(p1.country),
         player2_name:p2.name, player2_country:countryToISO(p2.country),
+        player1_seed:p1.seed||null, player2_seed:p2.seed||null,
         best_of:window.CONFIG.DEFAULT_IMPORT_BEST_OF||5,
         court_id:null, court_no:court_no, court_label:court_label,
         venue_id:venue_id,

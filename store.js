@@ -518,14 +518,53 @@ const COUNTRY_ISO = {
   'south korea':'kr','korea':'kr','republic of korea':'kr','sri lanka':'lk','syria':'sy',
   'thailand':'th','trinidad and tobago':'tt','tunisia':'tn','united arab emirates':'ae','uae':'ae',
   'uruguay':'uy','uzbekistan':'uz','venezuela':'ve','vietnam':'vn','zimbabwe':'zw',
+  // Deutsche Ländernamen
+  'deutschland':'de','österreich':'at','oesterreich':'at','schweiz':'ch','frankreich':'fr',
+  'spanien':'es','italien':'it','niederlande':'nl','holland':'nl','belgien':'be','dänemark':'dk',
+  'daenemark':'dk','schweden':'se','norwegen':'no','finnland':'fi','polen':'pl','tschechien':'cz',
+  'tschechische republik':'cz','ungarn':'hu','irland':'ie','portugal':'pt','griechenland':'gr',
+  'türkei':'tr','tuerkei':'tr','ukraine':'ua','russland':'ru','ägypten':'eg','aegypten':'eg',
+  'england':'eng','schottland':'sct','wales':'wls','nordirland':'gb','grossbritannien':'gb',
+  'großbritannien':'gb','vereinigtes königreich':'gb','vereinigte staaten':'us','usa':'us',
+  'kanada':'ca','mexiko':'mx','brasilien':'br','argentinien':'ar','indien':'in','china':'cn',
+  'japan':'jp','südkorea':'kr','suedkorea':'kr','südafrika':'za','suedafrika':'za','marokko':'ma',
+  'kroatien':'hr','serbien':'rs','slowenien':'si','slowakei':'sk','rumänien':'ro','rumaenien':'ro',
+  'bulgarien':'bg','island':'is','estland':'ee','lettland':'lv','litauen':'lt','luxemburg':'lu',
+  'malta':'mt','zypern':'cy','katar':'qa','saudi-arabien':'sa','vereinigte arabische emirate':'ae',
+  'neuseeland':'nz','australien':'au','malaysia':'my','hongkong':'hk','singapur':'sg',
+};
+// IOC/FIFA 3-Buchstaben-Codes -> internes Kürzel (inkl. Heimatnationen)
+const COUNTRY_CODE3 = {
+  eng:'eng',sco:'sct',wal:'wls',nir:'gb',gbr:'gb',
+  ger:'de',aut:'at',sui:'ch',fra:'fr',esp:'es',ita:'it',ned:'nl',bel:'be',den:'dk',swe:'se',
+  nor:'no',fin:'fi',pol:'pl',cze:'cz',svk:'sk',svn:'si',slo:'si',cro:'hr',srb:'rs',gre:'gr',
+  tur:'tr',ukr:'ua',rus:'ru',hun:'hu',irl:'ie',por:'pt',lux:'lu',isl:'is',est:'ee',lat:'lv',
+  lva:'lv',ltu:'lt',rou:'ro',bul:'bg',mlt:'mt',cyp:'cy',mon:'mc',lie:'li',and:'ad',smr:'sm',
+  gib:'gi',egy:'eg',rsa:'za',mar:'ma',tun:'tn',alg:'dz',dza:'dz',ngr:'ng',nga:'ng',ken:'ke',
+  zim:'zw',usa:'us',can:'ca',mex:'mx',bra:'br',arg:'ar',chi:'cl',chl:'cl',col:'co',per:'pe',
+  ecu:'ec',uru:'uy',ven:'ve',crc:'cr',gua:'gt',jam:'jm',tto:'tt',ind:'in',pak:'pk',ban:'bd',
+  bgd:'bd',sri:'lk',lka:'lk',nep:'np',jpn:'jp',kor:'kr',chn:'cn',tpe:'tw',twn:'tw',hkg:'hk',
+  mas:'my',mys:'my',sgp:'sg',tha:'th',ina:'id',idn:'id',phi:'ph',phl:'ph',vie:'vn',vnm:'vn',
+  aus:'au',nzl:'nz',qat:'qa',kuw:'kw',ksa:'sa',sau:'sa',uae:'ae',are:'ae',brn:'bh',bhr:'bh',
+  oma:'om',omn:'om',jor:'jo',lbn:'lb',isr:'il',iri:'ir',irn:'ir',irq:'iq',syr:'sy',kaz:'kz',
+  uzb:'uz',aze:'az',geo:'ge',arm:'am',
 };
 function countryToISO(name) {
-  if (!name) return null;
-  // schon ein 2-Buchstaben-Code? unverändert lassen
+  if (name == null) return null;
   const s = String(name).trim();
-  if (/^[a-z]{2}$/i.test(s) || ['eng','sct','wls'].includes(s.toLowerCase())) return s.toLowerCase();
-  return COUNTRY_ISO[s.toLowerCase()] || null;
+  if (!s) return null;
+  const low = s.toLowerCase();
+  // interne Sonder-Codes / 2-Buchstaben-ISO unverändert
+  if (['eng','sct','wls'].includes(low)) return low;
+  if (/^[a-z]{2}$/i.test(s)) return low;
+  // 3-Buchstaben-Code (ENG, ESP, GER, …)
+  if (/^[a-z]{3}$/i.test(s) && COUNTRY_CODE3[low]) return COUNTRY_CODE3[low];
+  // ausgeschriebener Name (deutsch/englisch)
+  return COUNTRY_ISO[low] || null;
 }
+const normCountry = countryToISO;   // zentraler Alias
+// Setzung -> Anzeigetext, z.B. "3/4" -> "[3/4]"; leer -> ''
+function seedText(seed) { const s = (seed == null ? '' : String(seed)).trim(); return s ? ('[' + s + ']') : ''; }
 
 // ISO-Code -> Flaggen-Emoji (inkl. England/Schottland/Wales)
 function flagEmoji(code) {

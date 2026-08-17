@@ -23,6 +23,7 @@
 
   .names{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;padding:10px 14px;flex:0 0 auto}
   .namepill{display:flex;align-items:center;gap:10px;border-radius:999px;padding:10px 16px;font-weight:800;font-size:clamp(16px,3.4vw,26px);min-width:0}
+  .seedc{color:#8fd0ff;font-weight:800;font-size:.7em;opacity:.95}
   .namepill .fl{font-size:24px;flex:0 0 auto}
   .cflag{display:inline-block;background-size:cover;background-position:center;border-radius:3px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.2)}
   .namepill .cflag{width:40px;height:27px}
@@ -461,9 +462,9 @@ function render(){
         <button class="iconbtn" onclick="show('ovTimer')">⏱ Timer</button></div>
     </div>
     <div class="names">
-      <div class="p1"><div class="namepill" id="pill1">${flagImg(c1,r1)}<span class="txt">${p1}</span></div>${conductBadges(1)}</div>
+      <div class="p1"><div class="namepill" id="pill1">${flagImg(c1,r1)}<span class="txt">${p1}${match.player1_seed?` <span class="seedc">[${match.player1_seed}]</span>`:''}</span></div>${conductBadges(1)}</div>
       <div class="center-top"><button class="rbtn" onclick="show('ovLet')">LET</button></div>
-      <div class="p2"><div class="namepill" id="pill2">${flagImg(c2,r2)}<span class="txt">${p2}</span></div>${conductBadges(2)}</div>
+      <div class="p2"><div class="namepill" id="pill2">${flagImg(c2,r2)}<span class="txt">${p2}${match.player2_seed?` <span class="seedc">[${match.player2_seed}]</span>`:''}</span></div>${conductBadges(2)}</div>
     </div>
     <div class="board">
       <div class="panel left" onclick="point(1)">

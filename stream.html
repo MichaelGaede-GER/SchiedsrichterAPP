@@ -133,7 +133,8 @@ function liveState(){
   if(!MATCH||!MATCH.state) return null;
   const s=MATCH.state;
   return {
-    p1:MATCH.player1_name, p2:MATCH.player2_name,
+    p1:MATCH.player1_name + (MATCH.player1_seed?(' ['+MATCH.player1_seed+']'):''),
+    p2:MATCH.player2_name + (MATCH.player2_seed?(' ['+MATCH.player2_seed+']'):''),
     c1:MATCH.player1_country, c2:MATCH.player2_country,
     r1:MATCH.player1_region, r2:MATCH.player2_region,
     pts1:s.cur?s.cur.p1:0, pts2:s.cur?s.cur.p2:0,
