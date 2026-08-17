@@ -90,6 +90,9 @@
   #donePreview .qcard{max-width:100%}
   .big{font-size:52px;font-weight:900;font-variant-numeric:tabular-nums;margin:6px 0}
   .setline{font-size:22px;font-weight:800;letter-spacing:1px;font-variant-numeric:tabular-nums;color:#cfe0ff;margin:2px 0 14px}
+  .undocd{margin-top:12px;font-weight:800;font-size:18px}
+  .undocd.active{color:#ffd54a}
+  .undocd.locked{color:#9fb3cc}
   .row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:12px}
   .choice{flex:1;min-width:150px;padding:18px;border-radius:14px;border:2px solid #2a3444;background:#1b2130;color:#fff;font-weight:800;font-size:18px;cursor:pointer}
   .choice.blue{border-color:var(--blue)}.choice.red{border-color:var(--red)}
@@ -281,8 +284,9 @@
   <p id="doneMsg">Das nächste Spiel wird von der Turnierleitung gestartet.</p>
   <div id="donePreview" style="margin-top:10px"></div>
   <div class="row">
-    <button class="btn btn-gray" onclick="undo()">Undo letzter Punkt</button>
+    <button id="doneUndoBtn" class="btn btn-gray" onclick="undoFinish()">↶ Undo letzter Punkt</button>
   </div>
+  <p id="undoCountdown" class="undocd"></p>
 </div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -387,9 +391,47 @@ function showConfirmOverlay(){
   hide('ovDone'); show('ovConfirm');
 }
 function resultYes(){ refConfirmed=true; hide('ovConfirm'); showDoneOverlay(); }
-function resultNo(){ hide('ovConfirm'); undo(); }
-// nach Matchball entscheiden: erst bestätigen lassen, dann übergeben
-function finishFlow(){ if(refConfirmed) showDoneOverlay(); else showConfirmOverlay(); }
+function resultNo(){ hide('ovConfirm'); undoFinish(); }
+
+// ===== Match-Ende: 6-Sekunden-Undo-Fenster, danach gesperrt =====
+let finishTimer=null, finishLocked=false, finishFor=null;
+const UNDO_SECONDS=6;
+function finishFlow(){ onFinished(false); }        // aus Laden: als beendet -> sofort sperren
+function onFinished(local){
+  showDoneOverlay();
+  if(finishFor===match.id){                        // bereits behandelt (Realtime/Reload)
+    if(finishLocked) applyLockedUI();
+    return;
+  }
+  finishFor=match.id;
+  if(local) startUndoWindow();                     // gerade hier beendet -> 6s Undo
+  else lockFinished();                             // schon beendet geladen -> sofort sperren
+}
+function startUndoWindow(){
+  finishLocked=false;
+  const btn=document.getElementById('doneUndoBtn'), cd=document.getElementById('undoCountdown');
+  if(btn){ btn.style.display=''; btn.disabled=false; }
+  let left=UNDO_SECONDS;
+  if(cd){ cd.className='undocd active'; cd.textContent='„Undo letzter Punkt" noch '+left+' s möglich'; }
+  clearInterval(finishTimer);
+  finishTimer=setInterval(()=>{
+    left--;
+    if(cd) cd.textContent='„Undo letzter Punkt" noch '+left+' s möglich';
+    if(left<=0){ clearInterval(finishTimer); lockFinished(); }
+  }, 1000);
+}
+function lockFinished(){ finishLocked=true; clearInterval(finishTimer); applyLockedUI(); }
+function applyLockedUI(){
+  const btn=document.getElementById('doneUndoBtn'); if(btn) btn.style.display='none';
+  const cd=document.getElementById('undoCountdown');
+  if(cd){ cd.className='undocd locked'; cd.textContent='🔒 Match abgeschlossen – warte auf die nächste Zuweisung der Turnierleitung.'; }
+}
+function undoFinish(){
+  if(finishLocked) return;                          // nach Ablauf gesperrt
+  clearInterval(finishTimer); finishFor=null; refConfirmed=false;
+  if(M && M.undo()){ hide('ovDone'); hide('ovConfirm'); hide('ovRest'); afterChange(); }
+}
+function resetFinishState(){ clearInterval(finishTimer); finishLocked=false; finishFor=null; }
 function showDoneOverlay(){
   const wn=M.matchWinner===1?match.player1_name:match.player2_name;
   setText('doneWinner','🏆 '+wn);
@@ -625,7 +667,7 @@ function renderIdle(app){
 }
 
 // ============ AKTIONEN ============
-function point(who){ if(!M||M.status!=='playing') return; M.point(who); afterChange(); }
+function point(who){ if(finishLocked) return; if(!M||M.status!=='playing') return; M.point(who); afterChange(); }
 function toggleServeSide(){ if(!M||M.status!=='playing') return; M.side=(M.side==='R')?'L':'R'; render(); sync(); }
 
 // ---- Shirt-Farben ----
@@ -653,7 +695,7 @@ function applyShirt(color){
   if(!M) return; if(shirtEditing===1) M.shirt1=color||null; else M.shirt2=color||null;
   hide('ovShirt'); render(); sync();
 }
-function undo(){ if(!M) return; if(M.undo()){ refConfirmed=false; hide('ovConfirm'); hide('ovDone'); hide('ovRest'); afterChange(); } }
+function undo(){ if(finishLocked) return; if(!M) return; if(M.undo()){ refConfirmed=false; hide('ovConfirm'); hide('ovDone'); hide('ovRest'); afterChange(); } }
 function letDecide(what){ hide('ovLet'); if(what==='let') return; point(what); }
 function toggleFull(){
   const el=document.documentElement;
@@ -769,7 +811,7 @@ function afterChange(){
     Timer.start((SETTINGS&&SETTINGS.restSeconds!=null)?SETTINGS.restSeconds:120,'Satzpause', null,
       {announce:true, msg15:'15 Sekunden – Spieler bitte auf den Court!'}); show('ovRest');
   }
-  if(M.status==='finished'){ finishFlow(); }
+  if(M.status==='finished'){ onFinished(true); }
 }
 
 // ============ LADEN / REALTIME ============
@@ -817,6 +859,7 @@ function applyFrom(record, state, isNew){
   match=record;
   if(isNew || !M){
     refConfirmed=false;
+    if(!finishFor || finishFor!==record.id) resetFinishState();   // neues Match -> Finish-Sperre zurücksetzen
     M=new SquashMatch({ bestOf:record.best_of||CONFIG.DEFAULT_BEST_OF,
       p1:{name:record.player1_name,country:record.player1_country},
       p2:{name:record.player2_name,country:record.player2_country} });
@@ -824,7 +867,7 @@ function applyFrom(record, state, isNew){
     render(); hideAll();
     if(M.status==='warmup'){ showWarmup(); }
     else if(M.status==='between'){ show('ovRest'); }
-    else if(M.status==='finished'){ finishFlow(); }
+    else if(M.status==='finished'){ onFinished(false); }   // als beendet geladen -> sofort gesperrt
   } else { render(); }
 }
 let warmPhase=0;
