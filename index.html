@@ -132,6 +132,16 @@
   .hlbtn{color:#8aa0bf}.hlbtn.on{color:#ffd54a;border-color:#6b551f}
   .m.hl{border-left:4px solid #ffd54a;background:linear-gradient(90deg,rgba(255,213,74,.10),transparent 60%)}
   .court.hl{border-color:#ffd54a;box-shadow:0 0 0 1px #ffd54a inset}
+  .court.awaiting{border-color:#ffb020}
+  .badge.awaiting-badge{background:#3a2a08;color:#ffb020;border:1px solid #7a5a1f}
+  @keyframes alarmblink{0%,100%{background:rgba(229,72,77,.12);border-color:#e5484d;box-shadow:0 0 0 2px rgba(229,72,77,.55) inset}
+    50%{background:rgba(229,72,77,.34);border-color:#ff8a8a;box-shadow:0 0 0 3px rgba(229,72,77,.95) inset}}
+  .court.alarm{animation:alarmblink 1s ease-in-out infinite}
+  .court.alarm .awaiting-badge{background:#4a1113;color:#ff8a8a;border-color:#e5484d}
+  .confirmbar{display:flex;align-items:center;gap:12px;margin:0 0 12px;padding:10px 14px;border-radius:12px;
+    background:#3a2a08;border:1px solid #7a5a1f;color:#ffcf70;font-weight:800}
+  .confirmbar .cbhint{font-weight:600;color:#d9c18a;font-size:13px}
+  .confirmbar.alarm{animation:alarmblink 1s ease-in-out infinite;color:#ff8a8a}
   .evtop{display:flex;align-items:center;justify-content:space-between;gap:10px}
   .editbtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;
     padding:3px 9px;font-size:12px;cursor:pointer;flex:0 0 auto}
@@ -199,6 +209,11 @@
   </div>
 
   <h2>Courts</h2>
+  <div id="confirmBanner" class="confirmbar" style="display:none">
+    <span class="cbtext"></span>
+    <span style="flex:1"></span>
+    <span class="cbhint">Auf der Court‑Karte „Bestätigen &amp; zurückholen" antippen</span>
+  </div>
   <div id="courts" class="courts"></div>
 
   <div class="maintabs">
@@ -364,6 +379,25 @@ function flagImg(code, region){
 function sd(seed){ const t=(typeof seedText==='function')?seedText(seed):''; return t?` <span class="seed">${t}</span>`:''; }
 let HLABELS=['Halbfinale','Finale'];
 function hlBadge(m){ return (m&&m.highlight)?` <span class="hlb">★ ${String(m.highlight).replace(/</g,'&lt;')}</span>`:''; }
+const ALARM_MS=60000;   // 1 Minute bis zum roten Alarm
+function M_result(s){ try{ if(!s||!s.games) return ''; return s.games.map(g=>`${g.p1}-${g.p2}`).join(', '); }catch(e){ return ''; } }
+function refreshAlarms(){
+  const now=Date.now();
+  document.querySelectorAll('.court.awaiting').forEach(el=>{
+    const at=parseInt(el.dataset.finAt||'0',10);
+    if(at && now-at>ALARM_MS) el.classList.add('alarm'); else el.classList.remove('alarm');
+  });
+  const bar=document.getElementById('confirmBanner');
+  if(bar){
+    const cards=[...document.querySelectorAll('.court.awaiting')];
+    const overdue=cards.filter(el=>{ const at=parseInt(el.dataset.finAt||'0',10); return at && now-at>ALARM_MS; }).length;
+    if(cards.length){ bar.style.display='flex'; bar.classList.toggle('alarm', overdue>0);
+      bar.querySelector('.cbtext').textContent = `⏳ ${cards.length} Ergebnis${cards.length>1?'se':''} warten auf Bestätigung`
+        + (overdue? ` · ${overdue} überfällig!` : '');
+    } else { bar.style.display='none'; bar.classList.remove('alarm'); }
+  }
+}
+setInterval(refreshAlarms, 3000);
 if (Store.ready){ modeEl.textContent='● Supabase verbunden'; modeEl.className='mode live'; }
 else { modeEl.textContent='● Lokaler Testmodus (nur dieser Browser)'; modeEl.className='mode local'; }
 
@@ -444,13 +478,16 @@ function courtCard(cid, venueId, fn){
     const g1=s.gamesWon1??0, g2=s.gamesWon2??0;
     const p1=s.cur?s.cur.p1:0, p2=s.cur?s.cur.p2:0;
     const fin = s.status==='finished';
-    const badge = fin? `<span class="badge finished">Beendet ${live.result||''}</span>`
+    const finAt = fin ? (s.finishedAt||0) : 0;
+    if(fin){ div.classList.add('awaiting'); div.dataset.finAt=finAt||''; if(finAt && (Date.now()-finAt)>ALARM_MS) div.classList.add('alarm'); }
+    const badge = fin? `<span class="badge awaiting-badge">⏳ Wartet auf Bestätigung</span>`
                      : `<span class="badge playing">Läuft</span>`;
+    const metaLeft = fin ? `Ergebnis ${live.result||M_result(s)||''}` : `Satz ${g1}–${g2} · Bo${live.best_of}`;
     div.innerHTML=`<div class="cnum">COURT ${cid}${tag}${hlBadge(live)}</div>
       <div class="live">
         <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}${sd(live.player1_seed)}</span><span class="sc">${p1}</span></div>
         <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}${sd(live.player2_seed)}</span><span class="sc">${p2}</span></div>
-        <div class="meta"><span>Satz ${g1}–${g2} · Bo${live.best_of}</span>${badge}</div>
+        <div class="meta"><span>${metaLeft}</span>${badge}</div>
         <div class="actions">
           ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
             (fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
@@ -474,6 +511,7 @@ function renderCourts(){
     const list = (COURTS_FALLBACK && COURTS_FALLBACK.length) ? COURTS_FALLBACK : COURTS;
     list.forEach(cid=> wrap.appendChild(courtCard(cid, null, 'normal')));
   }
+  try{ refreshAlarms(); }catch(e){}
 }
 
 function renderSched(){

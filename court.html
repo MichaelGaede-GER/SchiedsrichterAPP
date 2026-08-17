@@ -394,7 +394,7 @@ function resultYes(){ refConfirmed=true; hide('ovConfirm'); showDoneOverlay(); }
 function resultNo(){ hide('ovConfirm'); undoFinish(); }
 
 // ===== Match-Ende: 6-Sekunden-Undo-Fenster, danach gesperrt =====
-let finishTimer=null, finishLocked=false, finishFor=null;
+let finishTimer=null, finishLocked=false, finishFor=null, finishedAtTs=null;
 const UNDO_SECONDS=6;
 function finishFlow(){ onFinished(false); }        // aus Laden: als beendet -> sofort sperren
 function onFinished(local){
@@ -404,7 +404,7 @@ function onFinished(local){
     return;
   }
   finishFor=match.id;
-  if(local) startUndoWindow();                     // gerade hier beendet -> 6s Undo
+  if(local){ finishedAtTs = finishedAtTs || Date.now(); startUndoWindow(); }   // gerade hier beendet -> 6s Undo
   else lockFinished();                             // schon beendet geladen -> sofort sperren
 }
 function startUndoWindow(){
@@ -431,7 +431,7 @@ function undoFinish(){
   clearInterval(finishTimer); finishFor=null; refConfirmed=false;
   if(M && M.undo()){ hide('ovDone'); hide('ovConfirm'); hide('ovRest'); afterChange(); }
 }
-function resetFinishState(){ clearInterval(finishTimer); finishLocked=false; finishFor=null; }
+function resetFinishState(){ clearInterval(finishTimer); finishLocked=false; finishFor=null; finishedAtTs=null; }
 function showDoneOverlay(){
   const wn=M.matchWinner===1?match.player1_name:match.player2_name;
   setText('doneWinner','🏆 '+wn);
@@ -519,7 +519,9 @@ function progress(st){ if(!st) return -1;
   if(st.cur) n+=(st.cur.p1||0)+(st.cur.p2||0); return n; }
 function buildLocal(){       // aktuellen Stand lokal festhalten (überlebt Offline & Neustart)
   if(!match||!M) return;
-  OFF = { matchId:match.id, record:recordSnapshot(match), state:withTimer(M.serialize()),
+  const st=withTimer(M.serialize());
+  if(M.status==='finished'){ st.finishedAt = finishedAtTs || (finishedAtTs=Date.now()); }  // Zeitpunkt der Ergebnismeldung
+  OFF = { matchId:match.id, record:recordSnapshot(match), state:st,
     finished:(M.status==='finished'?{result:M.resultString(),winner:M.matchWinner,score_text:M.setScores(),ending:M.ending||null}:null),
     rev:((OFF&&OFF.rev)||0)+1, savedAt:Date.now(), pending:true };
   offSave();
@@ -867,7 +869,7 @@ function applyFrom(record, state, isNew){
     render(); hideAll();
     if(M.status==='warmup'){ showWarmup(); }
     else if(M.status==='between'){ show('ovRest'); }
-    else if(M.status==='finished'){ onFinished(false); }   // als beendet geladen -> sofort gesperrt
+    else if(M.status==='finished'){ finishedAtTs = (state&&state.finishedAt) || finishedAtTs || Date.now(); onFinished(false); }   // als beendet geladen -> sofort gesperrt
   } else { render(); }
 }
 let warmPhase=0;
