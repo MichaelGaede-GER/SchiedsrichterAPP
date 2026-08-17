@@ -392,7 +392,13 @@ let HLABELS=['Halbfinale','Finale'];
 function hlBadge(m){ return (m&&m.highlight)?` <span class="hlb">★ ${String(m.highlight).replace(/</g,'&lt;')}</span>`:''; }
 const ALARM_MS=60000;   // 1 Minute bis zum roten Alarm
 let FLOW_AUTOASSIGN=false, FLOW_AUTOCONFIRM=false, AUTO_SECS=20;
-let MISSING_ACTIVE=false; const autoOverride=new Set(), autoBusy=new Set();
+let MISSING_ACTIVE=false; const autoOverride=new Set(), autoBusy=new Set(), awaitingSince=new Map();
+function finAtOf(m){
+  const s=m&&m.state||{};
+  if(s.finishedAt) return s.finishedAt;                 // vom Court gesetzt (bevorzugt)
+  if(!awaitingSince.has(m.id)) awaitingSince.set(m.id, Date.now());  // Fallback: erster Sichtzeitpunkt
+  return awaitingSince.get(m.id);
+}
 function isPlaceholder(name){
   const s=String(name==null?'':name).trim().toLowerCase();
   if(!s) return true;
@@ -411,6 +417,8 @@ function upcomingMissing(limit){
 function M_result(s){ try{ if(!s||!s.games) return ''; return s.games.map(g=>`${g.p1}-${g.p2}`).join(', '); }catch(e){ return ''; } }
 function refreshAlarms(){
   const now=Date.now();
+  const awaitingIds=new Set(MATCHES.filter(m=>m.status==='live' && (m.state||{}).status==='finished').map(m=>m.id));
+  awaitingSince.forEach((_,id)=>{ if(!awaitingIds.has(id)) awaitingSince.delete(id); });
   checkMissing();
   document.querySelectorAll('.court.awaiting').forEach(el=>{
     const at=parseInt(el.dataset.finAt||'0',10);
@@ -522,7 +530,7 @@ function courtCard(cid, venueId, fn){
     const g1=s.gamesWon1??0, g2=s.gamesWon2??0;
     const p1=s.cur?s.cur.p1:0, p2=s.cur?s.cur.p2:0;
     const fin = s.status==='finished';
-    const finAt = fin ? (s.finishedAt||0) : 0;
+    const finAt = fin ? finAtOf(live) : 0;
     if(fin){ div.classList.add('awaiting'); div.dataset.finAt=finAt||''; if(finAt && (Date.now()-finAt)>ALARM_MS) div.classList.add('alarm'); }
     const badge = fin? `<span class="badge awaiting-badge">⏳ Wartet auf Bestätigung</span>`
                      : `<span class="badge playing">Läuft</span>`;
@@ -718,7 +726,7 @@ async function checkAutoConfirm(){
     if(m.status!=='live') continue;
     const s=m.state||{}; if(s.status!=='finished') continue;
     if(autoOverride.has(m.id) || autoBusy.has(m.id)) continue;
-    const at=s.finishedAt||0; if(!at) continue;
+    const at=finAtOf(m); if(!at) continue;
     if(now-at >= AUTO_SECS*1000){
       autoBusy.add(m.id);
       try{ await confirmR(m.id, true); }catch(e){}
