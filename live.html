@@ -128,7 +128,7 @@ function courtLabel(m){ return 'COURT '+(m.court_id||m.court_no||'—'); }
 
 // ---- Daten laden & gruppieren ----
 const VENUE = new URLSearchParams(location.search).get('loc') || null;
-function locFilter(m){ return !VENUE || m.venue_id===VENUE; }
+function locFilter(m){ return !VENUE || !m.venue_id || m.venue_id===VENUE; }
 async function load(){
   try{ MATCHES=await Store.listMatches(); }catch(e){ MATCHES=[]; }
   LIVE = MATCHES.filter(m=>m.status==='live' && locFilter(m))

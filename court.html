@@ -727,7 +727,7 @@ async function sync(){
 // ============ LADEN / REALTIME ============
 async function loadCourt(){
   ALLMATCHES=await Store.listMatches();
-  const live=ALLMATCHES.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || m.venue_id===VENUE));
+  const live=ALLMATCHES.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || !m.venue_id || m.venue_id===VENUE));
   if(!live){ match=null; M=null; render(); return; }
   const isNew=!match || match.id!==live.id;
   match=live;

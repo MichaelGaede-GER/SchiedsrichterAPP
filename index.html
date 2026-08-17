@@ -597,12 +597,15 @@ function updateSelBar(){ const bar=document.getElementById('selbar');
 async function assign(id,cid,venueId){
   if(typeof Auth!=='undefined' && !Auth.can('manage')){ toast('Keine Berechtigung'); return; }
   const m=MATCHES.find(x=>x.id===id); if(!m) return;
+  // Location bestimmen: explizit > am Spiel hinterlegt > eindeutig aus Court-Layout
+  let vid = venueId || m.venue_id || null;
+  if(!vid && COURT_LAYOUT){ const hits=COURT_LAYOUT.filter(v=>v.courts.some(c=>c.no===cid)); if(hits.length===1) vid=hits[0].venue_id; }
   // Warnung, wenn das Spiel für einen anderen Court geplant war
   if(m.court_no && m.court_no!==cid){
     if(!confirm(`Achtung: Dieses Spiel ist für Court ${m.court_no} geplant.\nWirklich stattdessen auf Court ${cid} ansetzen?`)) return;
     await Store.updateMatch(id,{court_no:cid, court_label:'C'+cid});
   }
-  if(venueId){ try{ await Store.updateMatch(id,{venue_id:venueId}); }catch(e){} }
+  if(vid && vid!==m.venue_id){ try{ await Store.updateMatch(id,{venue_id:vid}); }catch(e){} }
   try{ await Store.assignToCourt(id,cid,Number(m.best_of)||3); selectedMatch=null; updateSelBar(); toast(`Auf Court ${cid} gelegt`); }
   catch(e){ toast(e.message); } }
 async function unassign(id){ await Store.unassign(id); toast('Zurück in die Ansetzungen'); }

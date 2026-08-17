@@ -273,7 +273,7 @@ document.addEventListener('mousemove',nudge); nudge();
 async function refreshSettings(){ SET=await Store.getSettings(); setBg(); render(); load(); }
 async function load(){
   ALL=await Store.listMatches();
-  MATCH=ALL.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || m.venue_id===VENUE))||null;
+  MATCH=ALL.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || !m.venue_id || m.venue_id===VENUE))||null;
   render();
 }
 setView(VIEW);
