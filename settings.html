@@ -224,6 +224,26 @@
     <div id="links" class="courts-links"></div>
   </div>
 
+  <h2>🏟 Anlagen &amp; Courts</h2>
+  <div class="card" id="venueCard">
+    <div class="hint">Lege Squash‑Anlagen mit ihren Courts an, ordne dem aktiven Turnier eine oder mehrere Anlagen zu und wähle je Anlage die verwendeten Courts samt Funktion. Center = Finale, Halbfinale = Semi.</div>
+
+    <h4 style="margin:14px 0 6px">Anlagen‑Katalog</h4>
+    <div id="venueCatalog"></div>
+    <div class="row" style="margin-top:8px">
+      <input id="venName" placeholder="Anlagenname" style="flex:1;min-width:160px">
+      <input id="venCity" placeholder="Ort" style="width:130px">
+      <input id="venCount" type="number" min="0" placeholder="Courts" style="width:90px">
+      <button class="btn-green" onclick="addVenue()">Anlage anlegen</button>
+    </div>
+
+    <h4 style="margin:18px 0 6px">Locations dieses Turniers</h4>
+    <div id="tourLocations" class="hint">…</div>
+
+    <h4 style="margin:18px 0 6px">Verwendete Courts &amp; Funktion</h4>
+    <div id="tourCourts" class="hint">…</div>
+  </div>
+
   <h2>📺 Live-Anzeige (Vollbild)</h2>
   <div class="card">
     <div class="field">
@@ -368,6 +388,90 @@ function renderLinks(){
 }
 function copyText(t){ navigator.clipboard&&navigator.clipboard.writeText(t).then(()=>toast('Link kopiert')); }
 
+// ===== Anlagen / Locations / Courts =====
+function escS(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+let VENUES=[], TVENUES=[], TCOURTS=[];
+async function initVenues(){
+  try{ VENUES=await Store.listVenues(); }catch(e){ VENUES=[]; }
+  renderVenueCatalog();
+  const tid=Store.activeTournament();
+  if(!tid){ $('tourLocations').innerHTML='<span class="hint">Kein Turnier aktiv – oben ein Turnier wählen.</span>'; $('tourCourts').innerHTML=''; return; }
+  try{ TVENUES=await Store.getTournamentVenues(); }catch(e){ TVENUES=[]; }
+  try{ TCOURTS=await Store.getTournamentCourts(); }catch(e){ TCOURTS=[]; }
+  renderTourLocations(); await renderTourCourts();
+}
+function renderVenueCatalog(){
+  const el=$('venueCatalog');
+  if(!VENUES.length){ el.innerHTML='<span class="hint">Noch keine Anlagen.</span>'; return; }
+  el.innerHTML=VENUES.map(v=>`<div class="lrow" style="gap:10px;align-items:center">
+    <span class="tag">🏟 ${escS(v.name)}${v.city?(' · '+escS(v.city)):''}</span>
+    <span class="hint">Courts:</span>
+    <input type="number" min="0" value="${v.courtCount}" style="width:80px" onchange="setVenueCount('${v.id}',this.value)">
+    <button class="btn-ghost" onclick="delVenue('${v.id}')">Löschen</button>
+  </div>`).join('');
+}
+async function addVenue(){
+  const name=$('venName').value.trim(); if(!name){ toast('Anlagenname fehlt'); return; }
+  const city=$('venCity').value.trim(); const n=parseInt($('venCount').value,10)||0;
+  try{ await Store.createVenue(name,city,n); $('venName').value='';$('venCity').value='';$('venCount').value=''; await initVenues(); toast('Anlage angelegt'); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
+async function setVenueCount(id,v){ try{ await Store.setVenueCourtCount(id,v); await initVenues(); toast('Gespeichert'); }catch(e){ toast('Fehler: '+e.message); } }
+async function delVenue(id){ const v=VENUES.find(x=>x.id===id); if(!confirm('Anlage „'+(v?v.name:'')+'" löschen? (Turnier‑Zuordnungen dieser Anlage gehen verloren)')) return;
+  try{ await Store.deleteVenue(id); await initVenues(); toast('Gelöscht'); }catch(e){ toast('Fehler: '+e.message); } }
+
+function renderTourLocations(){
+  const el=$('tourLocations');
+  if(!VENUES.length){ el.innerHTML='<span class="hint">Erst Anlagen anlegen.</span>'; return; }
+  const sel=new Set(TVENUES.map(v=>v.venue_id));
+  el.innerHTML=VENUES.map(v=>`<label style="display:inline-flex;align-items:center;gap:8px;margin:4px 16px 4px 0">
+    <input type="checkbox" ${sel.has(v.id)?'checked':''} onchange="toggleLocation('${v.id}',this.checked)"> ${escS(v.name)}</label>`).join('');
+}
+async function toggleLocation(id,on){
+  const set=new Set(TVENUES.map(v=>v.venue_id));
+  if(on) set.add(id); else set.delete(id);
+  try{ await Store.setTournamentVenues([...set]); TVENUES=await Store.getTournamentVenues(); await renderTourCourts(); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
+async function renderTourCourts(){
+  const el=$('tourCourts');
+  if(!TVENUES.length){ el.innerHTML='<span class="hint">Keine Location ausgewählt.</span>'; return; }
+  let html='';
+  for(const v of TVENUES){
+    let courts=[]; try{ courts=await Store.getVenueCourts(v.venue_id); }catch(e){}
+    const cur=new Map(TCOURTS.filter(c=>c.venue_id===v.venue_id).map(c=>[c.court_no,c.function]));
+    html+=`<div style="margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:10px">
+      <div style="font-weight:800;margin-bottom:8px">🏟 ${escS(v.name)}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">`+
+      courts.map(c=>{ const on=cur.has(c.court_no); const fn=cur.get(c.court_no)||'normal';
+        return `<div style="display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:5px 8px">
+          <label style="display:inline-flex;align-items:center;gap:6px"><input type="checkbox" ${on?'checked':''}
+            onchange="onCourtToggle('${v.venue_id}',${c.court_no},this.checked)"> C${c.court_no}</label>
+          <select ${on?'':'disabled'} onchange="onCourtFn('${v.venue_id}',${c.court_no},this.value)" style="font:inherit;background:#0f141c;color:#e7edf5;border:1px solid #2a3444;border-radius:6px;padding:3px 6px">
+            <option value="normal" ${fn==='normal'?'selected':''}>normal</option>
+            <option value="center" ${fn==='center'?'selected':''}>Center/Finale</option>
+            <option value="semi" ${fn==='semi'?'selected':''}>Halbfinale</option>
+          </select></div>`; }).join('')+
+      `</div></div>`;
+  }
+  el.innerHTML=html;
+}
+async function saveVenueCourts(venueId){
+  const list=TCOURTS.filter(c=>c.venue_id===venueId).map(c=>({court_no:c.court_no,function:c.function}));
+  await Store.setTournamentCourts(venueId,list);
+}
+async function onCourtToggle(venueId,no,on){
+  TCOURTS=TCOURTS.filter(c=>!(c.venue_id===venueId&&c.court_no===no));
+  if(on) TCOURTS.push({venue_id:venueId,court_no:no,function:'normal',sort:no});
+  try{ await saveVenueCourts(venueId); }catch(e){ toast('Fehler: '+e.message); }
+  await renderTourCourts();
+}
+async function onCourtFn(venueId,no,fn){
+  const c=TCOURTS.find(x=>x.venue_id===venueId&&x.court_no===no); if(c) c.function=fn;
+  try{ await saveVenueCourts(venueId); toast('Gespeichert'); }catch(e){ toast('Fehler: '+e.message); }
+}
+
+
 // ---- Bild-Uploads -> Data-URL ----
 function readAsDataURL(file){ return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);}); }
 $('logoFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;
@@ -493,6 +597,7 @@ async function loadTours(){
     TOURS.map(t=>`<option value="${t.id}" ${t.id===active?'selected':''}>${t.name}</option>`).join('');
   const at=TOURS.find(t=>t.id===active); window.__activeTourName = at?at.name:'';
   renderLinks();
+  try{ if(typeof initVenues==='function') initVenues(); }catch(e){}
 }
 async function onTourSelect(){
   const id=$('tourSelect').value||null;
@@ -503,6 +608,7 @@ async function onTourSelect(){
   try{ await applyBranding(); }catch(e){}
   renderLinks();
   try{ if(typeof initMembers==='function') initMembers(); }catch(e){}
+  try{ if(typeof initVenues==='function') initVenues(); }catch(e){}
 }
 async function createTour(){
   const name=$('newTourName').value.trim();

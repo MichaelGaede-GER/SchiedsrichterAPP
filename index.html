@@ -79,6 +79,11 @@
   .court .empty{color:var(--muted);font-size:13px;margin-top:26px;text-align:center}
   .court .empty small{display:block;margin-top:5px;opacity:.7}
   .court.free{cursor:pointer}.court.free:hover{border-color:var(--blue)}
+  .court-center{border-color:#ffd54a}
+  .court-semi{border-color:#8fd0ff}
+  .cfn{font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;margin-left:8px;vertical-align:middle}
+  .cfn.center{background:#3a2f0c;color:#ffd54a;border:1px solid #6b551f}
+  .cfn.semi{background:#0e2036;color:#8fd0ff;border:1px solid #2f6bff}
   .live .row{display:flex;align-items:center;gap:8px;padding:3px 0}
   .live .nm{font-weight:600;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .live .p1 .nm{color:#8db4ff}.live .p2 .nm{color:#ff9a9d}
@@ -336,6 +341,7 @@ function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg
 
 async function load(){
   try{
+    await loadCourtLayout();
     MATCHES = await Store.listMatches();
     render();
   }catch(err){
@@ -350,40 +356,75 @@ async function load(){
 }
 function render(){ renderCourts(); renderSched(); renderDone(); }
 
+let COURT_LAYOUT = null;        // [{venue_id,name,courts:[{no,fn}]}] oder null=Fallback
+let COURTS_FALLBACK = null;     // pro-Turnier Court-Liste (Settings) als Fallback
+async function loadCourtLayout(){
+  try{
+    let st={}; try{ st=await Store.getSettings(); }catch(e){}
+    COURTS_FALLBACK = Array.isArray(st.courts) ? st.courts : null;
+    const tid = Store.activeTournament && Store.activeTournament();
+    if(!tid){ COURT_LAYOUT=null; return; }
+    let tv=[], tc=[];
+    try{ tv=await Store.getTournamentVenues(); }catch(e){}
+    try{ tc=await Store.getTournamentCourts(); }catch(e){}
+    if(tc && tc.length){
+      const byV={}; tc.forEach(c=>{ (byV[c.venue_id]=byV[c.venue_id]||[]).push(c); });
+      const order = tv.length ? tv : Object.keys(byV).map(id=>({venue_id:id,name:''}));
+      COURT_LAYOUT = order.map(v=>({ venue_id:v.venue_id, name:v.name||'',
+        courts:(byV[v.venue_id]||[]).slice().sort((a,b)=>(a.sort-b.sort)||(a.court_no-b.court_no)).map(c=>({no:c.court_no,fn:c.function})) }))
+        .filter(v=>v.courts.length);
+      if(!COURT_LAYOUT.length) COURT_LAYOUT=null;
+    } else COURT_LAYOUT=null;
+  }catch(e){ COURT_LAYOUT=null; }
+}
+const FN_LABEL={center:'Center · Finale', semi:'Halbfinale'};
+function courtCard(cid, venueId, fn){
+  const live=MATCHES.find(m=>m.court_id===cid && m.status==='live' && (venueId ? (m.venue_id===venueId || !m.venue_id) : true));
+  const div=document.createElement('div');
+  div.className='court'+(live?'':' free')+((fn&&fn!=='normal')?' court-'+fn:''); div.dataset.court=cid; if(venueId) div.dataset.venue=venueId;
+  const tag = (fn&&fn!=='normal') ? ` <span class="cfn ${fn}">${FN_LABEL[fn]||fn}</span>` : '';
+  if(!live){
+    div.innerHTML=`<div class="cnum">COURT ${cid}${tag}</div><div class="empty">frei<small>Spiel hierher ziehen</small></div>`;
+    div.addEventListener('dragover',e=>{e.preventDefault();div.classList.add('drop');});
+    div.addEventListener('dragleave',()=>div.classList.remove('drop'));
+    div.addEventListener('drop',e=>{e.preventDefault();div.classList.remove('drop');
+      const id=e.dataTransfer.getData('text/id'); if(id) assign(id,cid,venueId);});
+    div.addEventListener('click',()=>{ if(selectedMatch) assign(selectedMatch,cid,venueId); });
+  } else {
+    const s=live.state||{};
+    const g1=s.gamesWon1??0, g2=s.gamesWon2??0;
+    const p1=s.cur?s.cur.p1:0, p2=s.cur?s.cur.p2:0;
+    const fin = s.status==='finished';
+    const badge = fin? `<span class="badge finished">Beendet ${live.result||''}</span>`
+                     : `<span class="badge playing">Läuft</span>`;
+    div.innerHTML=`<div class="cnum">COURT ${cid}${tag}</div>
+      <div class="live">
+        <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}</span><span class="sc">${p1}</span></div>
+        <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}</span><span class="sc">${p2}</span></div>
+        <div class="meta"><span>Satz ${g1}–${g2} · Bo${live.best_of}</span>${badge}</div>
+        <div class="actions">
+          ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
+            (fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
+               : `<button class="btn-ghost btn-sm" onclick="unassign('${live.id}')">Vom Court nehmen</button>`)}
+        </div>
+      </div>`;
+  }
+  return div;
+}
 function renderCourts(){
   const wrap=document.getElementById('courts'); wrap.innerHTML='';
-  COURTS.forEach(cid=>{
-    const live=MATCHES.find(m=>m.court_id===cid && m.status==='live');
-    const div=document.createElement('div');
-    div.className='court'+(live?'':' free'); div.dataset.court=cid;
-    if(!live){
-      div.innerHTML=`<div class="cnum">COURT ${cid}</div><div class="empty">frei<small>Spiel hierher ziehen</small></div>`;
-      div.addEventListener('dragover',e=>{e.preventDefault();div.classList.add('drop');});
-      div.addEventListener('dragleave',()=>div.classList.remove('drop'));
-      div.addEventListener('drop',e=>{e.preventDefault();div.classList.remove('drop');
-        const id=e.dataTransfer.getData('text/id'); if(id) assign(id,cid);});
-      div.addEventListener('click',()=>{ if(selectedMatch) assign(selectedMatch,cid); });
-    } else {
-      const s=live.state||{};
-      const g1=s.gamesWon1??0, g2=s.gamesWon2??0;
-      const p1=s.cur?s.cur.p1:0, p2=s.cur?s.cur.p2:0;
-      const fin = s.status==='finished';
-      const badge = fin? `<span class="badge finished">Beendet ${live.result||''}</span>`
-                       : `<span class="badge playing">Läuft</span>`;
-      div.innerHTML=`<div class="cnum">COURT ${cid}</div>
-        <div class="live">
-          <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}</span><span class="sc">${p1}</span></div>
-          <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}</span><span class="sc">${p2}</span></div>
-          <div class="meta"><span>Satz ${g1}–${g2} · Bo${live.best_of}</span>${badge}</div>
-          <div class="actions">
-            ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
-              (fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
-                 : `<button class="btn-ghost btn-sm" onclick="unassign('${live.id}')">Vom Court nehmen</button>`)}
-          </div>
-        </div>`;
-    }
-    wrap.appendChild(div);
-  });
+  if(COURT_LAYOUT && COURT_LAYOUT.length){
+    const multi = COURT_LAYOUT.length>1;
+    COURT_LAYOUT.forEach(v=>{
+      if(multi || v.name){ const h=document.createElement('div'); h.className='venuehead';
+        h.style.cssText='grid-column:1/-1;font-weight:800;margin:8px 2px 2px;color:#8fd0ff;font-size:15px';
+        h.textContent='🏟 '+(v.name||'Location'); wrap.appendChild(h); }
+      v.courts.forEach(c=> wrap.appendChild(courtCard(c.no, v.venue_id, c.fn)));
+    });
+  } else {
+    const list = (COURTS_FALLBACK && COURTS_FALLBACK.length) ? COURTS_FALLBACK : COURTS;
+    list.forEach(cid=> wrap.appendChild(courtCard(cid, null, 'normal')));
+  }
 }
 
 function renderSched(){
@@ -501,7 +542,7 @@ function updateSelBar(){ const bar=document.getElementById('selbar');
     document.getElementById('selText').textContent=`Ausgewählt: ${m.player1_name} vs ${m.player2_name}`; bar.classList.add('show'); }
   else bar.classList.remove('show'); }
 
-async function assign(id,cid){
+async function assign(id,cid,venueId){
   if(typeof Auth!=='undefined' && !Auth.can('manage')){ toast('Keine Berechtigung'); return; }
   const m=MATCHES.find(x=>x.id===id); if(!m) return;
   // Warnung, wenn das Spiel für einen anderen Court geplant war
@@ -509,6 +550,7 @@ async function assign(id,cid){
     if(!confirm(`Achtung: Dieses Spiel ist für Court ${m.court_no} geplant.\nWirklich stattdessen auf Court ${cid} ansetzen?`)) return;
     await Store.updateMatch(id,{court_no:cid, court_label:'C'+cid});
   }
+  if(venueId){ try{ await Store.updateMatch(id,{venue_id:venueId}); }catch(e){} }
   try{ await Store.assignToCourt(id,cid,Number(m.best_of)||3); selectedMatch=null; updateSelBar(); toast(`Auf Court ${cid} gelegt`); }
   catch(e){ toast(e.message); } }
 async function unassign(id){ await Store.unassign(id); toast('Zurück in die Ansetzungen'); }
