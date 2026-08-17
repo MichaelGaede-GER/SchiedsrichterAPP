@@ -521,6 +521,7 @@ function buildLocal(){       // aktuellen Stand lokal festhalten (überlebt Offl
   if(!match||!M) return;
   const st=withTimer(M.serialize());
   if(M.status==='finished'){ st.finishedAt = finishedAtTs || (finishedAtTs=Date.now()); }  // Zeitpunkt der Ergebnismeldung
+  st.injury = injuryActive ? { startedAt: injuryStartTs } : null;                            // Verletzungspause an Turnierleitung
   OFF = { matchId:match.id, record:recordSnapshot(match), state:st,
     finished:(M.status==='finished'?{result:M.resultString(),winner:M.matchWinner,score_text:M.setScores(),ending:M.ending||null}:null),
     rev:((OFF&&OFF.rev)||0)+1, savedAt:Date.now(), pending:true };
@@ -765,8 +766,10 @@ function applyConduct(type){
 
 // ============ VERLETZUNGSTIMER ============
 let injuryPlayer=1;
+let injuryActive=false, injuryStartTs=null;
 function startInjury(sec,label){
   injuryPlayer=penaltyPlayer;
+  injuryActive=true; injuryStartTs=Date.now();
   hide('ovPenalty');
   setText('injTitle','Verletzungspause');
   setText('injSub', (injuryPlayer===1?match.player1_name:match.player2_name)+' – '+label);
@@ -775,8 +778,10 @@ function startInjury(sec,label){
   document.getElementById('injRetire').style.display='none';
   show('ovInjury');
   Timer.start(sec,'Verletzung', injuryAskNow);
+  sync();                       // Status sofort an die Turnierleitung
 }
-function injuryCancelEarly(){ Timer.stop(); hide('ovInjury'); toast('Verletzungspause abgebrochen – weiter'); }
+function endInjury(){ injuryActive=false; injuryStartTs=null; sync(); }   // zurück auf normalen Status
+function injuryCancelEarly(){ Timer.stop(); endInjury(); hide('ovInjury'); toast('Verletzungspause abgebrochen – weiter'); }
 function injuryAskNow(){
   Timer.stop();
   document.getElementById('injRun').style.display='none';
@@ -786,7 +791,7 @@ function injuryAskNow(){
   show('ovInjury');
 }
 function injuryContinue(canPlay){
-  if(canPlay){ hide('ovInjury'); toast('Spiel wird fortgesetzt'); return; }
+  if(canPlay){ endInjury(); hide('ovInjury'); toast('Spiel wird fortgesetzt'); return; }
   const opp=injuryPlayer===1?2:1;
   document.getElementById('injAsk').style.display='none';
   document.getElementById('injRetire').style.display='';
@@ -796,6 +801,7 @@ function injuryContinue(canPlay){
     `<button class="choice" onclick="doRetire(${injuryPlayer})">${injuryPlayer===1?n1:n2} gewinnt</button>`;
 }
 function doRetire(winner){
+  injuryActive=false; injuryStartTs=null;
   M.retire(winner,'retired');
   hide('ovInjury');
   afterChange();
@@ -866,10 +872,14 @@ function applyFrom(record, state, isNew){
       p1:{name:record.player1_name,country:record.player1_country},
       p2:{name:record.player2_name,country:record.player2_country} });
     if(state) M.hydrate(state);
+    injuryActive = !!(state && state.injury && state.injury.startedAt);
+    injuryStartTs = injuryActive ? state.injury.startedAt : null;
     render(); hideAll();
     if(M.status==='warmup'){ showWarmup(); }
     else if(M.status==='between'){ show('ovRest'); }
     else if(M.status==='finished'){ finishedAtTs = (state&&state.finishedAt) || finishedAtTs || Date.now(); onFinished(false); }   // als beendet geladen -> sofort gesperrt
+    else if(injuryActive){ setText('injTitle','Verletzungspause'); document.getElementById('injRun').style.display='';
+      document.getElementById('injAsk').style.display='none'; document.getElementById('injRetire').style.display='none'; show('ovInjury'); }
   } else { render(); }
 }
 let warmPhase=0;

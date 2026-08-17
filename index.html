@@ -133,6 +133,9 @@
   .m.hl{border-left:4px solid #ffd54a;background:linear-gradient(90deg,rgba(255,213,74,.10),transparent 60%)}
   .court.hl{border-color:#ffd54a;box-shadow:0 0 0 1px #ffd54a inset}
   .court.awaiting{border-color:#ffb020}
+  .court.injurypause{border-color:#e5484d;box-shadow:0 0 0 2px rgba(229,72,77,.55) inset;animation:alarmblink 1.3s ease-in-out infinite}
+  .badge.injury-badge{background:#4a1113;color:#ff8a8a;border:1px solid #e5484d;font-weight:900;letter-spacing:.4px}
+  .injtimer{font-size:24px;font-weight:900;color:#ff8a8a;font-variant-numeric:tabular-nums;letter-spacing:1px}
   .badge.awaiting-badge{background:#3a2a08;color:#ffb020;border:1px solid #7a5a1f}
   @keyframes alarmblink{0%,100%{background:rgba(229,72,77,.12);border-color:#e5484d;box-shadow:0 0 0 2px rgba(229,72,77,.55) inset}
     50%{background:rgba(229,72,77,.34);border-color:#ff8a8a;box-shadow:0 0 0 3px rgba(229,72,77,.95) inset}}
@@ -440,6 +443,15 @@ function refreshAlarms(){
   checkAutoConfirm();
 }
 setInterval(refreshAlarms, 3000);
+function tickInjury(){
+  const now=Date.now();
+  document.querySelectorAll('.injtimer').forEach(el=>{
+    const since=parseInt(el.dataset.since||'0',10); if(!since) return;
+    const s=Math.max(0, Math.floor((now-since)/1000));
+    el.textContent = String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  });
+}
+setInterval(tickInjury, 1000);
 function checkMissing(){
   const miss=upcomingMissing(20); MISSING_ACTIVE=miss.length>0;
   const bar=document.getElementById('missingBanner'); if(!bar) return;
@@ -531,10 +543,15 @@ function courtCard(cid, venueId, fn){
     const p1=s.cur?s.cur.p1:0, p2=s.cur?s.cur.p2:0;
     const fin = s.status==='finished';
     const finAt = fin ? finAtOf(live) : 0;
+    const inj = (!fin && s.injury && s.injury.startedAt) ? s.injury.startedAt : 0;
     if(fin){ div.classList.add('awaiting'); div.dataset.finAt=finAt||''; if(finAt && (Date.now()-finAt)>ALARM_MS) div.classList.add('alarm'); }
-    const badge = fin? `<span class="badge awaiting-badge">⏳ Wartet auf Bestätigung</span>`
-                     : `<span class="badge playing">Läuft</span>`;
-    const metaLeft = fin ? `Ergebnis ${live.result||M_result(s)||''}` : `Satz ${g1}–${g2} · Bo${live.best_of}`;
+    if(inj){ div.classList.add('injurypause'); }
+    const badge = fin ? `<span class="badge awaiting-badge">⏳ Wartet auf Bestätigung</span>`
+                 : inj ? `<span class="badge injury-badge">🔴 VERLETZUNGSPAUSE</span>`
+                       : `<span class="badge playing">Läuft</span>`;
+    const metaLeft = fin ? `Ergebnis ${live.result||M_result(s)||''}`
+                   : inj ? `<span class="injtimer" data-since="${inj}">00:00</span>`
+                         : `Satz ${g1}–${g2} · Bo${live.best_of}`;
     div.innerHTML=`<div class="cnum">COURT ${cid}${tag}${hlBadge(live)}</div>
       <div class="live">
         <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}${sd(live.player1_seed)}</span><span class="sc">${p1}</span></div>
