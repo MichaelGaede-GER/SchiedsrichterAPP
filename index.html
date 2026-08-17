@@ -211,6 +211,9 @@
       <select id="courtFilter" class="filter" onchange="render()"><option value="">Alle Courts</option></select>
       <div class="spacer"></div>
       <button class="btn-primary btn-sm manage-only" onclick="fileInput.click()">⬆ XLSX importieren</button>
+      <select id="defLoc" class="filter manage-only" title="Standard-Location für neue/importierte Spiele" style="display:none"></select>
+      <label class="manage-only" id="autoCourtWrap" style="display:none;align-items:center;gap:6px;color:var(--muted);font-size:13px">
+        <input type="checkbox" id="autoCourt"> Courts autom. verteilen</label>
       <button class="btn-ghost btn-sm manage-only" onclick="openAdd()">+ Spiel</button>
       <button class="btn-ghost btn-sm manage-only" onclick="seed()">Demo</button>
       <button class="btn-ghost btn-sm manage-only" onclick="clearAll()">Alles löschen</button>
@@ -247,8 +250,12 @@
     <div class="field"><label>Bundesland 1 (optional, z.B. BY)</label><input id="f_r1" placeholder="leer = Nationalflagge"></div>
     <div class="field"><label>Bundesland 2 (optional)</label><input id="f_r2" placeholder="leer = Nationalflagge"></div>
   </div>
+  <div class="grid2" id="venueRow" style="display:none">
+    <div class="field"><label>Location</label><select id="f_venue" onchange="fillCourtOpts()"></select></div>
+    <div class="field"><label>&nbsp;</label><span class="hint">Court unten aus dieser Location wählen</span></div>
+  </div>
   <div class="grid2">
-    <div class="field"><label>Court-Nr.</label><input id="f_court" type="number" min="1" placeholder="optional"></div>
+    <div class="field"><label>Court-Nr.</label><input id="f_court" type="number" min="1" placeholder="optional" list="courtOpts"><datalist id="courtOpts"></datalist></div>
     <div class="field"><label>Best of</label><input id="f_bo" type="number" value="3" min="3" max="5" step="2"></div>
   </div>
   <div class="grid2">
@@ -342,6 +349,7 @@ function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg
 async function load(){
   try{
     await loadCourtLayout();
+    fillDefLoc();
     MATCHES = await Store.listMatches();
     render();
   }catch(err){
@@ -354,19 +362,32 @@ async function load(){
     toast('Fehler beim Laden: '+((err&&err.message)||err));
   }
 }
+function fillDefLoc(){
+  const sel=document.getElementById('defLoc'); const wrap=document.getElementById('autoCourtWrap');
+  if(!sel) return;
+  if(!TVENUES_IDX.length){ sel.style.display='none'; if(wrap) wrap.style.display='none'; sel.innerHTML=''; return; }
+  const prev=sel.value;
+  sel.innerHTML=TVENUES_IDX.map(v=>`<option value="${v.venue_id}">🏟 ${(''+v.name).replace(/</g,'&lt;')}</option>`).join('');
+  if(prev && TVENUES_IDX.some(v=>v.venue_id===prev)) sel.value=prev;
+  sel.style.display=''; if(wrap) wrap.style.display='inline-flex';
+}
+function defLocId(){ const s=document.getElementById('defLoc'); return (s && s.style.display!=='none' && s.value) ? s.value : null; }
+function venueCourtsFor(venueId){ const v=(COURT_LAYOUT||[]).find(x=>x.venue_id===venueId); return v?v.courts.map(c=>c.no):[]; }
 function render(){ renderCourts(); renderSched(); renderDone(); }
 
 let COURT_LAYOUT = null;        // [{venue_id,name,courts:[{no,fn}]}] oder null=Fallback
 let COURTS_FALLBACK = null;     // pro-Turnier Court-Liste (Settings) als Fallback
+let TVENUES_IDX = [];           // Locations des aktiven Turniers [{venue_id,name}]
 async function loadCourtLayout(){
   try{
     let st={}; try{ st=await Store.getSettings(); }catch(e){}
     COURTS_FALLBACK = Array.isArray(st.courts) ? st.courts : null;
     const tid = Store.activeTournament && Store.activeTournament();
-    if(!tid){ COURT_LAYOUT=null; return; }
+    if(!tid){ COURT_LAYOUT=null; TVENUES_IDX=[]; return; }
     let tv=[], tc=[];
     try{ tv=await Store.getTournamentVenues(); }catch(e){}
     try{ tc=await Store.getTournamentCourts(); }catch(e){}
+    TVENUES_IDX = tv || [];
     if(tc && tc.length){
       const byV={}; tc.forEach(c=>{ (byV[c.venue_id]=byV[c.venue_id]||[]).push(c); });
       const order = tv.length ? tv : Object.keys(byV).map(id=>({venue_id:id,name:''}));
@@ -624,6 +645,20 @@ const addDlg=document.getElementById('addDlg');
 let editingMatchId=null;
 function setF(id,v){ document.getElementById(id).value=(v==null?'':v); }
 function updWinnerVis(){ document.getElementById('winnerWrap').style.display = document.getElementById('f_ending').value?'':'none'; }
+function fillVenueSelect(selId){
+  const row=document.getElementById('venueRow'), sel=document.getElementById('f_venue');
+  if(!sel) return;
+  if(!TVENUES_IDX.length){ row.style.display='none'; sel.innerHTML=''; return; }
+  sel.innerHTML='<option value="">— keine —</option>'+TVENUES_IDX.map(v=>`<option value="${v.venue_id}">🏟 ${(''+v.name).replace(/</g,'&lt;')}</option>`).join('');
+  sel.value = selId || defLocId() || '';
+  row.style.display=''; fillCourtOpts();
+}
+function fillCourtOpts(){
+  const dl=document.getElementById('courtOpts'); if(!dl) return;
+  const vid=(document.getElementById('f_venue')||{}).value||'';
+  const nos=vid?venueCourtsFor(vid):[];
+  dl.innerHTML=nos.map(n=>`<option value="${n}">`).join('');
+}
 function openAdd(){
   editingMatchId=null;
   document.getElementById('matchDlgTitle').textContent='Spiel hinzufügen';
@@ -631,6 +666,7 @@ function openAdd(){
   setF('f_p2',''); setF('f_c2','de'); setF('f_r1',''); setF('f_r2','');
   setF('f_court',''); setF('f_bo','3'); setF('f_time',''); setF('f_ref','');
   setF('f_ending',''); updWinnerVis();
+  fillVenueSelect();
   addDlg.showModal();
 }
 function openEditMatch(id){
@@ -644,6 +680,7 @@ function openEditMatch(id){
   setF('f_court',m.court_no||''); setF('f_bo',m.best_of||3);
   setF('f_time',m.scheduled_time||''); setF('f_ref',m.referee||'');
   setF('f_ending',m.ending||''); setF('f_winner',String(m.winner||1)); updWinnerVis();
+  fillVenueSelect(m.venue_id||'');
   addDlg.showModal();
 }
 async function saveMatch(){
@@ -659,6 +696,7 @@ async function saveMatch(){
     player1_region:g('f_r1')||null, player2_region:g('f_r2')||null,
     best_of:Number(g('f_bo'))||3, court_no:courtNo, court_label:courtNo?('C'+courtNo):null,
     scheduled_time:time, sort_ts:(parseTimeMs(time)||null), referee:g('f_ref')||null,
+    venue_id: (document.getElementById('f_venue') && document.getElementById('f_venue').value) || null,
   };
   if(ending){
     // Sonderwertung -> als bestätigtes Ergebnis, Gegner/Sieger gewinnt
@@ -727,24 +765,36 @@ fileInput.addEventListener('change', async e=>{
     const open=recs.filter(r=>!r.played);
     const played=recs.length-open.length;
     const existing=new Set(MATCHES.map(m=>m.import_key).filter(Boolean));
+    const defVenue=defLocId();                                   // Standard-Location (falls Turnier Anlagen hat)
+    const autoCourt=!!(document.getElementById('autoCourt') && document.getElementById('autoCourt').checked);
+    const rr=defVenue?venueCourtsFor(defVenue):[];               // Courts der Location für Reihum-Verteilung
+    let rrIdx=0;
     const toInsert=[]; let dup=0;
     for(const r of open){
       const key=importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw);
       if(existing.has(key)){ dup++; continue; }
       existing.add(key);
       const p1=parsePlayer(r.t1raw), p2=parsePlayer(r.t2raw);
+      // Location: aus Datei (falls vorhanden) sonst Standard-Location
+      const venue_id = r.venue_id || defVenue || null;
+      // Court: aus Datei (falls vorhanden) sonst optional automatisch reihum
+      let court_no = r.court_no;
+      let court_label = r.court!=null?String(r.court):null;
+      if(court_no==null && autoCourt && rr.length && !r.venue_id){ court_no=rr[rrIdx%rr.length]; rrIdx++; court_label='C'+court_no; }
       toInsert.push({
         event:r.event||'', draw:r.event||'', round:r.round||'', match_no:r.nr!=null?('#'+r.nr):'',
         player1_name:p1.name, player1_country:countryToISO(p1.country),
         player2_name:p2.name, player2_country:countryToISO(p2.country),
         best_of:window.CONFIG.DEFAULT_IMPORT_BEST_OF||5,
-        court_id:null, court_no:r.court_no, court_label:r.court!=null?String(r.court):null,
+        court_id:null, court_no:court_no, court_label:court_label,
+        venue_id:venue_id,
         scheduled_time:r.time||null, sort_ts:r.sort_ts||null,
         referee:r.referee||null, import_key:key,
         status:'scheduled', state:null, result:null, winner:null, score_text:null });
     }
     await Store.insertMany(toInsert);
-    toast(`${toInsert.length} importiert · ${played} bereits gespielt übersprungen · ${dup} Duplikate`);
+    const locNote = defVenue ? (' · Location: '+((TVENUES_IDX.find(v=>v.venue_id===defVenue)||{}).name||'')) : '';
+    toast(`${toInsert.length} importiert${locNote} · ${played} gespielt übersprungen · ${dup} Duplikate`);
   }catch(err){ console.error(err); toast('Import-Fehler: '+err.message); }
 });
 
