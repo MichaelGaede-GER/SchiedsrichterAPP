@@ -34,6 +34,7 @@
   .netstat{font-size:15px;font-weight:800;padding:5px 12px;border-radius:999px;white-space:nowrap;
     background:#0d1b12;border:1px solid #1f6b46;color:#7CFF9B}
   .netstat.off{background:#2a0f12;border-color:#7a2a2f;color:#ff6b6b}
+  .ver{font-size:12px;font-weight:800;color:#6b7a90;padding:5px 8px}
   .namepill .fl{font-size:24px;flex:0 0 auto}
   .cflag{display:inline-block;background-size:cover;background-position:center;border-radius:3px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.2)}
   .namepill .cflag{width:40px;height:27px}
@@ -560,7 +561,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v9</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button id="fsBtn" class="iconbtn" onclick="toggleFull()">⛶ Vollbild</button>
         <button class="iconbtn" onclick="show('ovTimer')">⏱ Timer</button>
