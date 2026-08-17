@@ -122,14 +122,16 @@ function abbrevName(full){
 function courtLabel(m){ return 'COURT '+(m.court_id||m.court_no||'—'); }
 
 // ---- Daten laden & gruppieren ----
+const VENUE = new URLSearchParams(location.search).get('loc') || null;
+function locFilter(m){ return !VENUE || m.venue_id===VENUE; }
 async function load(){
   try{ MATCHES=await Store.listMatches(); }catch(e){ MATCHES=[]; }
-  LIVE = MATCHES.filter(m=>m.status==='live')
+  LIVE = MATCHES.filter(m=>m.status==='live' && locFilter(m))
     .sort((a,b)=>(a.court_id||a.court_no||0)-(b.court_id||b.court_no||0))
     .slice(0,15);
-  PREP = MATCHES.filter(m=>m.status==='scheduled' && !m.court_id)
+  PREP = MATCHES.filter(m=>m.status==='scheduled' && !m.court_id && locFilter(m))
     .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
-  DONE = MATCHES.filter(m=>m.status==='confirmed')
+  DONE = MATCHES.filter(m=>m.status==='confirmed' && locFilter(m))
     .sort((a,b)=>(b.sort_ts||0)-(a.sort_ts||0));
   renderAll();
   refreshView();
@@ -272,6 +274,8 @@ async function applyBranding(){
   const l=document.getElementById('logo');
   if(SET.logoUrl){ l.src=SET.logoUrl; l.style.display='block'; } else l.style.display='none';
   document.getElementById('appTitle').textContent = SET.tournamentName ? SET.tournamentName : 'Squash · Live-Übersicht';
+  if(VENUE){ try{ const vs=await Store.getTournamentVenues(); const v=(vs||[]).find(x=>x.venue_id===VENUE);
+    if(v && v.name){ document.getElementById('appTitle').textContent += ' · ' + v.name; } }catch(e){} }
   renderSponsors();
   applyMode();
 }

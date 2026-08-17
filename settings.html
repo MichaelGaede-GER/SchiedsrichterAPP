@@ -352,37 +352,68 @@ function applyBranding(){
   const l=$('logo'); if(lg){ l.src=lg; l.style.display='block'; } else l.style.display='none';
 }
 
-function renderLinks(){
+async function renderLinks(){
   const base=baseUrl();
   const tid = (Store.activeTournament && Store.activeTournament()) || '';
-  const tq = tid ? ('t='+encodeURIComponent(tid)) : '';                 // Turnier-Parameter
+  const tq = tid ? ('t='+encodeURIComponent(tid)) : '';
   const tname = (window.__activeTourName||'');
-  const withT = (rel)=> rel + (tq ? (rel.indexOf('?')>=0 ? '&'+tq : '?'+tq) : '');
+  const wq = (rel, extra)=>{ const ps=[tq].concat(extra||[]).filter(Boolean);
+    return rel + (ps.length ? (rel.indexOf('?')>=0 ? '&'+ps.join('&') : '?'+ps.join('&')) : ''); };
   const hint = tid ? '' :
-    '<div class="hint" style="color:#ffd08a;margin-bottom:8px">Kein Turnier aktiv – die Links zeigen dann das pro Gerät gewählte Turnier. Wähle oben ein Turnier, damit die Links fest dazu gehören.</div>';
+    '<div class="hint" style="color:#ffd08a;margin-bottom:8px">Kein Turnier aktiv – wähle oben ein Turnier, damit die Links fest dazu gehören.</div>';
+
+  const linkRow=(tag,url)=>`<div class="lrow"><span class="tag">${tag}</span>
+    <code title="${url}">${url}</code>
+    <button class="btn-ghost" onclick="copyText('${url}')">Kopieren</button>
+    <a class="btn-ghost" href="${url}" target="_blank" style="text-decoration:none">Öffnen</a></div>`;
+
+  // Location-bezogene Links, falls Anlagen+Courts fürs Turnier definiert sind
+  let venues=[], tcourts=[];
+  if(tid){ try{ venues=await Store.getTournamentVenues(); }catch(e){} try{ tcourts=await Store.getTournamentCourts(); }catch(e){} }
 
   const ll=document.getElementById('liveLink');
-  if(ll){ const url=base+withT('live.html');
-    ll.innerHTML=hint+`<div class="clink"><div class="lrow"><span class="tag">Live-Anzeige${tname?(' · '+tname):''}</span>
-      <code title="${url}">${url}</code>
-      <button class="btn-ghost" onclick="copyText('${url}')">Kopieren</button>
-      <a class="btn-ghost" href="${url}" target="_blank" style="text-decoration:none">Öffnen</a></div></div>`; }
+
+  if(tid && venues.length && tcourts.length){
+    // Live-Anzeige je Location (oben)
+    if(ll){ ll.innerHTML = hint + venues.map(v=>{
+      const locq='loc='+encodeURIComponent(v.venue_id);
+      const url=base+wq('live.html',[locq]);
+      return linkRow('Live-Anzeige · '+escS(v.name), url);
+    }).join(''); }
+    // Court-/Stream-Links je Location & Court
+    const blocks = venues.map(v=>{
+      const locq='loc='+encodeURIComponent(v.venue_id);
+      const courts = tcourts.filter(c=>c.venue_id===v.venue_id).slice().sort((a,b)=>(a.sort-b.sort)||(a.court_no-b.court_no));
+      const inner = courts.map(c=>{
+        const fnTag = c.function==='center'?' (Center)':c.function==='semi'?' (Halbfinale)':'';
+        const links=[
+          ['Schiedsrichter-Tablet', wq(`court.html?court=${c.court_no}`,[locq])],
+          ['Vollbild-Anzeige',      wq(`stream.html?court=${c.court_no}&view=scoreboard`,[locq])],
+          ['Stream · PSA Line',     wq(`stream.html?court=${c.court_no}&view=psaline`,[locq])],
+          ['Stream · Fullscore',    wq(`stream.html?court=${c.court_no}&view=fullscore`,[locq])],
+          ['Stream · Modern',       wq(`stream.html?court=${c.court_no}&view=modern`,[locq])],
+        ];
+        return `<div class="clink"><h4>Court ${c.court_no}${fnTag}</h4>`+
+          links.map(([tag,rel])=>linkRow(tag, base+rel)).join('')+`</div>`;
+      }).join('');
+      return `<div style="margin:8px 0"><div style="font-weight:800;color:#8fd0ff;margin:6px 2px">🏟 ${escS(v.name)}</div>${inner||'<span class="hint">Keine Courts gewählt.</span>'}</div>`;
+    }).join('');
+    document.getElementById('links').innerHTML = blocks;
+    return;
+  }
+
+  // ---- Fallback: einfache Court-Liste (ohne Location) ----
+  if(ll){ const url=base+wq('live.html'); ll.innerHTML=hint+linkRow('Live-Anzeige'+(tname?(' · '+tname):''), url); }
   const list=($('courts').value||'').split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
   const rows=list.map(n=>{
     const links=[
-      ['Schiedsrichter-Tablet', withT(`court.html?court=${n}`)],
-      ['Vollbild-Anzeige',      withT(`stream.html?court=${n}&view=scoreboard`)],
-      ['Stream · PSA Line',     withT(`stream.html?court=${n}&view=psaline`)],
-      ['Stream · Fullscore',    withT(`stream.html?court=${n}&view=fullscore`)],
-      ['Stream · Modern',       withT(`stream.html?court=${n}&view=modern`)],
+      ['Schiedsrichter-Tablet', wq(`court.html?court=${n}`)],
+      ['Vollbild-Anzeige',      wq(`stream.html?court=${n}&view=scoreboard`)],
+      ['Stream · PSA Line',     wq(`stream.html?court=${n}&view=psaline`)],
+      ['Stream · Fullscore',    wq(`stream.html?court=${n}&view=fullscore`)],
+      ['Stream · Modern',       wq(`stream.html?court=${n}&view=modern`)],
     ];
-    return `<div class="clink"><h4>Court ${n}</h4>`+
-      links.map(([tag,rel])=>{const url=base+rel;
-        return `<div class="lrow"><span class="tag">${tag}</span>
-          <code title="${url}">${url}</code>
-          <button class="btn-ghost" onclick="copyText('${url}')">Kopieren</button>
-          <button class="btn-ghost" onclick="window.open('${url}','_blank')">Öffnen</button></div>`;}).join('')+
-      `</div>`;
+    return `<div class="clink"><h4>Court ${n}</h4>`+links.map(([tag,rel])=>linkRow(tag, base+rel)).join('')+`</div>`;
   }).join('');
   $('links').innerHTML=(list.length?hint:'')+ (rows||'<span class="hint">Keine Courts.</span>');
 }

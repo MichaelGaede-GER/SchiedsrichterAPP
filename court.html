@@ -281,6 +281,7 @@
 <script>
 const CONFIG = window.CONFIG;
 const COURT = Number(new URLSearchParams(location.search).get('court')) || 1;
+const VENUE = new URLSearchParams(location.search).get('loc') || null;
 document.title = 'Court ' + COURT;
 
 // echte Flaggenbilder (Windows zeigt Emoji-Flaggen nur als Buchstaben)
@@ -724,7 +725,7 @@ async function sync(){
 // ============ LADEN / REALTIME ============
 async function loadCourt(){
   ALLMATCHES=await Store.listMatches();
-  const live=ALLMATCHES.find(m=>m.court_id===COURT && m.status==='live');
+  const live=ALLMATCHES.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || m.venue_id===VENUE));
   if(!live){ match=null; M=null; render(); return; }
   const isNew=!match || match.id!==live.id;
   match=live;
