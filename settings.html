@@ -187,6 +187,27 @@
       startet dann den Timer. Inaktiv: Nach dem Matchball zeigt der Court „Das nächste Spiel
       wird von der Turnierleitung gestartet“.
     </div>
+
+    <hr style="border:0;border-top:1px solid var(--line,#2a3444);margin:16px 0">
+
+    <label class="switch">
+      <input type="checkbox" id="autoConfirm"><span class="track"></span>
+      <span>Ergebnisse automatisch bestätigen und nachrücken</span>
+    </label>
+    <div class="row" style="margin:8px 0 0;align-items:center;gap:8px">
+      <span class="hint">Automatisch bestätigen nach</span>
+      <input id="autoConfirmSecs" type="number" min="5" max="120" value="20" style="width:80px">
+      <span class="hint">Sekunden</span>
+    </div>
+    <div class="hint" style="margin-top:8px">
+      Aktiv (Option 2): Kommt ein Ergebnis vom Schiedsrichter, wartet das System die eingestellte
+      Zeit (Standard 20 s). Reagiert die Turnierleitung nicht, wird das Ergebnis automatisch
+      bestätigt, das Match abgeschlossen und das nächste Spiel auf den Court gelegt. Die
+      Turnierleitung kann die automatische Bestätigung jederzeit übersteuern („Anhalten“) oder
+      sofort selbst bestätigen. Sind bei den nächsten Spielen Spieler noch nicht importiert
+      (z. B. „Sieger/Verlierer …“, „Winner/Loser“, „Quali“), pausiert die Automatik und es
+      erscheint eine deutliche Warnung.
+    </div>
   </div>
 
   <h2>⏱ Timer‑Zeiten (Aufwärmen &amp; Pausen)</h2>
@@ -766,6 +787,8 @@ async function loadSettings(){
   $('tournamentName').value=S.tournamentName||'';
   $('courts').value=(S.courts||[]).join(',');
   $('autoAssign').checked=!!S.autoAssign;
+  $('autoConfirm').checked=!!S.autoConfirm;
+  $('autoConfirmSecs').value=(S.autoConfirmSecs!=null?S.autoConfirmSecs:20);
   $('warmupP1').value=S.warmupP1!=null?S.warmupP1:120;
   $('warmupP2').value=S.warmupP2!=null?S.warmupP2:120;
   $('warmupFinal').value=S.warmupFinal!=null?S.warmupFinal:60;
@@ -790,6 +813,8 @@ async function saveAll(){
   const patch={
     tournamentName:$('tournamentName').value.trim(),
     courts, autoAssign:$('autoAssign').checked,
+    autoConfirm:$('autoConfirm').checked,
+    autoConfirmSecs:Math.max(5,Math.min(120, parseInt($('autoConfirmSecs').value,10)||20)),
     warmupP1:parseInt($('warmupP1').value,10)||0,
     warmupP2:parseInt($('warmupP2').value,10)||0,
     warmupFinal:parseInt($('warmupFinal').value,10)||0,

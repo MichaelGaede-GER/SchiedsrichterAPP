@@ -142,6 +142,12 @@
     background:#3a2a08;border:1px solid #7a5a1f;color:#ffcf70;font-weight:800}
   .confirmbar .cbhint{font-weight:600;color:#d9c18a;font-size:13px}
   .confirmbar.alarm{animation:alarmblink 1s ease-in-out infinite;color:#ff8a8a}
+  .missingbar{display:flex;align-items:center;gap:12px;margin:0 0 12px;padding:11px 14px;border-radius:12px;
+    background:#4a1113;border:1px solid #e5484d;color:#ffb3b3;font-weight:800;animation:alarmblink 1.4s ease-in-out infinite}
+  .autoline{margin:6px 0 2px;font-size:13px;color:#cfe0ff;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .autoline .autocd{color:#ffd54a;font-variant-numeric:tabular-nums}
+  .autoline.paused{color:#ffb020}
+  .btn-xs{font-size:12px;padding:3px 9px;border-radius:8px}
   .evtop{display:flex;align-items:center;justify-content:space-between;gap:10px}
   .editbtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;
     padding:3px 9px;font-size:12px;cursor:pointer;flex:0 0 auto}
@@ -209,6 +215,11 @@
   </div>
 
   <h2>Courts</h2>
+  <div id="missingBanner" class="missingbar" style="display:none">
+    <span class="mbtext"></span>
+    <span style="flex:1"></span>
+    <button class="btn-primary btn-sm manage-only" onclick="fileInput.click()">⬆ Fehlende importieren</button>
+  </div>
   <div id="confirmBanner" class="confirmbar" style="display:none">
     <span class="cbtext"></span>
     <span style="flex:1"></span>
@@ -380,12 +391,34 @@ function sd(seed){ const t=(typeof seedText==='function')?seedText(seed):''; ret
 let HLABELS=['Halbfinale','Finale'];
 function hlBadge(m){ return (m&&m.highlight)?` <span class="hlb">★ ${String(m.highlight).replace(/</g,'&lt;')}</span>`:''; }
 const ALARM_MS=60000;   // 1 Minute bis zum roten Alarm
+let FLOW_AUTOASSIGN=false, FLOW_AUTOCONFIRM=false, AUTO_SECS=20;
+let MISSING_ACTIVE=false; const autoOverride=new Set(), autoBusy=new Set();
+function isPlaceholder(name){
+  const s=String(name==null?'':name).trim().toLowerCase();
+  if(!s) return true;
+  const kw=['verlierer','gewinner','sieger','winner','loser','qualifik','qualifi','quali','qualification','qualifikation','tbd','n.n'];
+  if(kw.some(k=>s.includes(k))) return true;
+  if(/\bw\s?\d/.test(s) || /\bl\s?\d/.test(s)) return true;   // W1 / L2 …
+  if(s.includes('/')) return true;                              // zwei Namen (noch offen)
+  return false;
+}
+function matchHasMissing(m){ return isPlaceholder(m&&m.player1_name) || isPlaceholder(m&&m.player2_name); }
+function upcomingMissing(limit){
+  return MATCHES.filter(m=>m.status==='scheduled')
+    .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0)).slice(0,limit||20)
+    .filter(matchHasMissing);
+}
 function M_result(s){ try{ if(!s||!s.games) return ''; return s.games.map(g=>`${g.p1}-${g.p2}`).join(', '); }catch(e){ return ''; } }
 function refreshAlarms(){
   const now=Date.now();
+  checkMissing();
   document.querySelectorAll('.court.awaiting').forEach(el=>{
     const at=parseInt(el.dataset.finAt||'0',10);
     if(at && now-at>ALARM_MS) el.classList.add('alarm'); else el.classList.remove('alarm');
+  });
+  document.querySelectorAll('.autocd').forEach(el=>{
+    const at=parseInt(el.dataset.finAt||'0',10);
+    el.textContent=Math.max(0, AUTO_SECS - Math.floor((now-at)/1000))+'s';
   });
   const bar=document.getElementById('confirmBanner');
   if(bar){
@@ -396,8 +429,16 @@ function refreshAlarms(){
         + (overdue? ` · ${overdue} überfällig!` : '');
     } else { bar.style.display='none'; bar.classList.remove('alarm'); }
   }
+  checkAutoConfirm();
 }
 setInterval(refreshAlarms, 3000);
+function checkMissing(){
+  const miss=upcomingMissing(20); MISSING_ACTIVE=miss.length>0;
+  const bar=document.getElementById('missingBanner'); if(!bar) return;
+  if(MISSING_ACTIVE){ bar.style.display='flex';
+    const t=bar.querySelector('.mbtext'); if(t) t.textContent=`⚠️ Fehlende Spieler erkannt – bitte importiere die fehlenden Spieler.  (${miss.length} betroffene${miss.length>1?' Spiele':'s Spiel'} in den nächsten 20)`;
+  } else bar.style.display='none';
+}
 if (Store.ready){ modeEl.textContent='● Supabase verbunden'; modeEl.className='mode live'; }
 else { modeEl.textContent='● Lokaler Testmodus (nur dieser Browser)'; modeEl.className='mode local'; }
 
@@ -444,6 +485,9 @@ async function loadCourtLayout(){
     let st={}; try{ st=await Store.getSettings(); }catch(e){}
     COURTS_FALLBACK = Array.isArray(st.courts) ? st.courts : null;
     HLABELS = Array.isArray(st.highlightLabels)&&st.highlightLabels.length ? st.highlightLabels : ['Halbfinale','Finale'];
+    FLOW_AUTOASSIGN = !!st.autoAssign;
+    FLOW_AUTOCONFIRM = !!st.autoConfirm;
+    AUTO_SECS = (st.autoConfirmSecs!=null) ? st.autoConfirmSecs : 20;
     const tid = Store.activeTournament && Store.activeTournament();
     if(!tid){ COURT_LAYOUT=null; TVENUES_IDX=[]; return; }
     let tv=[], tc=[];
@@ -488,6 +532,7 @@ function courtCard(cid, venueId, fn){
         <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}${sd(live.player1_seed)}</span><span class="sc">${p1}</span></div>
         <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}${sd(live.player2_seed)}</span><span class="sc">${p2}</span></div>
         <div class="meta"><span>${metaLeft}</span>${badge}</div>
+        ${fin?autoConfirmLine(live, finAt):''}
         <div class="actions">
           ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
             (fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
@@ -647,18 +692,46 @@ async function assign(id,cid,venueId){
   try{ await Store.assignToCourt(id,cid,Number(m.best_of)||3); selectedMatch=null; updateSelBar(); toast(`Auf Court ${cid} gelegt`); }
   catch(e){ toast(e.message); } }
 async function unassign(id){ await Store.unassign(id); toast('Zurück in die Ansetzungen'); }
-async function confirmR(id){
+async function confirmR(id, force){
   const m=MATCHES.find(x=>x.id===id); const court=m?m.court_id:null;
   await Store.confirmResult(id);
   await rankingWriteBack(m);
   const s=await Store.getSettings();
-  if(s.autoAssign && court){
+  if((s.autoAssign||force) && court){
     const next=await Store.nextScheduledForCourt(court);
-    if(next){ try{ await Store.assignToCourt(next.id,court,Number(next.best_of)||3);
-      toast(`Bestätigt · nächstes Spiel auf Court ${court} nachgerückt`); }
-      catch(e){ toast('Bestätigt · '+e.message); } }
-    else toast(`Bestätigt · kein weiteres Spiel für Court ${court}`);
+    if(next && matchHasMissing(next)){
+      toast(`Bestätigt · nächstes Spiel für Court ${court} hat fehlende Spieler – nicht nachgerückt`);
+    } else if(next){
+      try{ await Store.assignToCourt(next.id,court,Number(next.best_of)||3);
+        toast(`Bestätigt · nächstes Spiel auf Court ${court} nachgerückt`); }
+      catch(e){ toast('Bestätigt · '+e.message); }
+    } else toast(`Bestätigt · kein weiteres Spiel für Court ${court}`);
   } else toast('Ergebnis bestätigt');
+}
+// Option 2: Ergebnisse nach N Sekunden automatisch bestätigen (übersteuerbar)
+function holdAuto(id){ autoOverride.add(id); try{ renderCourts(); }catch(e){} }
+function resumeAuto(id){ autoOverride.delete(id); try{ renderCourts(); }catch(e){} }
+async function checkAutoConfirm(){
+  if(!FLOW_AUTOCONFIRM || MISSING_ACTIVE) return;      // aus oder wegen fehlender Spieler pausiert
+  const now=Date.now();
+  for(const m of MATCHES){
+    if(m.status!=='live') continue;
+    const s=m.state||{}; if(s.status!=='finished') continue;
+    if(autoOverride.has(m.id) || autoBusy.has(m.id)) continue;
+    const at=s.finishedAt||0; if(!at) continue;
+    if(now-at >= AUTO_SECS*1000){
+      autoBusy.add(m.id);
+      try{ await confirmR(m.id, true); }catch(e){}
+      setTimeout(()=>autoBusy.delete(m.id), 4000);
+    }
+  }
+}
+function autoConfirmLine(m, at){
+  if(!FLOW_AUTOCONFIRM) return '';
+  if(MISSING_ACTIVE) return `<div class="autoline paused">⏸ Automatik pausiert – fehlende Spieler</div>`;
+  if(autoOverride.has(m.id)) return `<div class="autoline"><span>⏸ Auto angehalten</span> <button class="btn-ghost btn-xs" onclick="resumeAuto('${m.id}')">Auto fortsetzen</button></div>`;
+  const rem=Math.max(0, AUTO_SECS - Math.floor((Date.now()-(at||0))/1000));
+  return `<div class="autoline"><span>🤖 Auto‑Bestätigung in <b class="autocd" data-fin-at="${at||0}">${rem}s</b></span> <button class="btn-ghost btn-xs" onclick="holdAuto('${m.id}')">Anhalten</button></div>`;
 }
 
 // ---- Rangliste: Ergebnis zurückschreiben ----
