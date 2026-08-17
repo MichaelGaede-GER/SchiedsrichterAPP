@@ -4,15 +4,21 @@
 <script src="i18n.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>Squash – Court</title>
 <style>
   :root{ --blue:#1f6fff; --red:#e5484d; --ink:#fff; --muted:#9fb3cc; --bg:#000; --pill:#4aa3ff; }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overscroll-behavior:none;
     font-family:"Segoe UI",system-ui,sans-serif;overflow:hidden}
   .bgfx{position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;opacity:.16}
   .wrap,.idle,.overlay{position:relative;z-index:1}
-  .brandlogo{max-height:90px;max-width:220px;margin-bottom:14px;border-radius:10px}
+  .brandlogo{display:block;margin:0 auto 14px;max-height:110px;max-width:260px;border-radius:10px}
   .wrap{display:flex;flex-direction:column;height:100%}
   .top{display:flex;align-items:center;gap:12px;padding:8px 14px;background:#111;flex:0 0 auto}
   .top .court{font-weight:800;letter-spacing:1px;font-size:15px}
@@ -284,6 +290,11 @@
 const CONFIG = window.CONFIG;
 const COURT = Number(new URLSearchParams(location.search).get('court')) || 1;
 const VENUE = new URLSearchParams(location.search).get('loc') || null;
+// PWA / Kiosk
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+document.addEventListener('contextmenu', e=>e.preventDefault());
+let _lastTap=0; document.addEventListener('touchend', e=>{ const t=Date.now(); if(t-_lastTap<300){ e.preventDefault(); } _lastTap=t; }, {passive:false});
+function backToLauncher(){ if(confirm('Turnier/Court wechseln? Das aktuelle Spiel bleibt gespeichert.')) location.href='tablet.html'; }
 document.title = 'Court ' + COURT;
 
 // echte Flaggenbilder (Windows zeigt Emoji-Flaggen nur als Buchstaben)
@@ -460,7 +471,8 @@ function render(){
       <div class="right"><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button id="fsBtn" class="iconbtn" onclick="toggleFull()">⛶ Vollbild</button>
-        <button class="iconbtn" onclick="show('ovTimer')">⏱ Timer</button></div>
+        <button class="iconbtn" onclick="show('ovTimer')">⏱ Timer</button>
+        <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
     <div class="names">
       <div class="p1"><div class="namepill" id="pill1">${flagImg(c1,r1)}<span class="txt">${p1}${match.player1_seed?` <span class="seedc">[${match.player1_seed}]</span>`:''}</span></div>${conductBadges(1)}</div>

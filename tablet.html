@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<script src="i18n.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0d0d0d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Squash Schiedsrichter</title>
+<style>
+  :root{--bg:#0d1117;--panel:#161c26;--line:#243247;--ink:#eef3fb;--muted:#8aa0bf;--blue:#2f6bff;--green:#7CFF9B;--gold:#ffd54a}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overscroll-behavior:none;
+    font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;overflow:hidden}
+  .app{height:100vh;display:flex;flex-direction:column}
+  header{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#0f1724,#0d1117)}
+  header img.logo{height:52px;max-width:200px;object-fit:contain}
+  header h1{font-size:clamp(18px,3vh,26px);margin:0;font-weight:900}
+  header .sp{flex:1}
+  .badge{color:var(--muted);font-size:14px}
+  .btn{background:#1a2434;color:var(--ink);border:1px solid var(--line);border-radius:12px;
+    padding:12px 16px;font:inherit;font-weight:800;cursor:pointer}
+  .btn.green{background:var(--green);color:#06210f;border:0}
+  .btn:active{transform:scale(.98)}
+  main{flex:1 1 auto;overflow:auto;padding:22px;-webkit-overflow-scrolling:touch}
+  .step-title{font-size:clamp(20px,3.4vh,30px);font-weight:900;margin:0 0 4px}
+  .step-sub{color:var(--muted);margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 20px;cursor:pointer;
+    display:flex;flex-direction:column;gap:6px;min-height:96px;justify-content:center}
+  .tile:active{transform:scale(.98);border-color:var(--blue)}
+  .tile .t{font-size:clamp(20px,3vh,26px);font-weight:900}
+  .tile .s{color:var(--muted);font-size:15px}
+  .venuehead{grid-column:1/-1;color:#8fd0ff;font-weight:900;font-size:18px;margin:10px 2px 0}
+  .courttile{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:120px;gap:6px}
+  .courttile:active{transform:scale(.97);border-color:var(--blue)}
+  .courttile .cn{font-size:clamp(30px,6vh,54px);font-weight:900;line-height:1}
+  .courttile.center{border-color:var(--gold)}.courttile.semi{border-color:#8fd0ff}
+  .cfn{font-size:12px;font-weight:800;padding:2px 8px;border-radius:999px}
+  .cfn.center{background:#3a2f0c;color:var(--gold)}.cfn.semi{background:#0e2036;color:#8fd0ff}
+  .empty{color:var(--muted);font-size:18px;padding:40px 0;text-align:center}
+  select.lang{background:#1a2434;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font:inherit}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <img id="logo" class="logo" alt="" style="display:none">
+    <h1>🎾 Schiedsrichter</h1>
+    <span class="badge" id="userBadge"></span>
+    <span class="sp"></span>
+    <select class="lang" data-lang-select onchange="I18N.set(this.value)" title="Sprache / Language">
+      <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
+    <button class="btn" id="fsBtn" onclick="toggleFull()">⛶ Vollbild</button>
+    <button class="btn" onclick="Auth.signOut&&Auth.signOut()">Abmelden</button>
+  </header>
+  <main>
+    <div id="step1">
+      <h2 class="step-title">1 · Turnier auswählen</h2>
+      <p class="step-sub">Wähle das Turnier für dieses Tablet.</p>
+      <div class="grid" id="tourGrid"></div>
+    </div>
+    <div id="step2" style="display:none">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+        <button class="btn" onclick="showStep(1)">‹ Zurück</button>
+        <h2 class="step-title" style="margin:0">2 · Court auswählen</h2>
+      </div>
+      <p class="step-sub" id="step2sub"></p>
+      <div class="grid" id="courtGrid"></div>
+    </div>
+  </main>
+</div>
+
+<script src="config.js"></script>
+<script src="store.js"></script>
+<script src="ranking.js"></script>
+<script src="auth.js"></script>
+<script>
+let TID=null, TNAME='';
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function showStep(n){ document.getElementById('step1').style.display=n===1?'':'none'; document.getElementById('step2').style.display=n===2?'':'none'; }
+function toggleFull(){ const el=document.documentElement;
+  if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  else { (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); } }
+
+async function renderHeader(){
+  try{ const s=await Store.getSettings(); const l=document.getElementById('logo');
+    if(s&&s.logoUrl){ l.src=s.logoUrl; l.style.display='block'; } }catch(e){}
+  if(typeof Auth!=='undefined' && Auth.user && Auth.user()){
+    document.getElementById('userBadge').textContent='👤 '+(Auth.user().email||'');
+  }
+}
+async function loadTournaments(){
+  let ts=[]; try{ ts=await Store.listTournaments(); }catch(e){ ts=[]; }
+  const g=document.getElementById('tourGrid');
+  if(!ts.length){ g.innerHTML='<div class="empty">Keine Turniere verfügbar. Bitte in der Verwaltung ein Turnier anlegen bzw. dich als Mitglied eintragen lassen.</div>'; return; }
+  g.innerHTML=ts.map(t=>`<div class="tile" onclick="chooseTournament('${t.id}','${esc(t.name)}')">
+    <div class="t">🏆 ${esc(t.name)}</div><div class="s">Turnier wählen</div></div>`).join('');
+}
+async function chooseTournament(id,name){
+  TID=id; TNAME=name;
+  try{ await Store.setActiveTournament(id); }catch(e){}
+  document.getElementById('step2sub').textContent='Turnier: '+name;
+  showStep(2); await loadCourts();
+}
+async function loadCourts(){
+  const g=document.getElementById('courtGrid'); g.innerHTML='<div class="empty">Lade…</div>';
+  let venues=[], courts=[];
+  try{ venues=await Store.getTournamentVenues(TID); }catch(e){}
+  try{ courts=await Store.getTournamentCourts(TID); }catch(e){}
+  if(courts.length){
+    const order = venues.length ? venues : [...new Set(courts.map(c=>c.venue_id))].map(id=>({venue_id:id,name:''}));
+    let html='';
+    order.forEach(v=>{
+      const cs=courts.filter(c=>c.venue_id===v.venue_id).slice().sort((a,b)=>(a.sort-b.sort)||(a.court_no-b.court_no));
+      if(!cs.length) return;
+      if(order.length>1 || v.name) html+=`<div class="venuehead">🏟 ${esc(v.name||'Location')}</div>`;
+      html+=cs.map(c=>courtTile(c.court_no, v.venue_id, c.function)).join('');
+    });
+    g.innerHTML=html || '<div class="empty">Keine Courts zugeordnet.</div>';
+    return;
+  }
+  // Fallback: einfache Court-Liste aus den Einstellungen
+  let list=[]; try{ const s=await Store.getSettings(); list=Array.isArray(s.courts)?s.courts:[]; }catch(e){}
+  if(!list.length){ g.innerHTML='<div class="empty">Für dieses Turnier sind keine Courts festgelegt (Einstellungen → Anlagen & Courts).</div>'; return; }
+  g.innerHTML=list.map(n=>courtTile(n,null,'normal')).join('');
+}
+function courtTile(n, venueId, fn){
+  const cls='courttile'+(fn==='center'?' center':fn==='semi'?' semi':'');
+  const tag=fn==='center'?'<span class="cfn center">Center · Finale</span>':fn==='semi'?'<span class="cfn semi">Halbfinale</span>':'';
+  return `<div class="${cls}" onclick="openCourt(${n},'${venueId||''}')"><div class="cn">${n}</div><div class="s">Court</div>${tag}</div>`;
+}
+function openCourt(n, venueId){
+  const p=new URLSearchParams(); p.set('court', n); if(TID) p.set('t', TID); if(venueId) p.set('loc', venueId);
+  location.href='court.html?'+p.toString();
+}
+
+// Service-Worker registrieren (PWA)
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+// Kontextmenü/Doppeltipp-Zoom im Kiosk unterbinden
+document.addEventListener('contextmenu', e=>e.preventDefault());
+let _lt=0; document.addEventListener('touchend', e=>{ const t=Date.now(); if(t-_lt<300){ e.preventDefault(); } _lt=t; }, {passive:false});
+
+Auth.guard('view').then(()=>{ renderHeader(); loadTournaments(); });
+</script>
+</body>
+</html>
