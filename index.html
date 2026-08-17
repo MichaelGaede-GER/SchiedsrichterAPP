@@ -412,6 +412,16 @@ function isPlaceholder(name){
   return false;
 }
 function matchHasMissing(m){ return isPlaceholder(m&&m.player1_name) || isPlaceholder(m&&m.player2_name); }
+function fmtMMSS(s){ s=Math.max(0,s|0); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+function injuryInfo(s){
+  if(!s) return null;
+  if(s.injury && s.injury.startedAt) return { mode:'up', since:s.injury.startedAt };   // Phase 9: hochzählend
+  const t=s.timer;                                                                       // Fallback: Timer-Label
+  if(t && /verletzung|injury/i.test(t.label||'') && t.running===true){
+    return { mode:'down', endsAt:t.endsAt||0, sec:t.sec||0 };
+  }
+  return null;
+}
 function upcomingMissing(limit){
   return MATCHES.filter(m=>m.status==='scheduled')
     .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0)).slice(0,limit||20)
@@ -446,8 +456,11 @@ setInterval(refreshAlarms, 3000);
 function tickInjury(){
   const now=Date.now();
   document.querySelectorAll('.injtimer').forEach(el=>{
-    const since=parseInt(el.dataset.since||'0',10); if(!since) return;
-    const s=Math.max(0, Math.floor((now-since)/1000));
+    let s=null;
+    if(el.dataset.since){ s=Math.floor((now-parseInt(el.dataset.since,10))/1000); }
+    else if(el.dataset.endsat){ s=Math.ceil((parseInt(el.dataset.endsat,10)-now)/1000); }
+    if(s==null) return;
+    s=Math.max(0,s);
     el.textContent = String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
   });
 }
@@ -543,14 +556,17 @@ function courtCard(cid, venueId, fn){
     const p1=s.cur?s.cur.p1:0, p2=s.cur?s.cur.p2:0;
     const fin = s.status==='finished';
     const finAt = fin ? finAtOf(live) : 0;
-    const inj = (!fin && s.injury && s.injury.startedAt) ? s.injury.startedAt : 0;
+    const inj = fin ? null : injuryInfo(s);
     if(fin){ div.classList.add('awaiting'); div.dataset.finAt=finAt||''; if(finAt && (Date.now()-finAt)>ALARM_MS) div.classList.add('alarm'); }
     if(inj){ div.classList.add('injurypause'); }
     const badge = fin ? `<span class="badge awaiting-badge">⏳ Wartet auf Bestätigung</span>`
                  : inj ? `<span class="badge injury-badge">🔴 VERLETZUNGSPAUSE</span>`
                        : `<span class="badge playing">Läuft</span>`;
+    const injSpan = inj ? (inj.mode==='up'
+        ? `<span class="injtimer" data-since="${inj.since}">00:00</span>`
+        : `<span class="injtimer" data-endsat="${inj.endsAt||0}">${fmtMMSS(inj.sec||0)}</span>`) : '';
     const metaLeft = fin ? `Ergebnis ${live.result||M_result(s)||''}`
-                   : inj ? `<span class="injtimer" data-since="${inj}">00:00</span>`
+                   : inj ? injSpan
                          : `Satz ${g1}–${g2} · Bo${live.best_of}`;
     div.innerHTML=`<div class="cnum">COURT ${cid}${tag}${hlBadge(live)}</div>
       <div class="live">
