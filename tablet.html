@@ -46,6 +46,13 @@
   .cfn.center{background:#3a2f0c;color:var(--gold)}.cfn.semi{background:#0e2036;color:#8fd0ff}
   .empty{color:var(--muted);font-size:18px;padding:40px 0;text-align:center}
   select.lang{background:#1a2434;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font:inherit}
+  .netstat{font-size:14px;font-weight:800;padding:5px 11px;border-radius:999px;white-space:nowrap;background:#0d1b12;border:1px solid #1f6b46;color:#7CFF9B}
+  .netstat.off{background:#2a0f12;border-color:#7a2a2f;color:#ff6b6b}
+  .resumebar{background:linear-gradient(90deg,#10243a,#0f1724);border:1px solid #2f6bff;border-radius:16px;
+    padding:16px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .resumebar .info{flex:1;min-width:200px}
+  .resumebar .info b{font-size:clamp(18px,2.6vh,22px)}
+  .resumebar .sub{color:var(--muted);font-size:14px;margin-top:2px}
 </style>
 </head>
 <body>
@@ -54,6 +61,7 @@
     <img id="logo" class="logo" alt="" style="display:none">
     <h1>🎾 Schiedsrichter</h1>
     <span class="badge" id="userBadge"></span>
+    <span id="netStatus" class="netstat on">🟢 Online</span>
     <span class="sp"></span>
     <select class="lang" data-lang-select onchange="I18N.set(this.value)" title="Sprache / Language">
       <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
@@ -61,6 +69,7 @@
     <button class="btn" onclick="Auth.signOut&&Auth.signOut()">Abmelden</button>
   </header>
   <main>
+    <div id="resumeBar"></div>
     <div id="step1">
       <h2 class="step-title">1 · Turnier auswählen</h2>
       <p class="step-sub">Wähle das Turnier für dieses Tablet.</p>
@@ -84,11 +93,30 @@
 <script src="auth.js"></script>
 <script>
 let TID=null, TNAME='';
+const LASTKEY='squash_tablet_last';
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function showStep(n){ document.getElementById('step1').style.display=n===1?'':'none'; document.getElementById('step2').style.display=n===2?'':'none'; }
 function toggleFull(){ const el=document.documentElement;
   if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
   else { (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); } }
+function setNet(b){ const el=document.getElementById('netStatus'); if(el){ el.textContent=b?'🟢 Online':'🔴 Offline'; el.className='netstat '+(b?'on':'off'); } }
+
+function saveLast(o){ try{ localStorage.setItem(LASTKEY, JSON.stringify(o)); }catch(e){} }
+function loadLast(){ try{ return JSON.parse(localStorage.getItem(LASTKEY)||'null'); }catch(e){ return null; } }
+function renderResume(){
+  const bar=document.getElementById('resumeBar'); const last=loadLast();
+  if(!bar) return;
+  if(!last){ bar.innerHTML=''; return; }
+  const loc=last.venueName?(' · '+esc(last.venueName)):'';
+  bar.className='resumebar';
+  bar.innerHTML=`<div class="info"><b>Fortsetzen: Court ${esc(String(last.court))}</b>
+      <div class="sub">${esc(last.tname||'')}${loc}</div></div>
+    <button class="btn green" onclick="resumeLast()" style="font-size:18px;padding:14px 22px">▶ Zum Court</button>`;
+}
+function resumeLast(){ const last=loadLast(); if(!last) return;
+  const p=new URLSearchParams(); p.set('court',last.court); if(last.tid)p.set('t',last.tid); if(last.venue)p.set('loc',last.venue);
+  location.href='court.html?'+p.toString();
+}
 
 async function renderHeader(){
   try{ const s=await Store.getSettings(); const l=document.getElementById('logo');
@@ -98,9 +126,15 @@ async function renderHeader(){
   }
 }
 async function loadTournaments(){
-  let ts=[]; try{ ts=await Store.listTournaments(); }catch(e){ ts=[]; }
+  let ts=null;
+  try{ ts=await Store.listTournaments(); setNet(true); localStorage.setItem('squash_tablet_tours', JSON.stringify(ts)); }
+  catch(e){ setNet(false); try{ ts=JSON.parse(localStorage.getItem('squash_tablet_tours')||'null'); }catch(_){ ts=null; } }
   const g=document.getElementById('tourGrid');
-  if(!ts.length){ g.innerHTML='<div class="empty">Keine Turniere verfügbar. Bitte in der Verwaltung ein Turnier anlegen bzw. dich als Mitglied eintragen lassen.</div>'; return; }
+  if(!ts || !ts.length){
+    g.innerHTML = ts ? '<div class="empty">Keine Turniere verfügbar. Bitte in der Verwaltung ein Turnier anlegen bzw. dich als Mitglied eintragen lassen.</div>'
+                     : '<div class="empty">Offline und keine gespeicherten Turniere. Nutze oben „Fortsetzen", um zum zuletzt genutzten Court zu gelangen.</div>';
+    return;
+  }
   g.innerHTML=ts.map(t=>`<div class="tile" onclick="chooseTournament('${t.id}','${esc(t.name)}')">
     <div class="t">🏆 ${esc(t.name)}</div><div class="s">Turnier wählen</div></div>`).join('');
 }
@@ -112,10 +146,12 @@ async function chooseTournament(id,name){
 }
 async function loadCourts(){
   const g=document.getElementById('courtGrid'); g.innerHTML='<div class="empty">Lade…</div>';
-  let venues=[], courts=[];
-  try{ venues=await Store.getTournamentVenues(TID); }catch(e){}
-  try{ courts=await Store.getTournamentCourts(TID); }catch(e){}
-  if(courts.length){
+  let venues=[], courts=[], ok=false;
+  try{ venues=await Store.getTournamentVenues(TID); courts=await Store.getTournamentCourts(TID); ok=true; setNet(true);
+    localStorage.setItem('squash_tablet_courts_'+TID, JSON.stringify({venues,courts})); }
+  catch(e){ setNet(false); try{ const c=JSON.parse(localStorage.getItem('squash_tablet_courts_'+TID)||'null'); if(c){ venues=c.venues||[]; courts=c.courts||[]; ok=true; } }catch(_){} }
+  window.__venueName={}; venues.forEach(v=>window.__venueName[v.venue_id]=v.name);
+  if(ok && courts.length){
     const order = venues.length ? venues : [...new Set(courts.map(c=>c.venue_id))].map(id=>({venue_id:id,name:''}));
     let html='';
     order.forEach(v=>{
@@ -127,9 +163,10 @@ async function loadCourts(){
     g.innerHTML=html || '<div class="empty">Keine Courts zugeordnet.</div>';
     return;
   }
-  // Fallback: einfache Court-Liste aus den Einstellungen
+  // Fallback: einfache Court-Liste aus den Einstellungen (online)
   let list=[]; try{ const s=await Store.getSettings(); list=Array.isArray(s.courts)?s.courts:[]; }catch(e){}
-  if(!list.length){ g.innerHTML='<div class="empty">Für dieses Turnier sind keine Courts festgelegt (Einstellungen → Anlagen & Courts).</div>'; return; }
+  if(!list.length){ g.innerHTML = ok ? '<div class="empty">Für dieses Turnier sind keine Courts festgelegt (Einstellungen → Anlagen & Courts).</div>'
+                                      : '<div class="empty">Offline und keine gespeicherten Courts für dieses Turnier.</div>'; return; }
   g.innerHTML=list.map(n=>courtTile(n,null,'normal')).join('');
 }
 function courtTile(n, venueId, fn){
@@ -138,17 +175,29 @@ function courtTile(n, venueId, fn){
   return `<div class="${cls}" onclick="openCourt(${n},'${venueId||''}')"><div class="cn">${n}</div><div class="s">Court</div>${tag}</div>`;
 }
 function openCourt(n, venueId){
+  const venueName=(window.__venueName&&venueId)?window.__venueName[venueId]:'';
+  saveLast({ tid:TID, tname:TNAME, court:n, venue:venueId||'', venueName:venueName||'' });
   const p=new URLSearchParams(); p.set('court', n); if(TID) p.set('t', TID); if(venueId) p.set('loc', venueId);
   location.href='court.html?'+p.toString();
 }
 
-// Service-Worker registrieren (PWA)
+// Service-Worker + Kiosk-Gesten
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
-// Kontextmenü/Doppeltipp-Zoom im Kiosk unterbinden
 document.addEventListener('contextmenu', e=>e.preventDefault());
 let _lt=0; document.addEventListener('touchend', e=>{ const t=Date.now(); if(t-_lt<300){ e.preventDefault(); } _lt=t; }, {passive:false});
+window.addEventListener('online', ()=>{ setNet(true); loadTournaments(); });
+window.addEventListener('offline', ()=>{ setNet(false); });
 
-Auth.guard('view').then(()=>{ renderHeader(); loadTournaments(); });
+// Start: Resume-Banner immer sofort (auch offline). Auswahl nur online über Login.
+renderResume();
+if(navigator.onLine===false){
+  setNet(false);
+  const g=document.getElementById('tourGrid');
+  if(g) g.innerHTML='<div class="empty">Offline. Nutze oben „Fortsetzen", um zum zuletzt genutzten Court zu gelangen. Für die Turnier-/Court-Auswahl bitte online gehen.</div>';
+} else {
+  Auth.guard('view').then(()=>{ setNet(true); renderHeader(); renderResume(); loadTournaments(); })
+    .catch(()=>{ setNet(false); });
+}
 </script>
 </body>
 </html>
