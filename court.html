@@ -31,6 +31,9 @@
   .namepill{display:flex;align-items:center;gap:10px;border-radius:999px;padding:10px 16px;font-weight:800;font-size:clamp(16px,3.4vw,26px);min-width:0}
   .seedc{color:#8fd0ff;font-weight:800;font-size:.7em;opacity:.95}
   .hlc{color:#ffd54a;font-weight:800}
+  .netstat{font-size:15px;font-weight:800;padding:5px 12px;border-radius:999px;white-space:nowrap;
+    background:#0d1b12;border:1px solid #1f6b46;color:#7CFF9B}
+  .netstat.off{background:#2a0f12;border-color:#7a2a2f;color:#ff6b6b}
   .namepill .fl{font-size:24px;flex:0 0 auto}
   .cflag{display:inline-block;background-size:cover;background-position:center;border-radius:3px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.2)}
   .namepill .cflag{width:40px;height:27px}
@@ -451,7 +454,51 @@ window.addEventListener('pointerdown',()=>{ try{ if(_actx&&_actx.state==='suspen
 
 // Timer-Stand in die Spieldaten schreiben (für Stream-Anzeige)
 function withTimer(st){ if(st) st.timer=Timer.snapshot(); return st; }
-async function pushTimer(){ if(!match||!M) return; try{ await Store.updateMatch(match.id,{ state:withTimer(M.serialize()) }); }catch(e){} }
+
+// ================= OFFLINE / RESUME =================
+const TID = new URLSearchParams(location.search).get('t') || '';
+const OFFKEY = 'squash_off_'+TID+'_c'+COURT+(VENUE?('_'+VENUE):'');
+let OFF = offLoad();                    // {matchId,record,state,finished,rev,savedAt,pending}
+let ONLINE = (navigator.onLine!==false);
+let _flushT=0;
+function offLoad(){ try{ return JSON.parse(localStorage.getItem(OFFKEY)||'null'); }catch(e){ return null; } }
+function offSave(){ try{ localStorage.setItem(OFFKEY, JSON.stringify(OFF)); }catch(e){} }
+function recordSnapshot(m){ if(!m) return null; return {
+  id:m.id, player1_name:m.player1_name, player2_name:m.player2_name,
+  player1_country:m.player1_country, player2_country:m.player2_country,
+  player1_region:m.player1_region, player2_region:m.player2_region,
+  player1_seed:m.player1_seed, player2_seed:m.player2_seed,
+  best_of:m.best_of, event:m.event, draw:m.draw, round:m.round, match_no:m.match_no,
+  court_id:m.court_id, court_no:m.court_no, court_label:m.court_label, venue_id:m.venue_id,
+  referee:m.referee, scheduled_time:m.scheduled_time, status:m.status, highlight:m.highlight }; }
+function progress(st){ if(!st) return -1;
+  let n=((st.gamesWon1||0)+(st.gamesWon2||0))*100000;
+  (st.games||[]).forEach(g=>{ n+=((g.p1||0)+(g.p2||0))*1000; });
+  if(st.cur) n+=(st.cur.p1||0)+(st.cur.p2||0); return n; }
+function buildLocal(){       // aktuellen Stand lokal festhalten (überlebt Offline & Neustart)
+  if(!match||!M) return;
+  OFF = { matchId:match.id, record:recordSnapshot(match), state:withTimer(M.serialize()),
+    finished:(M.status==='finished'?{result:M.resultString(),winner:M.matchWinner,score_text:M.setScores(),ending:M.ending||null}:null),
+    rev:((OFF&&OFF.rev)||0)+1, savedAt:Date.now(), pending:true };
+  offSave();
+}
+function setOnlineBadge(b){ ONLINE=!!b; const el=document.getElementById('netStatus');
+  if(el){ el.textContent=b?'🟢 Online':'🔴 Offline'; el.className='netstat '+(b?'on':'off'); } }
+async function flush(){        // lokalen Stand hochladen, sobald möglich
+  if(!OFF||!OFF.pending||syncing) return; syncing=true;
+  try{
+    const patch={ state:OFF.state }; if(OFF.finished) Object.assign(patch, OFF.finished);
+    await Store.updateMatch(OFF.matchId, patch);
+    OFF.pending=false; offSave(); setOnlineBadge(true);
+  }catch(e){ setOnlineBadge(false); }
+  syncing=false;
+}
+function flushThrottled(){ const now=Date.now(); if(now-_flushT>2500){ _flushT=now; flush(); } }
+async function sync(){ buildLocal(); await flush(); }          // Punkte/Statuswechsel
+async function pushTimer(){ buildLocal(); flushThrottled(); }   // Timer-Ticks (gedrosselt)
+window.addEventListener('online', ()=>{ setOnlineBadge(true); flush(); });
+window.addEventListener('offline', ()=>{ setOnlineBadge(false); });
+setInterval(()=>{ if(navigator.onLine!==false && OFF && OFF.pending) flush(); }, 5000); // Wiederholversuch
 
 // ============ RENDER ============
 function render(){
@@ -468,7 +515,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button id="fsBtn" class="iconbtn" onclick="toggleFull()">⛶ Vollbild</button>
         <button class="iconbtn" onclick="show('ovTimer')">⏱ Timer</button>
@@ -725,30 +772,55 @@ function afterChange(){
   if(M.status==='finished'){ finishFlow(); }
 }
 
-// ============ SYNC ============
-async function sync(){
-  if(!match||syncing) return; syncing=true;
-  try{
-    const patch={ state:withTimer(M.serialize()) };
-    if(M.status==='finished'){ patch.result=M.resultString(); patch.winner=M.matchWinner; patch.score_text=M.setScores(); patch.ending=M.ending||null; }
-    await Store.updateMatch(match.id, patch);
-  }catch(e){ console.warn('sync',e); }
-  syncing=false;
-}
-
 // ============ LADEN / REALTIME ============
 async function loadCourt(){
-  ALLMATCHES=await Store.listMatches();
-  const live=ALLMATCHES.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || !m.venue_id || m.venue_id===VENUE));
-  if(!live){ match=null; M=null; render(); return; }
+  let list=null;
+  try{ list=await Store.listMatches(); setOnlineBadge(true); }
+  catch(e){ setOnlineBadge(false); list=null; }
+
+  if(list===null){
+    // OFFLINE: aus lokal gespeichertem Stand fortsetzen (auch nach Neustart)
+    if(OFF && OFF.record && OFF.record.status!=='confirmed'){
+      applyFrom(OFF.record, OFF.state, !match || match.id!==OFF.matchId);
+    } else { render(); }
+    return;
+  }
+
+  ALLMATCHES=list;
+  const live=list.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || !m.venue_id || m.venue_id===VENUE));
+
+  if(!live){
+    // Server hat kein Live-Match für diesen Court.
+    // Falls lokal noch ein nicht gepushter Stand existiert -> weiter schiedsen (kein Punkt verlieren)
+    if(OFF && OFF.pending && OFF.record && OFF.record.status!=='confirmed'){
+      applyFrom(OFF.record, OFF.state, !match || match.id!==OFF.matchId); flush(); return;
+    }
+    match=null; M=null; render(); return;
+  }
+
   const isNew=!match || match.id!==live.id;
-  match=live;
-  if(isNew){
+
+  // KONFLIKT: lokaler (noch nicht gepushter) Stand ist gleich weit oder weiter -> lokal behalten
+  if(OFF && OFF.matchId===live.id && OFF.pending && progress(OFF.state) >= progress(live.state)){
+    applyFrom(live, OFF.state, isNew);
+    flush();                 // lokalen Stand hochladen
+    return;
+  }
+
+  // Server-Stand übernehmen und lokal spiegeln (als bestätigt)
+  applyFrom(live, live.state, isNew);
+  OFF = { matchId:live.id, record:recordSnapshot(live), state:live.state, finished:null,
+    rev:((OFF&&OFF.rev)||0)+1, savedAt:Date.now(), pending:false };
+  offSave();
+}
+function applyFrom(record, state, isNew){
+  match=record;
+  if(isNew || !M){
     refConfirmed=false;
-    M=new SquashMatch({ bestOf:live.best_of||CONFIG.DEFAULT_BEST_OF,
-      p1:{name:live.player1_name,country:live.player1_country},
-      p2:{name:live.player2_name,country:live.player2_country} });
-    if(live.state) M.hydrate(live.state);
+    M=new SquashMatch({ bestOf:record.best_of||CONFIG.DEFAULT_BEST_OF,
+      p1:{name:record.player1_name,country:record.player1_country},
+      p2:{name:record.player2_name,country:record.player2_country} });
+    if(state) M.hydrate(state);
     render(); hideAll();
     if(M.status==='warmup'){ showWarmup(); }
     else if(M.status==='between'){ show('ovRest'); }
