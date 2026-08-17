@@ -1,7 +1,7 @@
 /* Service-Worker: App-Shell für das Schiedsrichter-Tablet (PWA).
    Strategie: network-first bei gleicher Origin (immer aktuell, wenn online),
    Offline-Fallback aus dem Cache. Supabase/CDNs laufen immer übers Netz. */
-const CACHE = 'squash-schiri-v1';
+const CACHE = 'squash-schiri-v2';
 const ASSETS = [
   'tablet.html', 'court.html', 'config.js', 'store.js', 'auth.js', 'i18n.js', 'ranking.js',
   'manifest.json', 'icons/icon-192.png', 'icons/icon-512.png'
