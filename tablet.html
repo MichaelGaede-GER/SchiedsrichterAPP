@@ -102,6 +102,13 @@ function toggleFull(){ const el=document.documentElement;
   if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
   else { (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); } }
 function setNet(b){ const el=document.getElementById('netStatus'); if(el){ el.textContent=b?'🟢 Online':'🔴 Offline'; el.className='netstat '+(b?'on':'off'); } }
+function safeSet(key, val){
+  try{ localStorage.setItem(key, val); return true; }
+  catch(e){   // Speicher voll -> unwichtige Caches entfernen und einmal erneut versuchen
+    try{ Object.keys(localStorage).forEach(k=>{ if(k==='squash_tablet_tours'||k.indexOf('squash_tablet_courts_')===0) localStorage.removeItem(k); }); }catch(_){}
+    try{ localStorage.setItem(key, val); return true; }catch(_){ return false; }
+  }
+}
 
 function saveLast(o){ try{ localStorage.setItem(LASTKEY, JSON.stringify(o)); }catch(e){} }
 function loadLast(){ try{ return JSON.parse(localStorage.getItem(LASTKEY)||'null'); }catch(e){ return null; } }
@@ -130,17 +137,20 @@ async function renderHeader(){
 async function loadTournaments(){
   const g=document.getElementById('tourGrid');
   let ts=null, err=null;
-  try{ ts=await Store.listTournaments(); setNet(true); localStorage.setItem('squash_tablet_tours', JSON.stringify(ts)); }
-  catch(e){ err=e; try{ ts=JSON.parse(localStorage.getItem('squash_tablet_tours')||'null'); }catch(_){ ts=null; } }
-  if(err && !ts){
-    const msg=(err&&err.message)?err.message:String(err);
-    const offline = (navigator.onLine===false) || /failed to fetch|networkerror|load failed|fetch/i.test(msg);
-    setNet(!offline);
-    g.innerHTML = '<div class="empty">'+(offline
-      ? 'Offline. Nutze oben „Fortsetzen", um zum zuletzt genutzten Court zu gelangen.'
-      : ('Turniere konnten nicht geladen werden.<br><br><b style="color:#ff8a8a">'+esc(msg)+'</b><br><br>'
-         + 'Das ist meist ein Datenbank-Rechteproblem (RLS). Bitte das Reparatur-SQL <code>repair-access.sql</code> in Supabase ausführen.'))+'</div>';
-    return;
+  try{ ts=await Store.listTournaments(); setNet(true); }
+  catch(e){ err=e; }
+  if(ts){ safeSet('squash_tablet_tours', JSON.stringify(ts)); }          // Zwischenspeichern (nicht kritisch)
+  if(err){                                                                 // echter Ladefehler
+    try{ ts=JSON.parse(localStorage.getItem('squash_tablet_tours')||'null'); }catch(_){ ts=null; }
+    if(!ts){
+      const msg=(err&&err.message)?err.message:String(err);
+      const offline = (navigator.onLine===false) || /failed to fetch|networkerror|load failed|fetch/i.test(msg);
+      setNet(!offline);
+      g.innerHTML = '<div class="empty">'+(offline
+        ? 'Offline. Nutze oben „Fortsetzen", um zum zuletzt genutzten Court zu gelangen.'
+        : ('Turniere konnten nicht geladen werden.<br><br><b style="color:#ff8a8a">'+esc(msg)+'</b>'))+'</div>';
+      return;
+    }
   }
   setNet(true);
   if(!ts || !ts.length){
@@ -160,7 +170,7 @@ async function loadCourts(){
   const g=document.getElementById('courtGrid'); g.innerHTML='<div class="empty">Lade…</div>';
   let venues=[], courts=[], ok=false;
   try{ venues=await Store.getTournamentVenues(TID); courts=await Store.getTournamentCourts(TID); ok=true; setNet(true);
-    localStorage.setItem('squash_tablet_courts_'+TID, JSON.stringify({venues,courts})); }
+    safeSet('squash_tablet_courts_'+TID, JSON.stringify({venues,courts})); }
   catch(e){ setNet(false); try{ const c=JSON.parse(localStorage.getItem('squash_tablet_courts_'+TID)||'null'); if(c){ venues=c.venues||[]; courts=c.courts||[]; ok=true; } }catch(_){} }
   window.__venueName={}; venues.forEach(v=>window.__venueName[v.venue_id]=v.name);
   if(ok && courts.length){
