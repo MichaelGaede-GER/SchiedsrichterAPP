@@ -128,13 +128,23 @@ async function renderHeader(){
   }
 }
 async function loadTournaments(){
-  let ts=null;
-  try{ ts=await Store.listTournaments(); setNet(true); localStorage.setItem('squash_tablet_tours', JSON.stringify(ts)); }
-  catch(e){ setNet(false); try{ ts=JSON.parse(localStorage.getItem('squash_tablet_tours')||'null'); }catch(_){ ts=null; } }
   const g=document.getElementById('tourGrid');
+  let ts=null, err=null;
+  try{ ts=await Store.listTournaments(); setNet(true); localStorage.setItem('squash_tablet_tours', JSON.stringify(ts)); }
+  catch(e){ err=e; try{ ts=JSON.parse(localStorage.getItem('squash_tablet_tours')||'null'); }catch(_){ ts=null; } }
+  if(err && !ts){
+    const msg=(err&&err.message)?err.message:String(err);
+    const offline = (navigator.onLine===false) || /failed to fetch|networkerror|load failed|fetch/i.test(msg);
+    setNet(!offline);
+    g.innerHTML = '<div class="empty">'+(offline
+      ? 'Offline. Nutze oben „Fortsetzen", um zum zuletzt genutzten Court zu gelangen.'
+      : ('Turniere konnten nicht geladen werden.<br><br><b style="color:#ff8a8a">'+esc(msg)+'</b><br><br>'
+         + 'Das ist meist ein Datenbank-Rechteproblem (RLS). Bitte das Reparatur-SQL <code>repair-access.sql</code> in Supabase ausführen.'))+'</div>';
+    return;
+  }
+  setNet(true);
   if(!ts || !ts.length){
-    g.innerHTML = ts ? '<div class="empty">Keine Turniere verfügbar. Bitte in der Verwaltung ein Turnier anlegen bzw. dich als Mitglied eintragen lassen.</div>'
-                     : '<div class="empty">Offline und keine gespeicherten Turniere. Nutze oben „Fortsetzen", um zum zuletzt genutzten Court zu gelangen.</div>';
+    g.innerHTML='<div class="empty">Keine Turniere für dieses Konto. Bitte in der Verwaltung unter „Mitglieder & Rollen“ diesem Konto ein Turnier zuweisen.</div>';
     return;
   }
   g.innerHTML=ts.map(t=>`<div class="tile" onclick="chooseTournament('${t.id}','${esc(t.name)}')">
