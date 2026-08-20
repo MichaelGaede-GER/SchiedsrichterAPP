@@ -178,6 +178,39 @@
     </div>
   </div>
 
+  <h2>💾 Automatische Sicherungen</h2>
+  <div class="card">
+    <div id="backupUnsupported" class="hint" style="display:none;color:#ffb020">
+      Dieser Browser unterstützt das Schreiben in einen Ordner nicht (nötig: Chrome oder Edge am Desktop).
+      „Jetzt sichern“ lädt stattdessen eine Datei herunter; automatische Sicherungen sind hier nicht möglich.
+    </div>
+    <div class="field">
+      <label>Sicherungsordner</label>
+      <div class="row" style="flex-wrap:wrap;gap:8px;align-items:center">
+        <button class="btn-ghost" id="pickDirBtn" onclick="pickBackupDir()">📁 Ordner wählen / anlegen…</button>
+        <span id="backupDirName" class="hint">Kein Ordner gewählt</span>
+      </div>
+      <div class="hint">Sicherungen werden pro Turnier gespeichert (max. 10 – die älteste wird beim 11. automatisch entfernt).</div>
+    </div>
+    <div class="field">
+      <label class="switch">
+        <input type="checkbox" id="backupAuto" onchange="onBackupCfgChange()"><span class="track"></span>
+        <span>Automatisch sichern</span>
+      </label>
+      <div class="row" style="margin-top:8px;align-items:center;gap:8px">
+        <span class="hint">alle</span>
+        <input id="backupMin" type="number" min="1" max="120" value="5" style="width:80px" onchange="onBackupCfgChange()">
+        <span class="hint">Minuten</span>
+        <button class="btn-primary btn-sm" onclick="backupNow()" style="margin-left:auto">💾 Jetzt sichern</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Vorhandene Sicherungen (aktuelles Turnier)</label>
+      <div id="backupList" class="hint">—</div>
+      <div id="backupStatus" class="hint" style="margin-top:6px"></div>
+    </div>
+  </div>
+
   <h2>Ablauf</h2>
   <div class="card">
     <label class="switch">
@@ -899,6 +932,128 @@ async function saveAll(){
   try{ await Store.saveSettings(patch); toast('Gespeichert ✓'); }
   catch(e){ toast('Fehler: '+e.message); }
 }
+
+// ===================== AUTOMATISCHE SICHERUNGEN =====================
+const BK_SUPPORTED = ('showDirectoryPicker' in window);
+const BK_DB='squashBackup', BK_STORE='handles';
+function idbOpen(){ return new Promise((res,rej)=>{ const r=indexedDB.open(BK_DB,1);
+  r.onupgradeneeded=()=>{ try{ r.result.createObjectStore(BK_STORE); }catch(e){} };
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbSet(k,v){ const db=await idbOpen(); return new Promise((res,rej)=>{ const tx=db.transaction(BK_STORE,'readwrite'); tx.objectStore(BK_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+async function idbGet(k){ const db=await idbOpen(); return new Promise((res,rej)=>{ const tx=db.transaction(BK_STORE,'readonly'); const rq=tx.objectStore(BK_STORE).get(k); rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); }
+
+function bkEnabled(){ return localStorage.getItem('squash_backup_enabled')==='1'; }
+function bkMin(){ return Math.max(1,Math.min(120,parseInt(localStorage.getItem('squash_backup_min')||'5',10)||5)); }
+async function getDir(){ try{ return await idbGet('backupDir'); }catch(e){ return null; } }
+async function ensurePerm(dir, write){
+  if(!dir) return false; const opts={mode: write?'readwrite':'read'};
+  try{ if((await dir.queryPermission(opts))==='granted') return true;
+       if((await dir.requestPermission(opts))==='granted') return true; }catch(e){}
+  return false;
+}
+async function pickBackupDir(){
+  if(!BK_SUPPORTED){ toast('Ordnerauswahl in diesem Browser nicht möglich'); return; }
+  try{
+    const dir=await window.showDirectoryPicker({mode:'readwrite'});
+    await idbSet('backupDir', dir);
+    const n=$('backupDirName'); if(n) n.textContent='📁 '+dir.name;
+    await refreshBackupList(); scheduleBackups(); toast('Ordner gewählt');
+  }catch(e){ if(e && e.name!=='AbortError') toast('Fehler: '+e.message); }
+}
+async function buildBackup(tid){
+  const [matches, settings]=await Promise.all([Store.listMatches(), Store.getSettings()]);
+  let venues=[], courts=[];
+  try{ venues=await Store.getTournamentVenues(tid); }catch(e){}
+  try{ courts=await Store.getTournamentCourts(tid); }catch(e){}
+  return { app:'squash-referee', tournamentId:tid, tournamentName:(window.__activeTourName||settings.tournamentName||''),
+    createdAt:new Date().toISOString(), counts:{matches:(matches||[]).length}, matches, settings, venues, courts };
+}
+async function writeBackup(dir, name, text){
+  const fh=await dir.getFileHandle(name,{create:true});
+  const w=await fh.createWritable(); await w.write(text); await w.close();
+  try{ const f=await (await dir.getFileHandle(name)).getFile();      // Verifizieren
+    return !!(f && f.size>0 && f.size===new Blob([text]).size); }catch(e){ return false; }
+}
+async function listBackupNames(dir, tid){
+  const prefix='squash-backup_'+tid+'_'; const names=[];
+  for await (const [name, handle] of dir.entries()){
+    if(handle.kind==='file' && name.indexOf(prefix)===0 && /\.json$/.test(name)) names.push(name);
+  }
+  names.sort(); return names;   // ISO-Zeit im Namen -> chronologisch
+}
+async function pruneBackups(dir, tid, keep){
+  const names=await listBackupNames(dir, tid);
+  while(names.length>keep){ const oldest=names.shift(); try{ await dir.removeEntry(oldest); }catch(e){} }
+}
+function downloadText(name, text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'application/json'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); }
+let _bkBusy=false;
+async function doBackup(manual){
+  const tid=Store.activeTournament && Store.activeTournament();
+  if(!tid){ if(manual) toast('Kein Turnier aktiv'); return; }
+  const data=await buildBackup(tid);
+  const text=JSON.stringify(data,null,2);
+  const fname='squash-backup_'+tid+'_'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+  const dir=await getDir();
+  if(!BK_SUPPORTED || !dir){
+    if(manual){ downloadText(fname, text); toast('Sicherung heruntergeladen'); }
+    return;
+  }
+  if(_bkBusy) return; _bkBusy=true;
+  try{
+    if(!await ensurePerm(dir, true)){ if(manual) toast('Keine Schreibrechte – bitte Ordner erneut wählen.'); return; }
+    const ok=await writeBackup(dir, fname, text);
+    if(!ok){ toast('Sicherung fehlgeschlagen – alte Sicherungen bleiben erhalten.'); return; }   // erst prüfen, dann aufräumen
+    await pruneBackups(dir, tid, 10);
+    localStorage.setItem('squash_backup_last_'+tid, String(Date.now()));
+    await refreshBackupList();
+    if(manual) toast('Gesichert ✓');
+  }catch(e){ toast('Sicherung fehlgeschlagen: '+e.message); }
+  finally{ _bkBusy=false; }
+}
+function backupNow(){ doBackup(true); }
+let _bkTimer=null;
+function scheduleBackups(){
+  if(_bkTimer){ clearInterval(_bkTimer); _bkTimer=null; }
+  if(bkEnabled() && BK_SUPPORTED){ _bkTimer=setInterval(()=>doBackup(false), bkMin()*60*1000); }
+}
+function onBackupCfgChange(){
+  localStorage.setItem('squash_backup_enabled', $('backupAuto').checked?'1':'0');
+  localStorage.setItem('squash_backup_min', String(Math.max(1,Math.min(120,parseInt($('backupMin').value,10)||5))));
+  scheduleBackups(); updateBackupStatus();
+}
+function prettyTs(s){ const m=s.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})/); return m?`${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}:${m[6]}`:s; }
+async function refreshBackupList(){
+  const el=$('backupList'); if(!el) return;
+  const tid=Store.activeTournament && Store.activeTournament();
+  if(!tid){ el.textContent='Kein Turnier aktiv.'; return; }
+  const dir=await getDir();
+  if(!BK_SUPPORTED){ el.textContent='In diesem Browser nicht verfügbar (Download-Fallback aktiv).'; return; }
+  if(!dir){ el.textContent='Kein Ordner gewählt.'; return; }
+  if(!await ensurePerm(dir, false)){ el.innerHTML='<span style="color:#ffb020">Ordnerzugriff nicht erlaubt – bitte Ordner erneut wählen.</span>'; return; }
+  try{
+    const names=await listBackupNames(dir, tid);
+    if(!names.length){ el.textContent='Noch keine Sicherungen für dieses Turnier.'; }
+    else{
+      const rows=names.slice().reverse().map(n=>'<div>• '+prettyTs(n.replace('squash-backup_'+tid+'_','').replace('.json',''))+'</div>').join('');
+      el.innerHTML='<b>'+names.length+'/10</b> Sicherungen:'+rows;
+    }
+  }catch(e){ el.textContent='Fehler beim Lesen: '+e.message; }
+  updateBackupStatus();
+}
+function updateBackupStatus(){
+  const el=$('backupStatus'); if(!el) return;
+  const tid=Store.activeTournament && Store.activeTournament();
+  const last=tid?localStorage.getItem('squash_backup_last_'+tid):null;
+  el.textContent=(bkEnabled()?('Automatik aktiv – alle '+bkMin()+' Min. '):'Automatik aus. ')+(last?('Letzte Sicherung: '+new Date(+last).toLocaleString()):'Noch keine Sicherung.');
+}
+(function initBackup(){
+  if(!BK_SUPPORTED){ const u=$('backupUnsupported'); if(u) u.style.display='block'; }
+  const auto=$('backupAuto'); if(auto) auto.checked=bkEnabled();
+  const min=$('backupMin'); if(min) min.value=bkMin();
+  getDir().then(dir=>{ if(dir){ const n=$('backupDirName'); if(n) n.textContent='📁 '+dir.name; } });
+  updateBackupStatus();
+  setTimeout(()=>{ try{ refreshBackupList(); scheduleBackups(); }catch(e){} }, 900);
+})();
 
 Auth.guard('settings').then(()=>{
   loadSettings();
