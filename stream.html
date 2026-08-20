@@ -46,14 +46,14 @@
   .dot{display:inline-block;width:.5em;height:.5em;border-radius:50%;background:#111;margin-left:.35em;vertical-align:middle}
 
   /* ===== PSA LINE ===== */
-  .psaline{display:flex;align-items:stretch;gap:12px;width:min(1100px,94vw)}
-  .psaline .nm{flex:1;background:#fff;border:5px solid #999;border-radius:12px;display:flex;align-items:center;
-    justify-content:center;gap:10px;padding:14px 22px;font-size:34px;font-weight:700;min-width:0}
-  .psaline .nm .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .psaline{display:flex;align-items:stretch;gap:14px;width:min(1760px,96vw)}
+  .psaline .nm{flex:1 1 0;min-width:0;max-width:none;background:#fff;border:6px solid #999;border-radius:14px;
+    display:flex;align-items:center;gap:12px;padding:16px 30px;font-weight:800;color:#111;line-height:1.05}
+  .psaline .nm .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .psaline .nm.p1{border-color:var(--blue);justify-content:flex-start}
   .psaline .nm.p2{border-color:var(--red);justify-content:flex-end}
-  .psaline .pts{background:#2b2b2b;color:#fff;border-radius:10px;min-width:64px;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:800;font-variant-numeric:tabular-nums}
-  .psaline .games{background:#fff;border-radius:10px;min-width:110px;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:900;letter-spacing:2px;font-variant-numeric:tabular-nums}
+  .psaline .pts{background:#2b2b2b;color:#fff;border-radius:12px;flex:0 0 auto;min-width:96px;padding:0 12px;display:flex;align-items:center;justify-content:center;font-size:56px;font-weight:900;font-variant-numeric:tabular-nums}
+  .psaline .games{background:#fff;color:#111;border-radius:12px;flex:0 0 auto;min-width:150px;padding:0 16px;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:900;letter-spacing:2px;font-variant-numeric:tabular-nums}
 
   /* ===== SCOREBOARD (Vollbild) ===== */
   .sb{width:min(1100px,94vw)}
@@ -257,15 +257,20 @@ function setCols(d,who){
   return cells;
 }
 
+function psaNameFont(a,b){
+  const n=Math.max((''+(a||'')).length,(''+(b||'')).length);
+  if(n<=12) return 56; if(n<=16) return 48; if(n<=20) return 42; if(n<=24) return 36; if(n<=30) return 31; return 27;
+}
 function viewPsa(d){
+  const fs=psaNameFont(d.p1,d.p2);
   const dot1=d.server===1?'<span class="dot"></span>':'';
   const dot2=d.server===2?'<span class="dot"></span>':'';
   return `<div class="psaline">
-    <div class="nm p1"><span class="t">${d.p1}</span>${dot1}</div>
+    <div class="nm p1" style="font-size:${fs}px"><span class="t">${d.p1}</span>${dot1}</div>
     <div class="pts">${d.pts1}</div>
     <div class="games">${d.g1} - ${d.g2}</div>
     <div class="pts">${d.pts2}</div>
-    <div class="nm p2">${dot2}<span class="t">${d.p2}</span></div>
+    <div class="nm p2" style="font-size:${fs}px">${dot2}<span class="t">${d.p2}</span></div>
   </div>`;
 }
 
