@@ -22,6 +22,9 @@
   .field{margin-bottom:16px}
   .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
   .field .hint{font-size:12px;color:var(--muted);margin-top:5px}
+  .adrow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .adrow input{flex:1;min-width:0}
+  .adprev{display:none;height:34px;max-width:80px;object-fit:contain;background:#fff;border-radius:6px;padding:3px 5px}
   input[type=text],input[type=number]{width:100%;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:inherit}
   input[type=color]{width:56px;height:38px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:2px;vertical-align:middle}
   .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
@@ -303,15 +306,20 @@
     </div>
     <div class="field">
       <label>Werbe-Logos auf Schiedsrichter-Tablet &amp; Court (je 2 unten links / rechts)</label>
-      <div class="row" style="flex-wrap:wrap;gap:8px">
-        <input type="text" id="adLeft1"  placeholder="unten links · Logo 1 (URL)"  style="flex:1;min-width:200px">
-        <input type="text" id="adLeft2"  placeholder="unten links · Logo 2 (URL)"  style="flex:1;min-width:200px">
+      <input type="file" id="adFile" accept="image/*" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <div class="hint" style="margin-bottom:4px">Unten links</div>
+          <div class="adrow"><img class="adprev" id="adPrev_adLeft1" alt=""><input type="text" id="adLeft1" placeholder="URL oder hochladen"><button class="btn-ghost" onclick="adUpload('adLeft1')">⬆</button></div>
+          <div class="adrow"><img class="adprev" id="adPrev_adLeft2" alt=""><input type="text" id="adLeft2" placeholder="URL oder hochladen"><button class="btn-ghost" onclick="adUpload('adLeft2')">⬆</button></div>
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px">Unten rechts</div>
+          <div class="adrow"><img class="adprev" id="adPrev_adRight1" alt=""><input type="text" id="adRight1" placeholder="URL oder hochladen"><button class="btn-ghost" onclick="adUpload('adRight1')">⬆</button></div>
+          <div class="adrow"><img class="adprev" id="adPrev_adRight2" alt=""><input type="text" id="adRight2" placeholder="URL oder hochladen"><button class="btn-ghost" onclick="adUpload('adRight2')">⬆</button></div>
+        </div>
       </div>
-      <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:8px">
-        <input type="text" id="adRight1" placeholder="unten rechts · Logo 1 (URL)" style="flex:1;min-width:200px">
-        <input type="text" id="adRight2" placeholder="unten rechts · Logo 2 (URL)" style="flex:1;min-width:200px">
-      </div>
-      <div class="hint">Kleine Werbe-/Sponsorenlogos in den unteren Ecken der Court- und Tablet-Ansicht. Leer lassen = ausgeblendet.</div>
+      <div class="hint">Kleine Werbe-/Sponsorenlogos in den unteren Ecken der Court- und Tablet-Ansicht. Bild hochladen (⬆) oder URL einfügen. Leer = ausgeblendet.</div>
     </div>
     <div class="hint">Große Zuschauer-Anzeige mit Logo &amp; Turniername.</div>
     <div id="liveLink" class="courts-links" style="margin-top:10px"></div>
@@ -547,11 +555,38 @@ async function onCourtFn(venueId,no,fn){
 
 // ---- Bild-Uploads -> Data-URL ----
 function readAsDataURL(file){ return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);}); }
+// Bild automatisch auf sinnvolle Maximalgröße herunterskalieren (PNG behält Transparenz, SVG bleibt Vektor)
+function downscaleImage(file, maxDim, quality){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        try{
+          const w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+          const scale=Math.min(1, maxDim/Math.max(w,h||1));
+          const cw=Math.max(1,Math.round(w*scale)), ch=Math.max(1,Math.round(h*scale));
+          const c=document.createElement('canvas'); c.width=cw; c.height=ch;
+          c.getContext('2d').drawImage(img,0,0,cw,ch);
+          const keepAlpha=/png|gif|webp/i.test(file.type||'');
+          resolve(keepAlpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', quality||0.85));
+        }catch(err){ reject(err); }
+      };
+      img.onerror=()=>reject(new Error('Bild konnte nicht gelesen werden'));
+      img.src=r.result;
+    };
+    r.onerror=reject; r.readAsDataURL(file);
+  });
+}
+async function processUpload(file, maxDim, quality){
+  if(/svg/i.test(file.type||'')) return await readAsDataURL(file);   // Vektor unverändert lassen
+  try{ return await downscaleImage(file, maxDim, quality); }
+  catch(e){ return await readAsDataURL(file); }                       // Fallback: Original
+}
 $('logoFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;
-  const d=await readAsDataURL(f); $('logoUrl').value=d; showPreview('logo',d); applyBranding(); toast('Logo geladen (noch speichern!)');});
+  const d=await processUpload(f,320,0.9); $('logoUrl').value=d; showPreview('logo',d); applyBranding(); toast('Logo geladen (noch speichern!)');});
 $('bgFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;
-  if(f.size>2*1024*1024 && !confirm('Das Bild ist größer als 2 MB. Als Datei/URL einzubinden ist besser. Trotzdem einbetten?')) return;
-  const d=await readAsDataURL(f); $('bgUrl').value=d; showPreview('bg',d); applyBranding(); toast('Hintergrund geladen (noch speichern!)');});
+  const d=await processUpload(f,1920,0.82); $('bgUrl').value=d; showPreview('bg',d); applyBranding(); toast('Hintergrund geladen (noch speichern!)');});
 function showPreview(which,src){const p=$(which+'Preview'); if(src){p.src=src;p.style.display='block';}else p.style.display='none';}
 function clearImg(which){ $(which+'Url').value=''; showPreview(which,''); applyBranding(); }
 
@@ -573,11 +608,27 @@ function renderSponsors(){
     </span>`).join('');
 }
 function removeSponsor(i){ SPONSORS.splice(i,1); renderSponsors(); }
+
+// ===== Werbe-Logos (Court/Tablet) mit Upload =====
+let _adTarget=null;
+function adUpload(fieldId){ _adTarget=fieldId; const f=$('adFile'); if(f) f.click(); }
+function adPrev(fieldId, val){ const p=$('adPrev_'+fieldId); if(!p) return; if(val){ p.src=val; p.style.display='inline-block'; } else { p.removeAttribute('src'); p.style.display='none'; } }
+['adLeft1','adLeft2','adRight1','adRight2'].forEach(id=>{
+  const el=$(id); if(el) el.addEventListener('input',()=>adPrev(id, el.value.trim()));
+});
+(function(){ const f=$('adFile'); if(!f) return;
+  f.addEventListener('change', async e=>{
+    const file=e.target.files&&e.target.files[0]; if(!file||!_adTarget) return;
+    try{ const d=await processUpload(file,320,0.9); $(_adTarget).value=d; adPrev(_adTarget, d); toast('Logo geladen (noch speichern!)'); }
+    catch(err){ toast('Fehler: '+err.message); }
+    e.target.value=''; _adTarget=null;
+  });
+})();
 function addSponsorUrl(){ const u=$('sponsorUrl').value.trim(); if(!u) return; SPONSORS.push(u); $('sponsorUrl').value=''; renderSponsors(); }
 $('sponsorFile').addEventListener('change',async e=>{
   const files=[...e.target.files]; e.target.value='';
   for(const f of files){
-    const dataUrl=await new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(f); });
+    const dataUrl=await processUpload(f,400,0.88);
     SPONSORS.push(dataUrl);
   }
   renderSponsors(); toast('Logos hinzugefügt (noch speichern!)');
@@ -812,6 +863,7 @@ async function loadSettings(){
   renderSponsors();
   $('adLeft1').value=(S.adLeft&&S.adLeft[0])||''; $('adLeft2').value=(S.adLeft&&S.adLeft[1])||'';
   $('adRight1').value=(S.adRight&&S.adRight[0])||''; $('adRight2').value=(S.adRight&&S.adRight[1])||'';
+  ['adLeft1','adLeft2','adRight1','adRight2'].forEach(id=>adPrev(id, $(id).value.trim()));
   $('green').value=S.green||'#82F84E'; $('greenHex').value=S.green||'#82F84E';
   $('logoUrl').value=S.logoUrl||''; showPreview('logo',S.logoUrl||'');
   $('bgUrl').value=S.backgroundUrl||''; showPreview('bg',S.backgroundUrl||'');
