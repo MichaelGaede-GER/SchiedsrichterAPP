@@ -19,6 +19,21 @@
   #bar button{background:#222;color:#fff;border:1px solid #444;border-radius:7px;padding:6px 10px;font-size:12px;cursor:pointer}
   #bar button.active{background:var(--blue);border-color:var(--blue)}
   .idle{opacity:.25;font-weight:800;font-size:5vw;color:#0a3d0a}
+  .mo{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;
+    background:rgba(6,10,16,.92);color:#fff;text-align:center;padding:3vh 4vw}
+  .mo-big{font-size:9vw;font-weight:900;letter-spacing:.5vw;color:#ffd54a;text-shadow:0 4px 24px rgba(0,0,0,.6)}
+  .mo-win{font-size:5.5vw;font-weight:900}
+  .mo-score{font-size:4.5vw;font-weight:900;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:1.4vw;justify-content:center;flex-wrap:wrap}
+  .mo-sets{font-size:2.6vw;color:#9fc0ff;font-weight:800}
+  .mo-court{font-size:6vw;font-weight:900;color:#cfe0ff}
+  .mo-next{margin-top:1.2vh;width:min(88vw,1100px);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:1.4vw;padding:1.6vh 2vw}
+  .mo-next-h{font-size:2.2vw;font-weight:900;color:#ffd54a;margin-bottom:1vh;text-transform:uppercase;letter-spacing:.15vw}
+  .mo-next-row{font-size:2.4vw;font-weight:700;padding:.7vh 0;border-top:1px solid rgba(255,255,255,.10);display:flex;gap:1vw;align-items:baseline;justify-content:center;flex-wrap:wrap}
+  .mo-next-row:first-of-type{border-top:0}
+  .mo-t{color:#9fb3cc;font-variant-numeric:tabular-nums}
+  .mo-vs{color:#9fb3cc;font-weight:700}
+  .mo-ev{color:#8fd0ff;font-size:1.8vw;font-weight:700}
   /* Timer-Banner (Aufwärmen / Satzpause / Timeout) */
   .stimer{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:40;display:none;
     align-items:center;gap:16px;background:#111;color:#fff;border-radius:16px;padding:12px 26px;
@@ -152,13 +167,66 @@ function render(){
   setBg();
   const stage=document.getElementById('stage');
   const d=liveState();
-  if(!d){ stage.innerHTML=`<div class="idle">Court ${COURT}</div>`; paintTimer(); return; }
+  // Match beendet -> Match-Over-Anzeige (0-10s), danach Endstatus + nächste Spiele
+  if(d && d.mstatus==='finished'){
+    const at=finishAtOf();
+    const full = (Date.now()-at) >= 10000;
+    stage.innerHTML = viewMatchOver(d, full);
+    document.title='Court '+COURT+' – Match Over';
+    paintTimer(); return;
+  }
+  if(!d){
+    // kein laufendes Match -> Vorschau der kommenden Spiele auf diesem Court
+    stage.innerHTML = viewUpcoming();
+    paintTimer(); return;
+  }
   document.title='Court '+COURT+' – '+VIEW;
   if(VIEW==='psaline') stage.innerHTML=viewPsa(d);
   else if(VIEW==='fullscore') stage.innerHTML=viewFull(d);
   else if(VIEW==='modern') stage.innerHTML=viewModern(d);
   else stage.innerHTML=viewScore(d);
   paintTimer();
+}
+
+// ---- Match-Over / Vorschau (Courtview) ----  (kein „Undo" auf der Courtview!)
+function escS(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+let _finAt=0, _finId=null;
+function finishAtOf(){
+  if(!MATCH){ _finId=null; _finAt=0; return 0; }
+  const s=MATCH.state||{};
+  if(s.status!=='finished'){ if(_finId===MATCH.id){ _finId=null; _finAt=0; } return 0; }
+  if(s.finishedAt) return s.finishedAt;
+  if(_finId!==MATCH.id){ _finId=MATCH.id; _finAt=Date.now(); }   // Fallback: erster Sichtzeitpunkt
+  return _finAt;
+}
+function timeStr(m){ return m.scheduled_time ? (String(m.scheduled_time).slice(0,5)+' ') : ''; }
+function upcomingForCourt(){
+  return ALL.filter(m => m.status==='scheduled' && m.court_no===COURT && (!VENUE || !m.venue_id || m.venue_id===VENUE))
+    .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
+}
+function nextBlock(limit){
+  const up=upcomingForCourt(); if(!up.length) return '';
+  return `<div class="mo-next"><div class="mo-next-h">Nächste Spiele · Court ${COURT}</div>`+
+    up.slice(0,limit||4).map(m=>`<div class="mo-next-row"><span class="mo-t">${escS(timeStr(m))}</span><b>${escS(m.player1_name)}</b> <span class="mo-vs">vs</span> <b>${escS(m.player2_name)}</b>${(m.event||m.draw)?` <span class="mo-ev">${escS(m.event||m.draw)}${m.round?(' · '+escS(m.round)):''}</span>`:''}</div>`).join('')+
+    `</div>`;
+}
+function viewMatchOver(d, full){
+  const win = (d.g1===d.g2) ? '' : (d.g1>d.g2 ? d.p1 : d.p2);
+  const sets = (d.games||[]).map(g=>`${g.p1}-${g.p2}`).join('   ');
+  if(!full){
+    return `<div class="mo"><div class="mo-big">MATCH&nbsp;OVER</div></div>`;
+  }
+  return `<div class="mo">
+    <div class="mo-big">MATCH&nbsp;OVER</div>
+    ${win?`<div class="mo-win">🏆 ${escS(win)}</div>`:''}
+    <div class="mo-score">${d.g1}–${d.g2}${sets?`<span class="mo-sets">${escS(sets)}</span>`:''}</div>
+    ${nextBlock(4)}
+  </div>`;
+}
+function viewUpcoming(){
+  const up=upcomingForCourt();
+  if(!up.length) return `<div class="idle">Court ${COURT}</div>`;
+  return `<div class="mo"><div class="mo-court">Court ${COURT}</div>${nextBlock(6)}</div>`;
 }
 
 // ---- Timer-Anzeige (aus den Spieldaten, lokal heruntergezählt) ----
@@ -284,6 +352,7 @@ Auth.guard('view').then(()=>{
   load();
 });
 setInterval(()=>{ if(VIEW==='fullscore') render(); },30000); // Uhr aktualisieren
+setInterval(()=>{ const s=MATCH&&MATCH.state; if((s&&s.status==='finished') || !MATCH) render(); },1000); // Match-Over-Übergang & Vorschau
 </script>
 </body>
 </html>
