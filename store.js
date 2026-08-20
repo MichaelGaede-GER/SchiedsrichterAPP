@@ -478,6 +478,15 @@ const Store = (() => {
         state: null, result: null, winner: null,
       });
     },
+    // Recovery: Spiel erneut auf einen Court schicken – Spielstand (state) bleibt erhalten
+    async resendToCourt(matchId, courtId, venueId) {
+      const all = await this.listMatches();
+      const busy = all.find(m => m.court_id === courtId && m.status === 'live' && m.id !== matchId);
+      if (busy) throw new Error('Court ' + courtId + ' ist belegt (anderes Spiel läuft).');
+      const patch = { court_id: courtId, status: 'live' };
+      if (venueId) patch.venue_id = venueId;
+      await backend.updateMatch(matchId, patch);   // KEIN state:null -> letzter Spielstand bleibt
+    },
     async confirmResult(matchId) {
       await backend.updateMatch(matchId, { status: 'confirmed', court_id: null });
     },

@@ -136,6 +136,14 @@
   .court.injurypause{border-color:#e5484d;box-shadow:0 0 0 2px rgba(229,72,77,.55) inset;animation:alarmblink 1.3s ease-in-out infinite}
   .badge.injury-badge{background:#4a1113;color:#ff8a8a;border:1px solid #e5484d;font-weight:900;letter-spacing:.4px}
   .injtimer{font-size:24px;font-weight:900;color:#ff8a8a;font-variant-numeric:tabular-nums;letter-spacing:1px}
+  .setscores{margin-top:4px;font-size:13px;font-weight:700;color:#cfe0ff;font-variant-numeric:tabular-nums;letter-spacing:.3px}
+  .recrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 8px;border-bottom:1px solid var(--line,#2a3444)}
+  .recrow.focus{background:rgba(47,107,255,.10);border-radius:8px}
+  .recrow .recinfo{flex:1;min-width:200px}
+  .recselect{background:#0f141c;color:#e7edf5;border:1px solid #2a3444;border-radius:8px;padding:7px 9px;font:inherit}
+  .reclink{flex-basis:100%;margin-top:6px;font-size:12px;color:var(--muted)}
+  .reclink code{background:#0f141c;border:1px solid #2a3444;border-radius:6px;padding:2px 6px}
+  .btn-xs{font-size:12px;padding:3px 9px;border-radius:8px}
   .badge.awaiting-badge{background:#3a2a08;color:#ffb020;border:1px solid #7a5a1f}
   @keyframes alarmblink{0%,100%{background:rgba(229,72,77,.12);border-color:#e5484d;box-shadow:0 0 0 2px rgba(229,72,77,.55) inset}
     50%{background:rgba(229,72,77,.34);border-color:#ff8a8a;box-shadow:0 0 0 3px rgba(229,72,77,.95) inset}}
@@ -250,6 +258,7 @@
       <label class="manage-only" id="autoCourtWrap" style="display:none;align-items:center;gap:6px;color:var(--muted);font-size:13px">
         <input type="checkbox" id="autoCourt"> Courts autom. verteilen</label>
       <button class="btn-ghost btn-sm manage-only" onclick="openAdd()">+ Spiel</button>
+      <button class="btn-ghost btn-sm manage-only" onclick="openRecover()" title="Spiel mit letztem Spielstand erneut an ein Tablet senden">🔁 Wiederherstellen</button>
       <button class="btn-ghost btn-sm manage-only" onclick="seed()">Demo</button>
       <button class="btn-ghost btn-sm manage-only" onclick="clearAll()">Alles löschen</button>
       <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
@@ -314,6 +323,15 @@
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
     <button class="btn-ghost" onclick="addDlg.close()">Abbrechen</button>
     <button class="btn-primary" onclick="saveMatch()">Speichern</button>
+  </div>
+</dialog>
+
+<dialog id="recDlg">
+  <h3>🔁 Spiel wiederherstellen</h3>
+  <p class="hint" style="margin:2px 0 12px">Sende ein laufendes oder begonnenes Spiel erneut an einen Court/ein Tablet. Der <b>letzte gespeicherte Spielstand bleibt erhalten</b> – das Tablet öffnet das Match am letzten Punkt. Nützlich bei geschlossenem Browser, Neustart, Verbindungsausfall oder Tablet-Tausch.</p>
+  <div id="recList"></div>
+  <div style="display:flex;justify-content:flex-end;margin-top:12px">
+    <button class="btn-ghost" onclick="recDlg.close()">Schließen</button>
   </div>
 </dialog>
 
@@ -428,6 +446,20 @@ function upcomingMissing(limit){
     .filter(matchHasMissing);
 }
 function M_result(s){ try{ if(!s||!s.games) return ''; return s.games.map(g=>`${g.p1}-${g.p2}`).join(', '); }catch(e){ return ''; } }
+function setScoresText(s){
+  if(!s) return '';
+  const gs=(s.games||[]).map(g=>`${g.p1}-${g.p2}`);
+  if(s.cur && s.status!=='finished' && ((s.cur.p1||0)||(s.cur.p2||0))) gs.push(`${s.cur.p1}-${s.cur.p2}`);
+  return gs.join('  ·  ');
+}
+function setScoresText(s){
+  if(!s) return '';
+  const done=(s.games||[]).map(g=>`${g.p1}–${g.p2}`);
+  let cur='';
+  if(s.status!=='finished' && s.cur && ((s.cur.p1||0)||(s.cur.p2||0))) cur='('+(s.cur.p1||0)+'–'+(s.cur.p2||0)+')';
+  const all=done.concat(cur?[cur]:[]);
+  return all.join('  ');
+}
 function refreshAlarms(){
   const now=Date.now();
   const awaitingIds=new Set(MATCHES.filter(m=>m.status==='live' && (m.state||{}).status==='finished').map(m=>m.id));
@@ -573,11 +605,13 @@ function courtCard(cid, venueId, fn){
         <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}${sd(live.player1_seed)}</span><span class="sc">${p1}</span></div>
         <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}${sd(live.player2_seed)}</span><span class="sc">${p2}</span></div>
         <div class="meta"><span>${metaLeft}</span>${badge}</div>
+        ${(!inj && setScoresText(s)) ? `<div class="setscores">${setScoresText(s)}</div>` : ''}
         ${fin?autoConfirmLine(live, finAt):''}
         <div class="actions">
           ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
             (fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
-               : `<button class="btn-ghost btn-sm" onclick="unassign('${live.id}')">Vom Court nehmen</button>`)}
+               : `<button class="btn-ghost btn-sm" onclick="unassign('${live.id}')">Vom Court nehmen</button>
+                  <button class="btn-ghost btn-sm" onclick="recover('${live.id}')" title="Erneut an ein Tablet senden (letzter Spielstand)">🔁 Erneut senden</button>`)}
         </div>
       </div>`;
   }
@@ -710,6 +744,62 @@ async function toggleTransfer(id,checked){
 }
 
 function copyText(t){ navigator.clipboard&&navigator.clipboard.writeText(t).then(()=>toast('Kopiert: '+t)); }
+function escH(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// ===== Recovery: Spiel erneut auf einen Court schicken (letzter Spielstand) =====
+function hasProgress(s){ if(!s) return false; if((s.gamesWon1||0)||(s.gamesWon2||0)) return true; if((s.games||[]).length) return true; if(s.cur && ((s.cur.p1||0)||(s.cur.p2||0))) return true; return false; }
+function recoverable(){
+  return MATCHES.filter(m => m.status!=='confirmed' && (m.status==='live' || hasProgress(m.state)))
+    .sort((a,b)=>(a.court_id||0)-(b.court_id||0));
+}
+function recoverCourtOptions(){
+  const opts=[];
+  if(COURT_LAYOUT && COURT_LAYOUT.length){
+    COURT_LAYOUT.forEach(v=> v.courts.forEach(c=> opts.push({no:c.no, venue_id:v.venue_id, vname:v.name})));
+  } else {
+    const list=(COURTS_FALLBACK&&COURTS_FALLBACK.length)?COURTS_FALLBACK:COURTS;
+    list.forEach(n=> opts.push({no:n, venue_id:'', vname:''}));
+  }
+  return opts;
+}
+function renderRecList(focusId){
+  const el=document.getElementById('recList');
+  const ms=recoverable();
+  if(!ms.length){ el.innerHTML='<div class="hint" style="padding:8px">Keine wiederherstellbaren Spiele (nur laufende oder bereits begonnene Spiele).</div>'; return; }
+  const opts=recoverCourtOptions();
+  el.innerHTML=ms.map(m=>{
+    const s=m.state||{};
+    const optHtml=opts.map(o=>`<option value="${o.no}|${o.venue_id}" ${ (m.court_id===o.no && (m.venue_id||'')===(o.venue_id||'')) ? 'selected':'' }>Court ${o.no}${o.vname?(' · '+escH(o.vname)):''}</option>`).join('') || '<option value="">— kein Court definiert —</option>';
+    return `<div class="recrow ${m.id===focusId?'focus':''}">
+      <div class="recinfo">
+        <b>${escH(m.player1_name)} vs ${escH(m.player2_name)}</b>
+        <div class="hint">${m.court_id?('aktuell Court '+m.court_id+' · '):''}Sätze ${(s.gamesWon1||0)}–${(s.gamesWon2||0)}${setScoresText(s)?(' · '+setScoresText(s)):''}</div>
+      </div>
+      <select id="recsel_${m.id}" class="recselect">${optHtml}</select>
+      <button class="btn-green btn-sm" onclick="doRecover('${m.id}')">Senden</button>
+    </div>`;
+  }).join('');
+}
+async function doRecover(id){
+  const sel=document.getElementById('recsel_'+id); if(!sel||!sel.value){ toast('Kein Court gewählt'); return; }
+  const parts=sel.value.split('|'); const court=parseInt(parts[0],10); const venue=parts[1]||'';
+  try{ await Store.resendToCourt(id, court, venue||null); }
+  catch(e){ toast('Fehler: '+e.message); return; }
+  const p=new URLSearchParams(); p.set('court',court);
+  const tid=Store.activeTournament&&Store.activeTournament(); if(tid)p.set('t',tid); if(venue)p.set('loc',venue);
+  const url=location.origin+'/court.html?'+p.toString();
+  toast(`Auf Court ${court} gesendet – Tablet öffnen`);
+  const row=sel.closest('.recrow');
+  if(row && !row.querySelector('.reclink')){
+    const link=document.createElement('div'); link.className='reclink';
+    link.innerHTML=`Court-Link: <code>${escH(url)}</code>
+      <button class="btn-ghost btn-xs" onclick="copyText('${url}')">Kopieren</button>
+      <a class="btn-ghost btn-xs" href="${url}" target="_blank" style="text-decoration:none">Öffnen</a>`;
+    row.appendChild(link);
+  }
+  load();
+}
+function openRecover(){ renderRecList(); const d=document.getElementById('recDlg'); if(d.showModal) d.showModal(); }
+function recover(id){ renderRecList(id); const d=document.getElementById('recDlg'); if(d.showModal) d.showModal(); }
 
 function toggleSel(id){ selectedMatch=selectedMatch===id?null:id; updateSelBar(); render(); }
 function clearSel(){ selectedMatch=null; updateSelBar(); render(); }
