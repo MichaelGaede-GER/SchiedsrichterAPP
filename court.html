@@ -82,6 +82,8 @@
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.96);display:none;align-items:flex-start;justify-content:center;z-index:20;padding:20px;overflow-y:auto}
   .overlay.show{display:flex}
   .card{background:#14181f;border:1px solid #2a3444;border-radius:18px;padding:24px;width:min(560px,94vw);text-align:center;margin:auto}
+  .restcard{background:rgba(20,24,31,.86);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);box-shadow:0 12px 48px rgba(0,0,0,.5)}
+  .overlay.branded{background:rgba(0,0,0,.55)}
   .card h2{margin:0 0 6px;font-size:24px}
   .card p{color:var(--muted);margin:4px 0 18px}
   #doneLogo{max-height:64px;max-width:180px;margin:0 auto 10px;display:none}
@@ -254,12 +256,12 @@
   </div>
 </div></div>
 
-<div id="ovRest" class="overlay"><div class="card">
+<div id="ovRest" class="overlay"><div class="card restcard">
+  <img id="restLogo" class="brandlogo" style="display:none" alt="">
   <h2>Satzpause</h2>
   <div id="restClock" class="timerbig">1:30</div>
   <p id="restInfo"></p>
   <div class="row">
-    <button class="btn btn-gray" onclick="Timer.toggle()">Start / Pause</button>
     <button class="btn btn-green" onclick="startNextGame()">Nächsten Satz starten</button>
   </div>
 </div></div>
@@ -561,7 +563,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v9</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v10</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button id="fsBtn" class="iconbtn" onclick="toggleFull()">⛶ Vollbild</button>
         <button class="iconbtn" onclick="show('ovTimer')">⏱ Timer</button>
@@ -810,6 +812,15 @@ function doRetire(winner){
 
 function startPlay(server){ hide('ovWarmup'); Timer.stop(); M.startMatch(server); afterChange(); }
 function startNextGame(){ hide('ovRest'); Timer.stop(); M.startNextGame(); afterChange(); }
+function showRest(){
+  const ov=document.getElementById('ovRest');
+  const bg=(SETTINGS&&SETTINGS.backgroundUrl)?`, url("${SETTINGS.backgroundUrl}")`:'';
+  ov.style.backgroundImage = `linear-gradient(rgba(4,8,14,.72),rgba(4,8,14,.88))${bg}`;
+  ov.style.backgroundSize='cover'; ov.style.backgroundPosition='center';
+  const lg=document.getElementById('restLogo');
+  if(lg){ if(SETTINGS&&SETTINGS.logoUrl){ lg.src=SETTINGS.logoUrl; lg.style.display='block'; } else lg.style.display='none'; }
+  show('ovRest');
+}
 
 function afterChange(){
   render(); sync();
@@ -818,7 +829,7 @@ function afterChange(){
     setText('restInfo', `Satz ${M.games.length} beendet: ${last.p1}-${last.p2}. `
       +`Aufschlag Satz ${M.games.length+1}: ${M._nextServer===1?match.player1_name:match.player2_name}`);
     Timer.start((SETTINGS&&SETTINGS.restSeconds!=null)?SETTINGS.restSeconds:120,'Satzpause', null,
-      {announce:true, msg15:'15 Sekunden – Spieler bitte auf den Court!'}); show('ovRest');
+      {announce:true, msg15:'15 Sekunden – Spieler bitte auf den Court!'}); showRest();
   }
   if(M.status==='finished'){ onFinished(true); }
 }
@@ -877,7 +888,7 @@ function applyFrom(record, state, isNew){
     injuryStartTs = injuryActive ? state.injury.startedAt : null;
     render(); hideAll();
     if(M.status==='warmup'){ showWarmup(); }
-    else if(M.status==='between'){ show('ovRest'); }
+    else if(M.status==='between'){ showRest(); }
     else if(M.status==='finished'){ finishedAtTs = (state&&state.finishedAt) || finishedAtTs || Date.now(); onFinished(false); }   // als beendet geladen -> sofort gesperrt
     else if(injuryActive){ setText('injTitle','Verletzungspause'); document.getElementById('injRun').style.display='';
       document.getElementById('injAsk').style.display='none'; document.getElementById('injRetire').style.display='none'; show('ovInjury'); }
