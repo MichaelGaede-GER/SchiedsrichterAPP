@@ -450,6 +450,14 @@ function breakInfo(s){
   if(!isBreak) return null;
   return { endsAt:(t&&t.endsAt)||0, sec:(t&&t.sec)||0 };
 }
+const brkAnchor = {};
+function breakEndsAt(id, bi){
+  if(bi.endsAt && bi.endsAt > Date.now()+500) return bi.endsAt;         // vom Court (absoluter Zeitpunkt)
+  const sec=Math.max(0, bi.sec||0);
+  const a=brkAnchor[id];
+  if(!a || a.sec!==sec){ brkAnchor[id]={ sec, endsAt: Date.now()+sec*1000 }; }  // lokal ankern (neu bei geändertem sec)
+  return brkAnchor[id].endsAt;
+}
 function upcomingMissing(limit){
   return MATCHES.filter(m=>m.status==='scheduled')
     .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0)).slice(0,limit||20)
@@ -474,6 +482,8 @@ function refreshAlarms(){
   const now=Date.now();
   const awaitingIds=new Set(MATCHES.filter(m=>m.status==='live' && (m.state||{}).status==='finished').map(m=>m.id));
   awaitingSince.forEach((_,id)=>{ if(!awaitingIds.has(id)) awaitingSince.delete(id); });
+  const breakIds=new Set(MATCHES.filter(m=>m.status==='live' && breakInfo(m.state)).map(m=>m.id));
+  Object.keys(brkAnchor).forEach(id=>{ if(!breakIds.has(id)) delete brkAnchor[id]; });
   checkMissing();
   document.querySelectorAll('.court.awaiting').forEach(el=>{
     const at=parseInt(el.dataset.finAt||'0',10);
@@ -610,7 +620,8 @@ function courtCard(cid, venueId, fn){
     const injSpan = inj ? (inj.mode==='up'
         ? `<span class="injtimer" data-since="${inj.since}">00:00</span>`
         : `<span class="injtimer" data-endsat="${inj.endsAt||0}">${fmtMMSS(inj.sec||0)}</span>`) : '';
-    const brkSpan = brk ? `<span class="brktimer" data-endsat="${brk.endsAt||0}">${fmtMMSS(brk.endsAt?Math.ceil((brk.endsAt-Date.now())/1000):(brk.sec||0))}</span>` : '';
+    const brkEnds = brk ? breakEndsAt(live.id, brk) : 0;
+    const brkSpan = brk ? `<span class="brktimer" data-endsat="${brkEnds}">${fmtMMSS(Math.max(0,Math.ceil((brkEnds-Date.now())/1000)))}</span>` : '';
     const metaLeft = fin ? `Ergebnis ${live.result||M_result(s)||''}`
                    : inj ? injSpan
                    : brk ? brkSpan
