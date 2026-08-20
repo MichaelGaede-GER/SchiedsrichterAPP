@@ -68,7 +68,7 @@
   .hlb{background:#3a2f0c;color:#ffd54a;border:1px solid #6b551f;border-radius:999px;padding:2px 12px;font-size:clamp(13px,1.7vh,18px);font-weight:800;white-space:nowrap}
   .card.hl{border-color:#ffd54a;box-shadow:0 0 0 1px #ffd54a inset}
   /* Sponsorenleiste */
-  .sponsorbar{flex:0 0 auto;height:12vh;min-height:74px;background:#0d1420;border-top:1px solid var(--line);
+  .sponsorbar{flex:0 0 auto;height:12vh;min-height:74px;background:transparent;
     display:flex;align-items:center;overflow:hidden}
   .strack{display:flex;align-items:center;gap:26px;padding:0 26px;margin:0 auto;white-space:nowrap}
   .strack.marquee{animation:marq 30s linear infinite;margin:0}
@@ -262,6 +262,8 @@ function renderSponsors(){
   const list=(SET&&Array.isArray(SET.sponsors))?SET.sponsors:[];
   if(!list.length){ bar.style.display='none'; bar.innerHTML=''; return; }
   bar.style.display='flex';
+  bar.style.backgroundImage = (SET&&SET.backgroundUrl)?`url("${SET.backgroundUrl}")`:'none';
+  bar.style.backgroundSize='cover'; bar.style.backgroundPosition='center'; bar.style.backgroundAttachment='fixed';
   const chips=list.map(src=>`<span class="schip"><img src="${src}" alt=""></span>`).join('');
   bar.innerHTML=`<div class="strack">${chips}</div>`;
   requestAnimationFrame(()=>{

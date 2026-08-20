@@ -49,6 +49,10 @@
   .netstat{font-size:14px;font-weight:800;padding:5px 11px;border-radius:999px;white-space:nowrap;background:#0d1b12;border:1px solid #1f6b46;color:#7CFF9B}
   .netstat.off{background:#2a0f12;border-color:#7a2a2f;color:#ff6b6b}
   .ver{font-size:12px;font-weight:800;color:#6b7a90;padding:6px 8px}
+  .adcorner{position:fixed;bottom:12px;display:flex;gap:10px;z-index:6;align-items:flex-end}
+  .adcorner.adL{left:16px}
+  .adcorner.adR{right:16px}
+  .adcorner img{height:52px;max-width:150px;object-fit:contain;background:#fff;border-radius:10px;padding:5px 8px;box-shadow:0 2px 10px rgba(0,0,0,.4)}
   .resumebar{background:linear-gradient(90deg,#10243a,#0f1724);border:1px solid #2f6bff;border-radius:16px;
     padding:16px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
   .resumebar .info{flex:1;min-width:200px}
@@ -62,15 +66,16 @@
     <img id="logo" class="logo" alt="" style="display:none">
     <h1>🎾 Schiedsrichter</h1>
     <span class="badge" id="userBadge"></span>
-    <span class="ver">v10</span>
+    <span class="ver">v11</span>
     <span id="netStatus" class="netstat on">🟢 Online</span>
     <span class="sp"></span>
     <select class="lang" data-lang-select onchange="I18N.set(this.value)" title="Sprache / Language">
       <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
-    <button class="btn" id="fsBtn" onclick="toggleFull()">⛶ Vollbild</button>
     <button class="btn" onclick="Auth.signOut&&Auth.signOut()">Abmelden</button>
   </header>
   <main>
+    <div id="adL" class="adcorner adL"></div>
+    <div id="adR" class="adcorner adR"></div>
     <div id="resumeBar"></div>
     <div id="step1">
       <h2 class="step-title">1 · Turnier auswählen</h2>
@@ -129,10 +134,19 @@ function resumeLast(){ const last=loadLast(); if(!last) return;
 
 async function renderHeader(){
   try{ const s=await Store.getSettings(); const l=document.getElementById('logo');
-    if(s&&s.logoUrl){ l.src=s.logoUrl; l.style.display='block'; } }catch(e){}
+    if(s&&s.logoUrl){ l.src=s.logoUrl; l.style.display='block'; }
+    renderAds(s); }catch(e){}
   if(typeof Auth!=='undefined' && Auth.user && Auth.user()){
     document.getElementById('userBadge').textContent='👤 '+(Auth.user().email||'');
   }
+}
+function renderAds(s){
+  const L=document.getElementById('adL'), R=document.getElementById('adR');
+  const left=(s&&Array.isArray(s.adLeft))?s.adLeft:[];
+  const right=(s&&Array.isArray(s.adRight))?s.adRight:[];
+  const img=u=>`<img src="${u}" alt="" onerror="this.style.display='none'">`;
+  if(L) L.innerHTML=left.slice(0,2).map(img).join('');
+  if(R) R.innerHTML=right.slice(0,2).map(img).join('');
 }
 async function loadTournaments(){
   const g=document.getElementById('tourGrid');

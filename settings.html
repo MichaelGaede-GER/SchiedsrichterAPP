@@ -301,6 +301,18 @@
       <div id="sponsorList" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px"></div>
       <div class="hint">Die Logos erscheinen als Sponsorenleiste am unteren Rand der Live-Anzeige.</div>
     </div>
+    <div class="field">
+      <label>Werbe-Logos auf Schiedsrichter-Tablet &amp; Court (je 2 unten links / rechts)</label>
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        <input type="text" id="adLeft1"  placeholder="unten links · Logo 1 (URL)"  style="flex:1;min-width:200px">
+        <input type="text" id="adLeft2"  placeholder="unten links · Logo 2 (URL)"  style="flex:1;min-width:200px">
+      </div>
+      <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:8px">
+        <input type="text" id="adRight1" placeholder="unten rechts · Logo 1 (URL)" style="flex:1;min-width:200px">
+        <input type="text" id="adRight2" placeholder="unten rechts · Logo 2 (URL)" style="flex:1;min-width:200px">
+      </div>
+      <div class="hint">Kleine Werbe-/Sponsorenlogos in den unteren Ecken der Court- und Tablet-Ansicht. Leer lassen = ausgeblendet.</div>
+    </div>
     <div class="hint">Große Zuschauer-Anzeige mit Logo &amp; Turniername.</div>
     <div id="liveLink" class="courts-links" style="margin-top:10px"></div>
   </div>
@@ -798,6 +810,8 @@ async function loadSettings(){
   $('hlLabels').value=(Array.isArray(S.highlightLabels)?S.highlightLabels:['Halbfinale','Finale']).join('\n');
   SPONSORS=Array.isArray(S.sponsors)?S.sponsors.slice():[];
   renderSponsors();
+  $('adLeft1').value=(S.adLeft&&S.adLeft[0])||''; $('adLeft2').value=(S.adLeft&&S.adLeft[1])||'';
+  $('adRight1').value=(S.adRight&&S.adRight[0])||''; $('adRight2').value=(S.adRight&&S.adRight[1])||'';
   $('green').value=S.green||'#82F84E'; $('greenHex').value=S.green||'#82F84E';
   $('logoUrl').value=S.logoUrl||''; showPreview('logo',S.logoUrl||'');
   $('bgUrl').value=S.backgroundUrl||''; showPreview('bg',S.backgroundUrl||'');
@@ -823,6 +837,8 @@ async function saveAll(){
     liveMode:$('liveMode').value||'rotate',
     highlightLabels:($('hlLabels').value||'').split('\n').map(s=>s.trim()).filter(Boolean),
     sponsors:SPONSORS,
+    adLeft:[$('adLeft1').value.trim(),$('adLeft2').value.trim()].filter(Boolean),
+    adRight:[$('adRight1').value.trim(),$('adRight2').value.trim()].filter(Boolean),
     green:$('green').value,
     logoUrl:$('logoUrl').value.trim(),
     backgroundUrl:$('bgUrl').value.trim(),

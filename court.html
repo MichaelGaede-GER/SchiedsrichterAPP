@@ -17,6 +17,10 @@
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overscroll-behavior:none;
     font-family:"Segoe UI",system-ui,sans-serif;overflow:hidden}
   .bgfx{position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;opacity:.16}
+  .adcorner{position:fixed;bottom:8px;display:flex;gap:8px;z-index:6;pointer-events:none;align-items:flex-end}
+  .adcorner.adL{left:12px}
+  .adcorner.adR{right:12px}
+  .adcorner img{height:42px;max-width:120px;object-fit:contain;background:#fff;border-radius:8px;padding:4px 6px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
   .wrap,.idle,.overlay{position:relative;z-index:1}
   .brandlogo{display:block;margin:0 auto 14px;max-height:110px;max-width:260px;border-radius:10px}
   .wrap{display:flex;flex-direction:column;height:100%}
@@ -28,7 +32,7 @@
   .clock{font-variant-numeric:tabular-nums;font-size:13px;color:#cfe0ff;background:#151515;border:1px solid #2a2a2a;border-radius:8px;padding:6px 10px}
 
   .names{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;padding:10px 14px;flex:0 0 auto}
-  .namepill{display:flex;align-items:center;gap:10px;border-radius:999px;padding:10px 16px;font-weight:800;font-size:clamp(16px,3.4vw,26px);min-width:0}
+  .namepill{display:flex;align-items:center;gap:10px;border-radius:999px;padding:10px 16px;font-weight:800;font-size:clamp(16px,3.4vw,26px);min-width:0;width:100%}
   .seedc{color:#8fd0ff;font-weight:800;font-size:.7em;opacity:.95}
   .hlc{color:#ffd54a;font-weight:800}
   .netstat{font-size:15px;font-weight:800;padding:5px 12px;border-radius:999px;white-space:nowrap;
@@ -39,9 +43,11 @@
   .cflag{display:inline-block;background-size:cover;background-position:center;border-radius:3px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.2)}
   .namepill .cflag{width:40px;height:27px}
   .qcard .cflag{width:24px;height:16px;vertical-align:middle;margin-right:3px}
-  .namepill .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .namepill .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0}
+  .p1 .namepill .txt{text-align:left}
+  .p2 .namepill .txt{text-align:right}
   .p1 .namepill{background:var(--pill);color:#06172e;justify-content:flex-start}
-  .p2 .namepill{background:var(--pill);color:#06172e;justify-content:flex-end;flex-direction:row-reverse}
+  .p2 .namepill{background:var(--pill);color:#06172e;justify-content:flex-end}
   .center-top{display:flex;flex-direction:column;align-items:center;gap:6px}
   .rbtn{width:64px;height:64px;border-radius:50%;background:#e9edf3;color:#111;border:none;font-weight:900;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 
@@ -81,7 +87,10 @@
 
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.96);display:none;align-items:flex-start;justify-content:center;z-index:20;padding:20px;overflow-y:auto}
   .overlay.show{display:flex}
-  .card{background:#14181f;border:1px solid #2a3444;border-radius:18px;padding:24px;width:min(560px,94vw);text-align:center;margin:auto}
+  .card{background:#14181f;border:1px solid #2a3444;border-radius:18px;padding:24px;width:min(560px,94vw);text-align:center;margin:20px auto;position:relative}
+  .ovclose{position:absolute;top:10px;right:12px;width:44px;height:44px;border-radius:12px;border:1px solid #3a4658;
+    background:#1d2531;color:#cfe0ff;font-size:22px;font-weight:900;cursor:pointer;z-index:2}
+  .ovclose:active{background:#2a3444}
   .restcard{background:rgba(20,24,31,.86);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);box-shadow:0 12px 48px rgba(0,0,0,.5)}
   .overlay.branded{background:rgba(0,0,0,.55)}
   .card h2{margin:0 0 6px;font-size:24px}
@@ -139,6 +148,8 @@
 </head>
 <body>
 <div class="bgfx" id="bgfx"></div>
+<div class="adcorner adL" id="adL"></div>
+<div class="adcorner adR" id="adR"></div>
 <select data-lang-select onchange="I18N.set(this.value)" title="Sprache / Language"
   style="position:fixed;top:8px;right:8px;z-index:50;background:rgba(20,28,40,.85);color:#e7edf5;border:1px solid #2a3444;border-radius:9px;padding:6px 8px;font:inherit;cursor:pointer">
   <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
@@ -185,6 +196,7 @@
 </div></div>
 
 <div id="ovPenalty" class="overlay"><div class="card" style="width:min(600px,96vw)">
+  <button class="ovclose" onclick="hide('ovPenalty')" aria-label="Schließen">✕</button>
   <h2 id="penTitle">Spieler</h2>
 
   <h3 class="sech">Verhaltensstrafe wegen</h3>
@@ -379,11 +391,20 @@ let ALLMATCHES=[]; let match=null; let M=null; let syncing=false; let SETTINGS=n
 function hide(id){ document.getElementById(id).classList.remove('show'); }
 function show(id){ document.getElementById(id).classList.add('show'); }
 function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
+function renderAds(){
+  const L=document.getElementById('adL'), R=document.getElementById('adR');
+  const left=(SETTINGS&&Array.isArray(SETTINGS.adLeft))?SETTINGS.adLeft:[];
+  const right=(SETTINGS&&Array.isArray(SETTINGS.adRight))?SETTINGS.adRight:[];
+  const img=u=>`<img src="${u}" alt="" onerror="this.style.display='none'">`;
+  if(L) L.innerHTML=left.slice(0,2).map(img).join('');
+  if(R) R.innerHTML=right.slice(0,2).map(img).join('');
+}
 
 function applyBranding(){
   const bg=document.getElementById('bgfx');
   bg.style.backgroundImage=(SETTINGS&&SETTINGS.backgroundUrl)?`url("${SETTINGS.backgroundUrl}")`:'none';
   bg.style.opacity=(SETTINGS&&SETTINGS.bgOpacity!=null)?SETTINGS.bgOpacity:0.5;
+  renderAds();
 }
 function toggleSetView(){ showSetScores=!showSetScores; if(match&&M) render(); }
 function showConfirmOverlay(){
@@ -563,16 +584,14 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v10</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v11</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
-        <button id="fsBtn" class="iconbtn" onclick="toggleFull()">⛶ Vollbild</button>
-        <button class="iconbtn" onclick="show('ovTimer')">⏱ Timer</button>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
     <div class="names">
       <div class="p1"><div class="namepill" id="pill1">${flagImg(c1,r1)}<span class="txt">${p1}${match.player1_seed?` <span class="seedc">[${match.player1_seed}]</span>`:''}</span></div>${conductBadges(1)}</div>
       <div class="center-top"><button class="rbtn" onclick="show('ovLet')">LET</button></div>
-      <div class="p2"><div class="namepill" id="pill2">${flagImg(c2,r2)}<span class="txt">${p2}${match.player2_seed?` <span class="seedc">[${match.player2_seed}]</span>`:''}</span></div>${conductBadges(2)}</div>
+      <div class="p2"><div class="namepill" id="pill2"><span class="txt">${p2}${match.player2_seed?` <span class="seedc">[${match.player2_seed}]</span>`:''}</span>${flagImg(c2,r2)}</div>${conductBadges(2)}</div>
     </div>
     <div class="board">
       <div class="panel left" onclick="point(1)">
