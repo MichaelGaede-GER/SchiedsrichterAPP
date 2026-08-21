@@ -474,6 +474,55 @@ async function sendCourtMessage(id){
   if(text==null) return; const t=String(text).trim(); if(!t) return;
   const st=Object.assign({}, m.state||{}); st.message={ text:t, at:Date.now() };
   try{ await Store.updateMatch(id,{state:st}); toast('Nachricht gesendet'); }catch(e){ toast('Fehler: '+e.message); } }
+// ===== Schiedsrichter-Protokoll (Formular) =====
+function CONDUCT_LABEL(t){ return ({warning:'Verwarnung',stroke:'Strafpunkt',game:'Strafsatz',match:'Strafspiel'})[t]||t; }
+function refFormHtml(m){
+  const s=m.state||{};
+  const cat=[m.event||m.draw,m.round,m.match_no].filter(Boolean).map(escH).join(' · ');
+  const gamesRows=(s.games||[]).map((g,i)=>`<tr><td>Satz ${i+1}</td><td>${g.p1} – ${g.p2}</td><td>${g.winner?(g.winner===1?escH(m.player1_name):escH(m.player2_name)):''}${g.conduct?' <i>(Strafsatz)</i>':''}</td></tr>`).join('') || '<tr><td colspan="3" style="color:#888">—</td></tr>';
+  const gw1=s.gamesWon1||0, gw2=s.gamesWon2||0;
+  const conductRows=[];
+  [['p1',m.player1_name],['p2',m.player2_name]].forEach(([pk,nm])=>((s.conduct&&s.conduct[pk])||[]).forEach(c=>conductRows.push(`<tr><td>${escH(nm)}</td><td>${escH(CONDUCT_LABEL(c.type))}</td><td>${escH(c.reason||'')}</td></tr>`)));
+  const decRows=(s.decisions||[]).map(d=>{ const who=d.player?(d.player===1?escH(m.player1_name):escH(m.player2_name)):'—'; const tm=d.t?new Date(d.t).toLocaleTimeString():''; return `<tr><td>${tm}</td><td>Satz ${d.game||''} · ${d.g1||0}-${d.g2||0} · ${d.p1||0}-${d.p2||0}</td><td>${escH(d.type||'')}</td><td>${who}</td><td>${escH(d.detail||'')}</td></tr>`; }).join('') || '<tr><td colspan="5" style="color:#888">Keine dokumentierten Entscheidungen</td></tr>';
+  const winner = (gw1>gw2)?m.player1_name:(gw2>gw1)?m.player2_name:'';
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Schiedsrichter-Protokoll</title>
+<style>
+ body{font-family:Arial,Helvetica,sans-serif;color:#111;max-width:820px;margin:24px auto;padding:0 18px}
+ h1{font-size:22px;margin:0 0 2px} .sub{color:#555;margin:0 0 16px}
+ table{width:100%;border-collapse:collapse;margin:8px 0 18px} th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;font-size:14px}
+ th{background:#f0f2f5} h2{font-size:15px;border-bottom:2px solid #222;padding-bottom:3px;margin:18px 0 6px}
+ .meta td{border:none;padding:2px 6px} .meta td:first-child{color:#555;width:150px}
+ .res{font-size:20px;font-weight:800} .sig{margin-top:34px;display:flex;gap:40px} .sig div{flex:1;border-top:1px solid #333;padding-top:6px;color:#555;font-size:13px}
+ .noprint{margin:16px 0} button{padding:8px 16px;font-size:14px;cursor:pointer}
+ @media print{.noprint{display:none}}
+</style></head><body>
+ <div class="noprint"><button onclick="window.print()">🖨 Drucken / Als PDF speichern</button></div>
+ <h1>Schiedsrichter-Protokoll</h1>
+ <p class="sub">${cat||''}</p>
+ <table class="meta">
+   <tr><td>Spieler 1</td><td><b>${escH(m.player1_name)}</b> ${m.player1_country?('('+escH(m.player1_country)+')'):''}</td></tr>
+   <tr><td>Spieler 2</td><td><b>${escH(m.player2_name)}</b> ${m.player2_country?('('+escH(m.player2_country)+')'):''}</td></tr>
+   <tr><td>Court</td><td>${escH(String(m.court_id||m.court_no||''))}</td></tr>
+   <tr><td>Modus</td><td>Best of ${m.best_of||''}</td></tr>
+   <tr><td>Schiedsrichter</td><td>${escH(m.referee||'')}</td></tr>
+   <tr><td>Datum</td><td>${new Date().toLocaleString()}</td></tr>
+ </table>
+ <h2>Ergebnis</h2>
+ <p class="res">${gw1} – ${gw2}${winner?(' · Sieger: '+escH(winner)):''}</p>
+ <table><thead><tr><th>Satz</th><th>Punkte</th><th>Satzsieger</th></tr></thead><tbody>${gamesRows}</tbody></table>
+ <h2>Verhaltensstrafen</h2>
+ <table><thead><tr><th>Spieler</th><th>Strafe</th><th>Grund</th></tr></thead><tbody>${conductRows.join('')||'<tr><td colspan=3 style="color:#888">Keine</td></tr>'}</tbody></table>
+ <h2>Dokumentierte Entscheidungen</h2>
+ <table><thead><tr><th>Zeit</th><th>Stand</th><th>Typ</th><th>Spieler</th><th>Detail</th></tr></thead><tbody>${decRows}</tbody></table>
+ <div class="sig"><div>Unterschrift Schiedsrichter</div><div>Unterschrift Turnierleitung</div></div>
+</body></html>`;
+}
+function generateRefForm(id){
+  const m=MATCHES.find(x=>x.id===id); if(!m){ toast('Spiel nicht gefunden'); return; }
+  const w=window.open('','_blank');
+  if(!w){ toast('Popup blockiert – bitte Popups erlauben'); return; }
+  w.document.write(refFormHtml(m)); w.document.close();
+}
 async function delMatch(id){
   const m=MATCHES.find(x=>x.id===id); if(!m) return;
   if(m.status==='live'){ toast('Läuft gerade – erst „Vom Court nehmen“.'); return; }
@@ -666,7 +715,8 @@ function courtCard(cid, venueId, fn){
         ${fin?autoConfirmLine(live, finAt):''}
         <div class="actions">
           ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
-            (fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
+            (fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>
+                   <button class="btn-ghost btn-sm" onclick="generateRefForm('${live.id}')" title="Schiedsrichter-Protokoll erzeugen">📋 Formular</button>`
                : `<button class="btn-ghost btn-sm" onclick="unassign('${live.id}')">Vom Court nehmen</button>
                   <button class="btn-ghost btn-sm" onclick="recover('${live.id}')" title="Erneut an ein Tablet senden (letzter Spielstand)">🔁 Erneut senden</button>
                   <button class="btn-ghost btn-sm" onclick="sendCourtMessage('${live.id}')" title="Nachricht an das Tablet senden">✉ Nachricht</button>`)}

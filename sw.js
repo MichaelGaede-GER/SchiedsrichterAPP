@@ -3,7 +3,7 @@
    - Supabase-Bibliothek (CDN): cache-first, damit der Store auch offline im
      Supabase-Modus startet (wichtig für spätere Synchronisierung).
    - Übrige Cross-Origin-Anfragen (z.B. Flaggen): direkt aus dem Netz. */
-const CACHE = 'squash-schiri-v9';
+const CACHE = 'squash-schiri-v10';
 const CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
 const SAME = [
   'tablet.html', 'court.html', 'config.js', 'store.js', 'auth.js', 'i18n.js', 'ranking.js',

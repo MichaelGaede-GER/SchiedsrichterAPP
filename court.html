@@ -214,10 +214,33 @@
   <div class="row"><button class="btn btn-gray" onclick="hide('ovLet')">Abbrechen</button></div>
 </div></div>
 
+<div id="ovDecide" class="overlay"><div class="card" style="width:min(680px,96vw)">
+  <h2 id="decTitle">Entscheidung des Schiedsrichters</h2>
+  <div id="decChoose" style="display:none">
+    <p style="font-weight:800;margin:6px 0 12px">Wer hat gefragt / verursacht?</p>
+    <div class="row">
+      <button id="decChP1" class="choice blue" onclick="pickDecidePlayer(1)">Spieler 1</button>
+      <button id="decChP2" class="choice red" onclick="pickDecidePlayer(2)">Spieler 2</button>
+    </div>
+  </div>
+  <div id="decIcons">
+    <p id="decSub" style="color:var(--muted);margin:2px 0 14px">Aus Sicht des Spielers, der gefragt hat.</p>
+    <div class="decrow">
+      <button class="decbtn" onclick="decAct('nolet')"><span class="dic">👇</span><span class="dlab">No Let</span><span class="dsub" id="decNoLet">Punkt → Gegner</span></button>
+      <button class="decbtn" onclick="decAct('let')"><span class="dic">☝️</span><span class="dlab">Yes Let</span><span class="dsub">Wiederholung</span></button>
+      <button class="decbtn" onclick="decAct('stroke')"><span class="dic">✊</span><span class="dlab">Stroke</span><span class="dsub" id="decStroke">Punkt → Spieler</span></button>
+      <button class="decbtn" onclick="decAct('conduct')"><span class="dic">⚖️</span><span class="dlab">Entscheidung</span><span class="dsub">Strafen</span></button>
+      <button class="decbtn" onclick="decAct('injury')"><span class="dic">🚑</span><span class="dlab">Verletzung</span><span class="dsub">Pause / Physio</span></button>
+    </div>
+  </div>
+  <div class="row"><button class="btn btn-gray" onclick="hide('ovDecide')">Abbrechen</button></div>
+</div></div>
+
 <div id="ovPenalty" class="overlay"><div class="card" style="width:min(600px,96vw)">
   <button class="ovclose" onclick="hide('ovPenalty')" aria-label="Schließen">✕</button>
   <h2 id="penTitle">Spieler</h2>
 
+  <div id="penConduct">
   <h3 class="sech">Verhaltensstrafe wegen</h3>
   <select id="penReason" class="selbig">
     <option>Schlägermissbrauch</option>
@@ -234,12 +257,15 @@
     <button class="choice" id="penWarn"  onclick="applyConduct('warning')">Verwarnung</button>
     <button class="choice" id="penStroke"onclick="applyConduct('stroke')">Strafpunkt → Gegner</button>
     <button class="choice" id="penGame"  onclick="applyConduct('game')">Strafsatz → Gegner</button>
+    <button class="choice" id="penMatch" onclick="applyConduct('match')">Strafspiel → Gegner</button>
+  </div>
   </div>
 
+  <div id="penInjury">
   <h3 class="sech">Verletzungstimer</h3>
   <div class="row inj">
     <button class="choice" onclick="startInjury(180,'Selbst verschuldet')">Selbst verschuldet · 3:00</button>
-    <button class="choice" onclick="startInjury(300,'Blutung – selbst verschuldet')">Blutung (selbst) · 5:00</button>
+    <button class="choice" onclick="startInjury(300,'Blutende Wunde')">Blutende Wunde · 5:00</button>
   </div>
   <div class="row inj">
     <button class="choice" onclick="startInjury(900,'Vom Gegner mitverschuldet')">Gegner mitverschuldet · 15:00</button>
@@ -258,6 +284,7 @@
     </div>
   </div>
 
+  </div>
   <div class="row"><button class="btn btn-gray" onclick="hide('ovPenalty')">Schließen</button></div>
 </div></div>
 
@@ -367,7 +394,7 @@ class SquashMatch {
     this.p1=cfg.p1; this.p2=cfg.p2; this.reset(); this.shirt1=cfg.shirt1||null; this.shirt2=cfg.shirt2||null; }
   reset(){ this.games=[]; this.g={p1:0,p2:0}; this.server=null; this.side='R';
     this.status='warmup'; this.matchWinner=null; this._nextServer=null; this.history=[];
-    this.conduct={p1:[],p2:[]}; this.ending=null; }
+    this.conduct={p1:[],p2:[]}; this.ending=null; this.decisions=[]; }
   gamesNeeded(){ return Math.floor(this.bestOf/2)+1; }
   gamesWon(p){ return this.games.filter(x=>x.winner===p).length; }
   _snap(){ this.history.push(JSON.stringify({games:this.games,g:this.g,server:this.server,
@@ -399,6 +426,10 @@ class SquashMatch {
     this.games.push({p1:this.g.p1,p2:this.g.p2,winner:opp,conduct:true});
     if(this.gamesWon(opp)>=this.gamesNeeded()){ this.status='finished'; this.matchWinner=opp; }
     else { this.status='between'; this._nextServer=opp; } return true; }
+  conductMatch(player,reason){ this._snap(); const opp=player===1?2:1;
+    this.conduct['p'+player].push({reason,type:'match'}); this.status='finished'; this.matchWinner=opp; this.ending='conduct'; return true; }
+  logDecision(type,player,detail){ try{ this.decisions.push({ t:Date.now(), type, player:player||null, detail:detail||null,
+      game:(this.games?this.games.length+1:1), g1:this.gamesWon(1), g2:this.gamesWon(2), p1:this.g.p1, p2:this.g.p2 }); }catch(e){} }
 
   // ---- Aufgabe / Walkover ----
   retire(winner,kind){ this._snap(); this.status='finished'; this.matchWinner=winner; this.ending=kind||'retired'; }
@@ -409,11 +440,12 @@ class SquashMatch {
     gamesWon1:this.gamesWon(1), gamesWon2:this.gamesWon(2),
     cur:{p1:this.g.p1,p2:this.g.p2,server:this.server,side:this.side},
     matchWinner:this.matchWinner, _nextServer:this._nextServer, history:this.history,
-    conduct:this.conduct, ending:this.ending, shirt1:this.shirt1, shirt2:this.shirt2 }; }
+    conduct:this.conduct, ending:this.ending, shirt1:this.shirt1, shirt2:this.shirt2, decisions:this.decisions }; }
   hydrate(s){ if(!s) return; this.status=s.status; this.bestOf=s.bestOf; this.games=s.games||[];
     this.g={p1:s.cur.p1,p2:s.cur.p2}; this.server=s.cur.server; this.side=s.cur.side;
     this.matchWinner=s.matchWinner; this._nextServer=s._nextServer; this.history=s.history||[];
     this.conduct=s.conduct||{p1:[],p2:[]}; this.ending=s.ending||null;
+    this.decisions=s.decisions||[];
     this.shirt1=s.shirt1||null; this.shirt2=s.shirt2||null; }
 }
 
@@ -621,14 +653,14 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v13</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v14</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
     <div class="names">
-      <div class="p1"><div class="namepill" id="pill1">${flagImg(c1,r1)}<span class="txt">${p1}${match.player1_seed?` <span class="seedc">[${match.player1_seed}]</span>`:''}</span></div>${conductBadges(1)}</div>
+      <div class="p1"><div class="namepill" id="pill1" onclick="event.stopPropagation();openDecide(1)">${flagImg(c1,r1)}<span class="txt">${p1}${match.player1_seed?` <span class="seedc">[${match.player1_seed}]</span>`:''}</span></div>${conductBadges(1)}</div>
       <div class="center-top"><button class="rbtn" onclick="show('ovLet')">LET</button></div>
-      <div class="p2"><div class="namepill" id="pill2"><span class="txt">${p2}${match.player2_seed?` <span class="seedc">[${match.player2_seed}]</span>`:''}</span>${flagImg(c2,r2)}</div>${conductBadges(2)}</div>
+      <div class="p2"><div class="namepill" id="pill2" onclick="event.stopPropagation();openDecide(2)"><span class="txt">${p2}${match.player2_seed?` <span class="seedc">[${match.player2_seed}]</span>`:''}</span>${flagImg(c2,r2)}</div>${conductBadges(2)}</div>
     </div>
     <div class="board">
       <div class="panel left" onclick="point(1)">
@@ -665,8 +697,7 @@ function render(){
     if(a) a.innerHTML='Punkt&nbsp;→ '+p1; if(b) b.innerHTML='Punkt&nbsp;→ '+p2;
     const w1=document.getElementById('warmP1'),w2=document.getElementById('warmP2');
     if(w1) w1.textContent=p1; if(w2) w2.textContent=p2;
-    attachLongPress(document.getElementById('pill1'),()=>openPenalty(1));
-    attachLongPress(document.getElementById('pill2'),()=>openPenalty(2));
+    // Namensklick öffnet das Entscheidungsmenü (onclick am Pill); Long-Press nicht mehr nötig
   },0);
   Timer._paint();
 }
@@ -759,6 +790,31 @@ function applyShirt(color){
 }
 function undo(){ if(finishLocked) return; if(!M) return; if(M.undo()){ refConfirmed=false; hide('ovConfirm'); hide('ovDone'); hide('ovRest'); afterChange(); } }
 function letDecide(what){ hide('ovLet'); if(what==='let') return; point(what); }
+// ===== Entscheidungsmenü (Namensklick) – aus Sicht des fragenden Spielers =====
+let decidePlayer=1;
+function openDecide(player){
+  if(!match||!M||M.status!=='playing') return;
+  decidePlayer=player;
+  const nm=player===1?match.player1_name:match.player2_name;
+  const opp=player===1?match.player2_name:match.player1_name;
+  setText('decTitle','Entscheidung des Schiedsrichters für '+nm);
+  const nl=document.getElementById('decNoLet'); if(nl) nl.textContent='Punkt → '+opp;
+  const stk=document.getElementById('decStroke'); if(stk) stk.textContent='Punkt → '+nm;
+  const ch=document.getElementById('decChoose'); if(ch) ch.style.display='none';
+  const ic=document.getElementById('decIcons'); if(ic) ic.style.display='block';
+  show('ovDecide');
+}
+function decAct(what){
+  if(!M||M.status!=='playing'){ hide('ovDecide'); return; }
+  const p=decidePlayer, opp=p===1?2:1;
+  const nm=p===1?match.player1_name:match.player2_name;
+  const oppNm=p===1?match.player2_name:match.player1_name;
+  if(what==='nolet'){ hide('ovDecide'); point(opp); M.logDecision('No Let',p,'Punkt → '+oppNm); sync(); toast('No Let – Punkt → '+oppNm); }
+  else if(what==='let'){ hide('ovDecide'); M.logDecision('Let',p,'Ballwechsel wiederholt'); sync(); toast('Let – Wiederholung'); }
+  else if(what==='stroke'){ hide('ovDecide'); point(p); M.logDecision('Stroke',p,'Punkt → '+nm); sync(); toast('Stroke – Punkt → '+nm); }
+  else if(what==='conduct'){ hide('ovDecide'); openPenalty(p,'conduct'); }
+  else if(what==='injury'){ hide('ovDecide'); openPenalty(p,'injury'); }
+}
 function toggleFull(){
   const el=document.documentElement;
   if(!document.fullscreenElement){
@@ -793,10 +849,14 @@ requestWake();
 const CONDUCT_ORDER=['warning','stroke','game','match'];
 function nextConduct(list){ let hi=-1; (list||[]).forEach(e=>{const i=CONDUCT_ORDER.indexOf(e.type); if(i>hi)hi=i;}); return CONDUCT_ORDER[Math.min(hi+1,3)]; }
 let penaltyPlayer=1;
-function openPenalty(player){
+function openPenalty(player, mode){
   if(!match||!M) return;
   penaltyPlayer=player;
   setText('penTitle', player===1?match.player1_name:match.player2_name);
+  const pc=document.getElementById('penConduct'), pi=document.getElementById('penInjury');
+  if(pc&&pi){ if(mode==='conduct'){ pc.style.display='block'; pi.style.display='none'; }
+    else if(mode==='injury'){ pc.style.display='none'; pi.style.display='block'; }
+    else { pc.style.display='block'; pi.style.display='block'; } }
   const list=(M.conduct&&M.conduct['p'+player])||[];
   const label={warning:'Verwarnung',stroke:'Strafpunkt',game:'Strafsatz',match:'Strafsatz (Matchende)'};
   const done=list.map(e=>label[e.type]).join(', ')||'noch keine Strafe';
@@ -816,9 +876,11 @@ function applyConduct(type){
   if(type==='warning') M.conductWarn(penaltyPlayer,reason);
   else if(type==='stroke') ok=M.conductStroke(penaltyPlayer,reason);
   else if(type==='game') ok=M.conductGame(penaltyPlayer,reason);
-  if(ok===false){ toast('Straf­punkt/-satz nur im laufenden Satz möglich'); return; }
+  else if(type==='match') ok=M.conductMatch(penaltyPlayer,reason);
+  if(ok===false){ toast('Nur im laufenden Satz möglich'); return; }
+  const t={warning:'Verwarnung',stroke:'Strafpunkt → Gegner',game:'Strafsatz → Gegner',match:'Strafspiel → Gegner'}[type];
+  M.logDecision(t, penaltyPlayer, reason);
   hide('ovPenalty');
-  const t={warning:'Verwarnung',stroke:'Strafpunkt an Gegner',game:'Strafsatz an Gegner'}[type];
   toast(t+' · '+reason);
   afterChange();
 }
@@ -1061,7 +1123,7 @@ function onWarmPhaseEnd(){
     startWarmPhase(next);      // letzte Phase automatisch starten
   }
 }
-function hideAll(){ ['ovWarmup','ovLet','ovTimer','ovRest','ovConfirm','ovDone','ovPenalty','ovInjury','ovShirt'].forEach(hide); }
+function hideAll(){ ['ovWarmup','ovLet','ovDecide','ovTimer','ovRest','ovConfirm','ovDone','ovPenalty','ovInjury','ovShirt'].forEach(hide); }
 
 async function refreshSettings(){ SETTINGS=await Store.getSettings(); applyBranding(); loadCourt(); }
 Auth.guard('score').then(()=>{
