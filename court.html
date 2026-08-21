@@ -277,14 +277,23 @@
   </div>
 
   <div id="penInjury">
-  <h3 class="sech">Verletzungstimer</h3>
+  <h3 class="sech">Verletzungs-/Auszeit-Timer</h3>
   <div class="row inj">
+    <button class="choice" onclick="startInjury(120,'Defekte Ausrüstung')">Defekte Ausrüstung · 2:00</button>
     <button class="choice" onclick="startInjury(180,'Selbst verschuldet')">Selbst verschuldet · 3:00</button>
-    <button class="choice" onclick="startInjury(300,'Blutende Wunde')">Blutende Wunde · 5:00</button>
   </div>
   <div class="row inj">
-    <button class="choice" onclick="startInjury(900,'Vom Gegner mitverschuldet')">Gegner mitverschuldet · 15:00</button>
-    <button class="choice" onclick="startInjury(900,'Vom Gegner verschuldet')">Gegner verschuldet · 15:00</button>
+    <button class="choice" onclick="startInjury(900,'Beide / Contributed')">Beide / Contributed · 15:00</button>
+    <button class="choice" onclick="startInjury(900,'Gegner (unbeabsichtigt)')">Gegner unbeabsichtigt · 15:00</button>
+  </div>
+  <h3 class="sech" style="margin-top:14px">Blutverletzung</h3>
+  <div class="row inj">
+    <button class="choice" onclick="startInjury(300,'Blutend – selbst')">Blutend – selbst · 5:00</button>
+    <button class="choice" onclick="startInjuryOpen('Blutend – beide (angemessen)')">Blutend – beide · angemessen</button>
+  </div>
+  <div class="row inj">
+    <button class="choice" onclick="startInjuryOpen('Blutend – Gegner (angemessen)')">Blutend – Gegner · angemessen</button>
+    <button class="choice" onclick="startInjuryOpen('Angemessene Zeit')">Angemessene Zeit (Referee)</button>
   </div>
 
   <div id="physioBox" style="display:none;margin-top:6px">
@@ -680,7 +689,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v18</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v20</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
@@ -952,10 +961,29 @@ function startInjury(sec,label){
   Timer.start(sec,'Verletzung', injuryAskNow);
   sync();                       // Status sofort an die Turnierleitung
 }
-function endInjury(){ injuryActive=false; injuryStartTs=null; sync(); }   // zurück auf normalen Status
+function endInjury(){ injuryActive=false; injuryStartTs=null; clearInterval(_injUpIv); _injUpIv=null; sync(); }   // zurück auf normalen Status
+let _injUpIv=null;
+function startInjuryOpen(label){   // „angemessene Zeit“ – zählt hoch, Referee beendet
+  injuryPlayer=penaltyPlayer;
+  injuryActive=true; injuryStartTs=Date.now();
+  hide('ovPenalty');
+  setText('injTitle','Verletzungspause – angemessene Zeit');
+  setText('injSub', (injuryPlayer===1?match.player1_name:match.player2_name)+' – '+label);
+  document.getElementById('injRun').style.display='';
+  document.getElementById('injAsk').style.display='none';
+  document.getElementById('injRetire').style.display='none';
+  const _ipb=document.getElementById('injPhysioBox'); if(_ipb) _ipb.style.display=(SETTINGS&&SETTINGS.physioEnabled)?'block':'none';
+  show('ovInjury');
+  Timer.stop();
+  clearInterval(_injUpIv);
+  const paint=()=>{ const s=Math.max(0,Math.floor((Date.now()-injuryStartTs)/1000)); setText('injClock', Math.floor(s/60)+':'+String(s%60).padStart(2,'0')); };
+  paint(); _injUpIv=setInterval(paint,1000);
+  sync();                       // Status sofort an die Turnierleitung
+}
 function injuryCancelEarly(){ Timer.stop(); endInjury(); hide('ovInjury'); toast('Verletzungspause abgebrochen – weiter'); }
 function injuryAskNow(){
   Timer.stop();
+  clearInterval(_injUpIv); _injUpIv=null;
   document.getElementById('injRun').style.display='none';
   document.getElementById('injRetire').style.display='none';
   const _ipb=document.getElementById('injPhysioBox'); if(_ipb) _ipb.style.display='none';
@@ -974,7 +1002,7 @@ function injuryContinue(canPlay){
     `<button class="choice" onclick="doRetire(${injuryPlayer})">${injuryPlayer===1?n1:n2} gewinnt</button>`;
 }
 function doRetire(winner){
-  injuryActive=false; injuryStartTs=null;
+  injuryActive=false; injuryStartTs=null; clearInterval(_injUpIv); _injUpIv=null;
   M.retire(winner,'retired');
   hide('ovInjury');
   afterChange();
@@ -1137,6 +1165,7 @@ function startWarmPhase(idx){
   document.getElementById('warmPhaseLabel').classList.remove('big');
   setText('warmPhaseLabel', p.label);
   const isFinal=(idx===phases.length-1);
+  if(isFinal && idx>0){ bigBanner('Aufwärmen beendet – 1 Minute bis Matchbeginn', 3000); setTimeout(hideBigBanner, 3000); }
   Timer.start(p.sec, p.label, onWarmPhaseEnd,
     {announce:true, msg15: isFinal?'15 Sekunden – Spieler bitte auf den Court!':'noch 15 Sekunden'});
 }
