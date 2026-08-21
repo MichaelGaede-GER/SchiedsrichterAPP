@@ -62,6 +62,11 @@
     font-weight:900;font-size:clamp(24px,4vh,40px);line-height:1;box-shadow:0 0 0 4px rgba(255,255,255,.15);cursor:pointer}
   .panel.left .serve{left:16px}.panel.right .serve{right:16px}
   .pshirt{position:absolute;bottom:12px;cursor:pointer;z-index:4;line-height:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55))}
+  .ebtn{position:absolute;bottom:14px;width:clamp(48px,7.5vh,66px);height:clamp(48px,7.5vh,66px);border-radius:50%;
+    background:#fff;color:#0b0b0b;font-weight:900;font-size:clamp(22px,3.6vh,30px);border:none;cursor:pointer;z-index:5;
+    display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.55)}
+  .ebtn:active{background:#e2e2e2}
+  .panel.left .ebtn{left:clamp(78px,13vh,108px)} .panel.right .ebtn{right:clamp(78px,13vh,108px)}
   .panel.left .pshirt{left:14px}.panel.right .pshirt{right:14px}
   #warmPhaseLabel.big{font-size:clamp(40px,8vh,96px);color:#ffd54a;font-weight:900;letter-spacing:1px}
   .swatch{width:56px;height:56px;border-radius:50%;border:3px solid #ffffff22;cursor:pointer}
@@ -114,6 +119,15 @@
   .undocd.locked{color:#9fb3cc}
   .row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:12px}
   .choice{flex:1;min-width:150px;padding:18px;border-radius:14px;border:2px solid #2a3444;background:#1b2130;color:#fff;font-weight:800;font-size:18px;cursor:pointer}
+  .decrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin:12px 0 4px}
+  .decbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    background:#171d27;border:2px solid #2a3444;border-radius:18px;padding:26px 16px;min-height:172px;color:#fff;cursor:pointer;transition:background .1s}
+  .decbtn:active{background:#243040}
+  .decbtn .dic{font-size:56px;line-height:1}
+  .decbtn .dlab{display:block;font-size:23px;font-weight:900;letter-spacing:.3px}
+  .decbtn .dsub{display:block;font-size:15px;color:#9fb3cc;font-weight:700}
+  .decbtn.nolet{border-color:#e5484d} .decbtn.let{border-color:#3f7bd6}
+  .decbtn.stroke{border-color:#2fbf71} .decbtn.conduct{border-color:#ffb020} .decbtn.injury{border-color:#e5484d}
   .choice.blue{border-color:var(--blue)}.choice.red{border-color:var(--red)}
   .choice.small{padding:12px;font-size:15px}
   .sech{font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:20px 0 8px;text-align:left}
@@ -226,11 +240,11 @@
   <div id="decIcons">
     <p id="decSub" style="color:var(--muted);margin:2px 0 14px">Aus Sicht des Spielers, der gefragt hat.</p>
     <div class="decrow">
-      <button class="decbtn" onclick="decAct('nolet')"><span class="dic">👇</span><span class="dlab">No Let</span><span class="dsub" id="decNoLet">Punkt → Gegner</span></button>
-      <button class="decbtn" onclick="decAct('let')"><span class="dic">☝️</span><span class="dlab">Yes Let</span><span class="dsub">Wiederholung</span></button>
-      <button class="decbtn" onclick="decAct('stroke')"><span class="dic">✊</span><span class="dlab">Stroke</span><span class="dsub" id="decStroke">Punkt → Spieler</span></button>
-      <button class="decbtn" onclick="decAct('conduct')"><span class="dic">⚖️</span><span class="dlab">Entscheidung</span><span class="dsub">Strafen</span></button>
-      <button class="decbtn" onclick="decAct('injury')"><span class="dic">🚑</span><span class="dlab">Verletzung</span><span class="dsub">Pause / Physio</span></button>
+      <button class="decbtn nolet" onclick="decAct('nolet')"><span class="dic">👇</span><span class="dlab">No Let</span><span class="dsub" id="decNoLet">Punkt → Gegner</span></button>
+      <button class="decbtn let" onclick="decAct('let')"><span class="dic">☝️</span><span class="dlab">Yes Let</span><span class="dsub">Wiederholung</span></button>
+      <button class="decbtn stroke" onclick="decAct('stroke')"><span class="dic">✊</span><span class="dlab">Stroke</span><span class="dsub" id="decStroke">Punkt → Spieler</span></button>
+      <button class="decbtn conduct" onclick="decAct('conduct')"><span class="dic">⚖️</span><span class="dlab">Entscheidung</span><span class="dsub">Strafen</span></button>
+      <button class="decbtn injury" onclick="decAct('injury')"><span class="dic">🚑</span><span class="dlab">Verletzung</span><span class="dsub">Pause / Physio</span></button>
     </div>
   </div>
   <div class="row"><button class="btn btn-gray" onclick="hide('ovDecide')">Abbrechen</button></div>
@@ -296,6 +310,17 @@
     <button class="btn btn-gray" onclick="Timer.toggle()">Start / Pause</button>
     <button class="btn btn-gray" onclick="injuryCancelEarly()">Abbrechen (weiterspielen)</button>
     <button class="btn btn-blue" onclick="injuryAskNow()">Zeit vorbei →</button>
+  </div>
+  <div id="injPhysioBox" style="display:none;margin-top:16px">
+    <div style="font-size:13px;font-weight:900;letter-spacing:.6px;color:#ff8a8a;text-transform:uppercase;margin:6px 0 8px">⚠️ Physio zum Court anfordern</div>
+    <div class="row inj">
+      <button class="choice" onclick="requestPhysioDuringInjury('Blutende Wunde')">Blutende Wunde</button>
+      <button class="choice" onclick="requestPhysioDuringInjury('Umgeknickt')">Umgeknickt</button>
+    </div>
+    <div class="row inj">
+      <button class="choice" onclick="requestPhysioDuringInjury('Krämpfe')">Krämpfe</button>
+      <button class="choice" onclick="requestPhysioDuringInjury('Sonstiges')">Sonstiges</button>
+    </div>
   </div>
   <div id="injAsk" style="display:none">
     <p style="font-size:22px;font-weight:800;color:#fff;margin:8px 0 6px"><span id="injAskName"></span> – weiterspielen?</p>
@@ -648,19 +673,20 @@ function render(){
   const gb1=s.status==='playing'?(s.matchBall(1)?'match':(s.gameBall(1)?'game':'')):'';
   const gb2=s.status==='playing'?(s.matchBall(2)?'match':(s.gameBall(2)?'game':'')):'';
   const sideLabel=d=>d==='R'?'Rechts':'Links';
+  const decLetter=(typeof I18N!=='undefined' && I18N.get && I18N.get()==='en')?'D':'E';
   app.innerHTML=`
   <div class="wrap">
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v14</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v16</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
     <div class="names">
-      <div class="p1"><div class="namepill" id="pill1" onclick="event.stopPropagation();openDecide(1)">${flagImg(c1,r1)}<span class="txt">${p1}${match.player1_seed?` <span class="seedc">[${match.player1_seed}]</span>`:''}</span></div>${conductBadges(1)}</div>
+      <div class="p1"><div class="namepill" id="pill1" onclick="event.stopPropagation()">${flagImg(c1,r1)}<span class="txt">${p1}${match.player1_seed?` <span class="seedc">[${match.player1_seed}]</span>`:''}</span></div>${conductBadges(1)}</div>
       <div class="center-top"><button class="rbtn" onclick="show('ovLet')">LET</button></div>
-      <div class="p2"><div class="namepill" id="pill2" onclick="event.stopPropagation();openDecide(2)"><span class="txt">${p2}${match.player2_seed?` <span class="seedc">[${match.player2_seed}]</span>`:''}</span>${flagImg(c2,r2)}</div>${conductBadges(2)}</div>
+      <div class="p2"><div class="namepill" id="pill2" onclick="event.stopPropagation()"><span class="txt">${p2}${match.player2_seed?` <span class="seedc">[${match.player2_seed}]</span>`:''}</span>${flagImg(c2,r2)}</div>${conductBadges(2)}</div>
     </div>
     <div class="board">
       <div class="panel left" onclick="point(1)">
@@ -668,6 +694,7 @@ function render(){
         ${gb1?`<div class="gameball ${gb1==='match'?'gb-match':'gb-game'}">${gb1==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p1}</div>
         <div class="pshirt" onclick="event.stopPropagation();pickShirt(1)" title="Shirt-Farbe Spieler 1">${shirtSVG(M.shirt1)}</div>
+        <button class="ebtn" onclick="event.stopPropagation();openDecide(1)" title="Entscheidung">${decLetter}</button>
       </div>
       <div class="mid">
         <button class="midbtn mid-undo" onclick="undo()">↶</button><div class="mid-label">Undo</div>
@@ -678,6 +705,7 @@ function render(){
         ${gb2?`<div class="gameball ${gb2==='match'?'gb-match':'gb-game'}">${gb2==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p2}</div>
         <div class="pshirt" onclick="event.stopPropagation();pickShirt(2)" title="Shirt-Farbe Spieler 2">${shirtSVG(M.shirt2)}</div>
+        <button class="ebtn" onclick="event.stopPropagation();openDecide(2)" title="Entscheidung">${decLetter}</button>
       </div>
     </div>
     <div class="foot">
@@ -893,6 +921,10 @@ function requestPhysio(reason){
   PHYSIO={ reason:reason, at:Date.now(), player:(typeof penaltyPlayer!=='undefined'?penaltyPlayer:null) };
   sync(); hide('ovPenalty'); toast('⚠️ Physio angefordert: '+reason);
 }
+function requestPhysioDuringInjury(reason){   // während laufender Verletzungspause -> Overlay bleibt offen
+  PHYSIO={ reason:reason, at:Date.now(), player:(typeof injuryPlayer!=='undefined'?injuryPlayer:null) };
+  sync(); toast('⚠️ Physio angefordert: '+reason);
+}
 function cancelPhysio(){ PHYSIO=null; sync(); }
 // ---- Nachricht der Turnierleitung ----
 let LEADMSG=null, _lastMsgShown=0;
@@ -914,6 +946,7 @@ function startInjury(sec,label){
   document.getElementById('injRun').style.display='';
   document.getElementById('injAsk').style.display='none';
   document.getElementById('injRetire').style.display='none';
+  const _ipb=document.getElementById('injPhysioBox'); if(_ipb) _ipb.style.display=(SETTINGS&&SETTINGS.physioEnabled)?'block':'none';
   show('ovInjury');
   Timer.start(sec,'Verletzung', injuryAskNow);
   sync();                       // Status sofort an die Turnierleitung
@@ -924,6 +957,7 @@ function injuryAskNow(){
   Timer.stop();
   document.getElementById('injRun').style.display='none';
   document.getElementById('injRetire').style.display='none';
+  const _ipb=document.getElementById('injPhysioBox'); if(_ipb) _ipb.style.display='none';
   document.getElementById('injAsk').style.display='';
   setText('injAskName', injuryPlayer===1?match.player1_name:match.player2_name);
   show('ovInjury');
