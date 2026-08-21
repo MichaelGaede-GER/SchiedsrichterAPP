@@ -92,6 +92,13 @@
     background:#1d2531;color:#cfe0ff;font-size:22px;font-weight:900;cursor:pointer;z-index:2}
   .ovclose:active{background:#2a3444}
   .restcard{background:rgba(20,24,31,.86);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);box-shadow:0 12px 48px rgba(0,0,0,.5)}
+  .warminfo{margin-top:24px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
+  .warminfo .wi-top{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;font-size:clamp(18px,3vh,26px);font-weight:900}
+  .warminfo .wi-t{background:#0f1724;border:1px solid #2a3444;border-radius:8px;padding:2px 10px;color:#cfe0ff;font-variant-numeric:tabular-nums}
+  .warminfo .wi-p{display:inline-flex;align-items:center;gap:8px}
+  .warminfo .wi-vs{color:#9fb3cc;font-weight:800;font-size:.8em}
+  .warminfo .wi-cat{margin-top:6px;color:#8fd0ff;font-weight:800;font-size:clamp(14px,2vh,18px)}
+  .warminfo .wi-ref{margin-top:2px;color:#9fb3cc;font-weight:700;font-size:clamp(13px,1.8vh,16px)}
   .overlay.branded{background:rgba(0,0,0,.55)}
   .card h2{margin:0 0 6px;font-size:24px}
   .card p{color:var(--muted);margin:4px 0 18px}
@@ -167,11 +174,23 @@
     <button class="btn btn-gray" onclick="Timer.toggle()">Start / Pause</button>
     <button class="btn btn-gray" onclick="Timer.reset('warmup')">Reset</button>
   </div>
-  <p style="margin-top:22px">Wer schlägt zuerst auf?</p>
-  <div class="row">
-    <button id="warmP1" class="choice blue" onclick="startPlay(1)">Spieler 1</button>
-    <button id="warmP2" class="choice red" onclick="startPlay(2)">Spieler 2</button>
+  <div id="warmStartRow" class="row" style="margin-top:22px">
+    <button class="btn btn-green" style="min-width:260px;font-size:21px" onclick="askServer()">▶ Start Match</button>
   </div>
+  <div id="warmServeRow" style="display:none;margin-top:22px">
+    <p style="margin:0 0 10px;font-weight:800">Wer hat Aufschlag?</p>
+    <div class="row">
+      <button id="warmP1" class="choice blue" onclick="startPlay(1)">Spieler 1</button>
+      <button id="warmP2" class="choice red" onclick="startPlay(2)">Spieler 2</button>
+    </div>
+  </div>
+  <div id="warmInfo" class="warminfo" style="display:none"></div>
+</div></div>
+
+<div id="ovMsg" class="overlay"><div class="card" style="width:min(560px,96vw)">
+  <h2>✉️ Nachricht der Turnierleitung</h2>
+  <div id="msgText" style="font-size:22px;font-weight:800;margin:16px 0;white-space:pre-wrap;line-height:1.35"></div>
+  <div class="row"><button class="btn btn-green" style="min-width:220px" onclick="ackLeadMsg()">Bestätigen</button></div>
 </div></div>
 
 <div id="ovShirt" class="overlay"><div class="card">
@@ -403,6 +422,7 @@ let ALLMATCHES=[]; let match=null; let M=null; let syncing=false; let SETTINGS=n
 function hide(id){ document.getElementById(id).classList.remove('show'); }
 function show(id){ document.getElementById(id).classList.add('show'); }
 function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
+function escC(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function renderAds(){
   const L=document.getElementById('adL'), R=document.getElementById('adR');
   const left=(SETTINGS&&Array.isArray(SETTINGS.adLeft))?SETTINGS.adLeft:[];
@@ -562,6 +582,7 @@ function buildLocal(){       // aktuellen Stand lokal festhalten (überlebt Offl
   st.matchStartedAt = matchStartedAtTs || (OFF&&OFF.state&&OFF.state.matchStartedAt) || null; // Spielzeit
   st.battery = BATTERY;                                                                        // Akkustand des Tablets
   st.physio = PHYSIO;                                                                          // Physio-Anforderung
+  st.message = LEADMSG;                                                                         // Nachricht der Turnierleitung (bis bestätigt)
   OFF = { matchId:match.id, record:recordSnapshot(match), state:st,
     finished:(M.status==='finished'?{result:M.resultString(),winner:M.matchWinner,score_text:M.setScores(),ending:M.ending||null}:null),
     rev:((OFF&&OFF.rev)||0)+1, savedAt:Date.now(), pending:true };
@@ -600,7 +621,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v12</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v13</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
@@ -811,6 +832,10 @@ function requestPhysio(reason){
   sync(); hide('ovPenalty'); toast('⚠️ Physio angefordert: '+reason);
 }
 function cancelPhysio(){ PHYSIO=null; sync(); }
+// ---- Nachricht der Turnierleitung ----
+let LEADMSG=null, _lastMsgShown=0;
+function showLeadMsg(text){ setText('msgText', text); show('ovMsg'); }
+function ackLeadMsg(){ LEADMSG=null; hide('ovMsg'); sync(); toast('Bestätigt'); }
 function initBattery(){
   if(!navigator.getBattery) return;
   navigator.getBattery().then(b=>{
@@ -912,6 +937,10 @@ async function loadCourt(){
 
   // Physio von der Turnierleitung bestätigt -> lokale Anforderung löschen
   if(live.state && live.state.physio && live.state.physio.ack && PHYSIO){ PHYSIO=null; toast('✔ Physio bestätigt'); }
+  // Neue Nachricht der Turnierleitung -> anzeigen (bis der Schiedsrichter bestätigt)
+  const _im = live.state && live.state.message;
+  if(_im && _im.at && _im.at!==_lastMsgShown){ _lastMsgShown=_im.at; LEADMSG={text:_im.text, at:_im.at}; showLeadMsg(_im.text); }
+  else if(!_im && LEADMSG){ LEADMSG=null; }
 
   // KONFLIKT: lokaler (noch nicht gepushter) Stand ist gleich weit oder weiter -> lokal behalten
   if(OFF && OFF.matchId===live.id && OFF.pending && progress(OFF.state) >= progress(live.state)){
@@ -967,9 +996,32 @@ function showWarmup(){
   const lg=document.getElementById('warmLogo');
   if(lg){ if(SETTINGS&&SETTINGS.logoUrl){ lg.src=SETTINGS.logoUrl; lg.style.display='block'; } else lg.style.display='none'; }
   setText('warmTitle','Nächstes Spiel auf Court '+COURT);
+  const b1=document.getElementById('warmP1'), b2=document.getElementById('warmP2');
+  if(b1) b1.textContent=match?match.player1_name:'Spieler 1';
+  if(b2) b2.textContent=match?match.player2_name:'Spieler 2';
+  const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='flex';
+  const qr=document.getElementById('warmServeRow'); if(qr) qr.style.display='none';
+  const wi=document.getElementById('warmInfo');
+  if(wi){
+    if(match){
+      const t=match.scheduled_time?String(match.scheduled_time).slice(0,5):'';
+      const cat=[match.event||match.draw, match.round, match.match_no].filter(Boolean).join(' · ');
+      wi.innerHTML=`<div class="wi-top">${t?`<span class="wi-t">${t}</span>`:''}
+          <span class="wi-p">${flagImg(match.player1_country,match.player1_region)} ${escC(match.player1_name)}</span>
+          <span class="wi-vs">vs</span>
+          <span class="wi-p">${flagImg(match.player2_country,match.player2_region)} ${escC(match.player2_name)}</span></div>
+        ${cat?`<div class="wi-cat">${escC(cat)}</div>`:''}
+        ${match.referee?`<div class="wi-ref">Schiri: ${escC(match.referee)}</div>`:''}`;
+      wi.style.display='block';
+    } else wi.style.display='none';
+  }
   document.getElementById('warmPhaseLabel').classList.remove('big');
   primeWarmPhase();            // Phase 1 bereit (pausiert) – Schiri startet
   show('ovWarmup');
+}
+function askServer(){
+  const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='none';
+  const qr=document.getElementById('warmServeRow'); if(qr) qr.style.display='block';
 }
 function primeWarmPhase(){
   const phases=warmPhaseList();

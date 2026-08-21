@@ -144,6 +144,7 @@
   .physioalert{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:8px 12px;border-radius:10px;
     background:#4a1113;border:1px solid #e5484d;color:#ff8a8a;font-weight:900;animation:alarmblink 1s ease-in-out infinite}
   .physioalert .btn-sm{margin-left:auto}
+  .msgpending{margin:0 0 8px;padding:6px 12px;border-radius:10px;background:#0e2340;border:1px solid #3f7bd6;color:#8fd0ff;font-weight:800;font-size:13px}
   .setscores{margin-top:4px;font-size:13px;font-weight:700;color:#cfe0ff;font-variant-numeric:tabular-nums;letter-spacing:.3px}
   .recrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 8px;border-bottom:1px solid var(--line,#2a3444)}
   .recrow.focus{background:rgba(47,107,255,.10);border-radius:8px}
@@ -267,7 +268,6 @@
         <input type="checkbox" id="autoCourt"> Courts autom. verteilen</label>
       <button class="btn-ghost btn-sm manage-only" onclick="openAdd()">+ Spiel</button>
       <button class="btn-ghost btn-sm manage-only" onclick="openRecover()" title="Spiel mit letztem Spielstand erneut an ein Tablet senden">🔁 Wiederherstellen</button>
-      <button class="btn-ghost btn-sm manage-only" onclick="seed()">Demo</button>
       <button class="btn-ghost btn-sm manage-only" onclick="clearAll()">Alles löschen</button>
       <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
     </div>
@@ -468,6 +468,18 @@ function physAlert(m,s){ const p=(s&&s.physio&&!s.physio.ack)?s.physio:null; if(
 async function ackPhysio(id){ const m=MATCHES.find(x=>x.id===id); if(!m||!m.state||!m.state.physio) return;
   const st=Object.assign({}, m.state); st.physio=Object.assign({}, st.physio,{ack:true,ackAt:Date.now()});
   try{ await Store.updateMatch(id,{state:st}); toast('Physio erledigt'); }catch(e){ toast('Fehler: '+e.message); } }
+async function sendCourtMessage(id){
+  const m=MATCHES.find(x=>x.id===id); if(!m) return;
+  const text=prompt('Nachricht an das Tablet (Court '+(m.court_id||m.court_no||'')+'):');
+  if(text==null) return; const t=String(text).trim(); if(!t) return;
+  const st=Object.assign({}, m.state||{}); st.message={ text:t, at:Date.now() };
+  try{ await Store.updateMatch(id,{state:st}); toast('Nachricht gesendet'); }catch(e){ toast('Fehler: '+e.message); } }
+async function delMatch(id){
+  const m=MATCHES.find(x=>x.id===id); if(!m) return;
+  if(m.status==='live'){ toast('Läuft gerade – erst „Vom Court nehmen“.'); return; }
+  if(!confirm('Spiel wirklich löschen?\n\n'+(m.player1_name||'')+' vs '+(m.player2_name||'')+'\n'+((m.event||m.draw||'')+' '+(m.round||'')))) return;
+  try{ await Store.deleteMatch(id); toast('Spiel gelöscht'); load(); }catch(e){ toast('Fehler: '+e.message); }
+}
 function breakEndsAt(id, bi){
   if(bi.endsAt && bi.endsAt > Date.now()+500) return bi.endsAt;         // vom Court (absoluter Zeitpunkt)
   const sec=Math.max(0, bi.sec||0);
@@ -646,6 +658,7 @@ function courtCard(cid, venueId, fn){
     div.innerHTML=`<div class="cnum">COURT ${cid}${tag}${hlBadge(live)}${batBadge(s.battery)}${durBadge(s)}</div>
       <div class="live">
         ${physAlert(live,s)}
+        ${(s.message)?`<div class="msgpending">✉ Nachricht gesendet – wartet auf Bestätigung</div>`:''}
         <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}${sd(live.player1_seed)}</span><span class="sc">${p1}</span></div>
         <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}${sd(live.player2_seed)}</span><span class="sc">${p2}</span></div>
         <div class="meta"><span>${metaLeft}</span>${badge}</div>
@@ -655,7 +668,8 @@ function courtCard(cid, venueId, fn){
           ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
             (fin? `<button class="btn-green btn-sm" onclick="confirmR('${live.id}')">Bestätigen &amp; zurückholen</button>`
                : `<button class="btn-ghost btn-sm" onclick="unassign('${live.id}')">Vom Court nehmen</button>
-                  <button class="btn-ghost btn-sm" onclick="recover('${live.id}')" title="Erneut an ein Tablet senden (letzter Spielstand)">🔁 Erneut senden</button>`)}
+                  <button class="btn-ghost btn-sm" onclick="recover('${live.id}')" title="Erneut an ein Tablet senden (letzter Spielstand)">🔁 Erneut senden</button>
+                  <button class="btn-ghost btn-sm" onclick="sendCourtMessage('${live.id}')" title="Nachricht an das Tablet senden">✉ Nachricht</button>`)}
         </div>
       </div>`;
   }
@@ -694,7 +708,7 @@ function renderSched(){
         '<span style="color:var(--muted)">Entweder ist die Datenbank leer (dann importieren) – oder die Row-Level-Security blockiert das Lesen. '+
         'Führe <b>supabase-schema.sql</b> erneut aus (Abschnitt 5 legt die Lese-Policy an).</span></div>';
     } else {
-      el.innerHTML='<div class="emptyrow">Keine offenen Ansetzungen. „⬆ XLSX importieren“ oder „Demo“.</div>';
+      el.innerHTML='<div class="emptyrow">Keine offenen Ansetzungen. Über „⬆ XLSX importieren“ oder „+ Spiel“ anlegen.</div>';
     }
     return;
   }
@@ -713,6 +727,7 @@ function renderSched(){
             `<span style="display:inline-flex;gap:6px">
                <button class="editbtn hlbtn ${m.highlight?'on':''}" title="Als Highlight markieren" onclick="event.stopPropagation();openHighlight('${m.id}')">★</button>
                <button class="editbtn" title="Spiel bearbeiten" onclick="event.stopPropagation();openEditMatch('${m.id}')">✎ Bearbeiten</button>
+               <button class="editbtn" title="Spiel löschen" onclick="event.stopPropagation();delMatch('${m.id}')">🗑</button>
              </span>`}
         </div>
         <div class="teams">
@@ -1148,19 +1163,6 @@ fileInput.addEventListener('change', async e=>{
   }catch(err){ console.error(err); toast('Import-Fehler: '+err.message); }
 });
 
-async function seed(){
-  const demo=[
-    ['Ju11','RR1','#1','Jonas Buchholz','de','Johann Middele','de',3,'Do 19.02.2026 15:00',1],
-    ['Ju11','RR1','#2','Max Böhme','de','Bennet Bloching','de',3,'Do 19.02.2026 15:00',2],
-    ['U13/U17','Group A','#3','Dominik Bodo','de','Ahmad Wali Sherzad','af',5,'Do 19.02.2026 15:35',1],
-  ];
-  const rows=demo.map(d=>({event:d[0],draw:d[0],round:d[1],match_no:d[2],
-    player1_name:d[3],player1_country:d[4],player2_name:d[5],player2_country:d[6],
-    best_of:d[7],court_id:null,court_no:d[9],court_label:'C'+d[9],
-    scheduled_time:d[8],sort_ts:parseTimeMs(d[8]),referee:null,import_key:null,
-    status:'scheduled',state:null,result:null,winner:null,score_text:null}));
-  await Store.insertMany(rows); toast('Demo-Daten geladen');
-}
 async function clearAll(){ if(confirm('Wirklich ALLE Spiele löschen?')){ await Store.deleteAll(); toast('Gelöscht'); } }
 
 // ================= TP-EINGABEHILFE =================
