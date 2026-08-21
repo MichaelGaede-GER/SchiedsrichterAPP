@@ -185,7 +185,6 @@
   <div id="warmPhaseLabel" style="opacity:.8;margin:-6px 0 8px;letter-spacing:.5px;font-weight:700">Aufwärmen</div>
   <div id="warmClock" class="timerbig">5:00</div>
   <div class="row">
-    <button class="btn btn-gray" onclick="Timer.toggle()">Start / Pause</button>
     <button class="btn btn-gray" onclick="Timer.reset('warmup')">Reset</button>
   </div>
   <div id="warmStartRow" class="row" style="margin-top:22px">
@@ -679,7 +678,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v16</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v17</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
@@ -1116,6 +1115,7 @@ function showWarmup(){
   show('ovWarmup');
 }
 function askServer(){
+  if(!Timer.running && Timer.sec>0) Timer.toggle();   // Aufwärm-Timer starten
   const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='none';
   const qr=document.getElementById('warmServeRow'); if(qr) qr.style.display='block';
 }
