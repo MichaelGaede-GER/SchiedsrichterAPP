@@ -227,6 +227,18 @@
     <button class="choice" onclick="startInjury(900,'Vom Gegner verschuldet')">Gegner verschuldet · 15:00</button>
   </div>
 
+  <div id="physioBox" style="display:none;margin-top:6px">
+    <div style="font-size:13px;font-weight:900;letter-spacing:.6px;color:#ff8a8a;text-transform:uppercase;margin:10px 0 6px">⚠️ Physio zum Court anfordern</div>
+    <div class="row inj">
+      <button class="choice" onclick="requestPhysio('Blutende Wunde')">Blutende Wunde</button>
+      <button class="choice" onclick="requestPhysio('Umgeknickt')">Umgeknickt</button>
+    </div>
+    <div class="row inj">
+      <button class="choice" onclick="requestPhysio('Krämpfe')">Krämpfe</button>
+      <button class="choice" onclick="requestPhysio('Sonstiges')">Sonstiges</button>
+    </div>
+  </div>
+
   <div class="row"><button class="btn btn-gray" onclick="hide('ovPenalty')">Schließen</button></div>
 </div></div>
 
@@ -404,6 +416,7 @@ function applyBranding(){
   const bg=document.getElementById('bgfx');
   bg.style.backgroundImage=(SETTINGS&&SETTINGS.backgroundUrl)?`url("${SETTINGS.backgroundUrl}")`:'none';
   bg.style.opacity=(SETTINGS&&SETTINGS.bgOpacity!=null)?SETTINGS.bgOpacity:0.5;
+  const pb=document.getElementById('physioBox'); if(pb) pb.style.display=(SETTINGS&&SETTINGS.physioEnabled)?'block':'none';
   renderAds();
 }
 function toggleSetView(){ showSetScores=!showSetScores; if(match&&M) render(); }
@@ -546,6 +559,9 @@ function buildLocal(){       // aktuellen Stand lokal festhalten (überlebt Offl
   const st=withTimer(M.serialize());
   if(M.status==='finished'){ st.finishedAt = finishedAtTs || (finishedAtTs=Date.now()); }  // Zeitpunkt der Ergebnismeldung
   st.injury = injuryActive ? { startedAt: injuryStartTs } : null;                            // Verletzungspause an Turnierleitung
+  st.matchStartedAt = matchStartedAtTs || (OFF&&OFF.state&&OFF.state.matchStartedAt) || null; // Spielzeit
+  st.battery = BATTERY;                                                                        // Akkustand des Tablets
+  st.physio = PHYSIO;                                                                          // Physio-Anforderung
   OFF = { matchId:match.id, record:recordSnapshot(match), state:st,
     finished:(M.status==='finished'?{result:M.resultString(),winner:M.matchWinner,score_text:M.setScores(),ending:M.ending||null}:null),
     rev:((OFF&&OFF.rev)||0)+1, savedAt:Date.now(), pending:true };
@@ -584,7 +600,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v11</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v12</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
@@ -789,6 +805,19 @@ function applyConduct(type){
 // ============ VERLETZUNGSTIMER ============
 let injuryPlayer=1;
 let injuryActive=false, injuryStartTs=null;
+let PHYSIO=null, BATTERY=null, matchStartedAtTs=null;
+function requestPhysio(reason){
+  PHYSIO={ reason:reason, at:Date.now(), player:(typeof penaltyPlayer!=='undefined'?penaltyPlayer:null) };
+  sync(); hide('ovPenalty'); toast('⚠️ Physio angefordert: '+reason);
+}
+function cancelPhysio(){ PHYSIO=null; sync(); }
+function initBattery(){
+  if(!navigator.getBattery) return;
+  navigator.getBattery().then(b=>{
+    const upd=()=>{ BATTERY={ level:Math.round((b.level||0)*100), charging:!!b.charging, at:Date.now() }; if(match&&M) sync(); };
+    upd(); b.addEventListener('levelchange',upd); b.addEventListener('chargingchange',upd);
+  }).catch(()=>{});
+}
 function startInjury(sec,label){
   injuryPlayer=penaltyPlayer;
   injuryActive=true; injuryStartTs=Date.now();
@@ -829,7 +858,7 @@ function doRetire(winner){
   afterChange();
 }
 
-function startPlay(server){ hide('ovWarmup'); Timer.stop(); M.startMatch(server); afterChange(); }
+function startPlay(server){ hide('ovWarmup'); Timer.stop(); if(!matchStartedAtTs) matchStartedAtTs=Date.now(); M.startMatch(server); afterChange(); }
 function startNextGame(){ hide('ovRest'); Timer.stop(); M.startNextGame(); afterChange(); }
 function showRest(){
   const ov=document.getElementById('ovRest');
@@ -881,6 +910,9 @@ async function loadCourt(){
 
   const isNew=!match || match.id!==live.id;
 
+  // Physio von der Turnierleitung bestätigt -> lokale Anforderung löschen
+  if(live.state && live.state.physio && live.state.physio.ack && PHYSIO){ PHYSIO=null; toast('✔ Physio bestätigt'); }
+
   // KONFLIKT: lokaler (noch nicht gepushter) Stand ist gleich weit oder weiter -> lokal behalten
   if(OFF && OFF.matchId===live.id && OFF.pending && progress(OFF.state) >= progress(live.state)){
     applyFrom(live, OFF.state, isNew);
@@ -903,6 +935,8 @@ function applyFrom(record, state, isNew){
       p1:{name:record.player1_name,country:record.player1_country},
       p2:{name:record.player2_name,country:record.player2_country} });
     if(state) M.hydrate(state);
+    matchStartedAtTs = (state && state.matchStartedAt) || (isNew?null:matchStartedAtTs) || null;
+    PHYSIO = (state && state.physio && !state.physio.ack) ? state.physio : (isNew?null:PHYSIO);
     injuryActive = !!(state && state.injury && state.injury.startedAt);
     injuryStartTs = injuryActive ? state.injury.startedAt : null;
     render(); hideAll();
@@ -983,6 +1017,8 @@ Auth.guard('score').then(()=>{
   Store.subscribeSettings(refreshSettings);
   refreshSettings();
   loadCourt();
+  initBattery();
+  setInterval(()=>{ if(match && M && navigator.onLine!==false) sync(); }, 120000); // Akku/Spielzeit aktuell halten
 });
 </script>
 </body>

@@ -139,6 +139,11 @@
   .court.setbreak{border-color:#3f7bd6}
   .badge.break-badge{background:#0e2340;color:#8fd0ff;border:1px solid #3f7bd6;font-weight:900;letter-spacing:.4px}
   .brktimer{font-size:24px;font-weight:900;color:#8fd0ff;font-variant-numeric:tabular-nums;letter-spacing:1px}
+  .batb,.durb{font-size:13px;font-weight:800;margin-left:8px;font-variant-numeric:tabular-nums}
+  .durb{color:#cfe0ff}
+  .physioalert{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:8px 12px;border-radius:10px;
+    background:#4a1113;border:1px solid #e5484d;color:#ff8a8a;font-weight:900;animation:alarmblink 1s ease-in-out infinite}
+  .physioalert .btn-sm{margin-left:auto}
   .setscores{margin-top:4px;font-size:13px;font-weight:700;color:#cfe0ff;font-variant-numeric:tabular-nums;letter-spacing:.3px}
   .recrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 8px;border-bottom:1px solid var(--line,#2a3444)}
   .recrow.focus{background:rgba(47,107,255,.10);border-radius:8px}
@@ -451,6 +456,18 @@ function breakInfo(s){
   return { endsAt:(t&&t.endsAt)||0, sec:(t&&t.sec)||0 };
 }
 const brkAnchor = {};
+function batBadge(b){ if(!b||b.level==null) return ''; const lv=b.level; const col=lv<=15?'#ff6b6b':lv<=30?'#ffb020':'#7CFF9B';
+  return ` <span class="batb" style="color:${col}">${b.charging?'🔌':'🔋'} ${lv}%</span>`; }
+function durBadge(s){ if(!s||!s.matchStartedAt||s.status==='warmup') return '';
+  if(s.status==='finished'){ const end=s.finishedAt||Date.now(); const sec=Math.max(0,Math.floor((end-s.matchStartedAt)/1000)); return ` <span class="durb">⏱ ${fmtMMSS(sec)}</span>`; }
+  return ` <span class="durb">⏱ <span class="durtimer" data-since="${s.matchStartedAt}">00:00</span></span>`; }
+function physAlert(m,s){ const p=(s&&s.physio&&!s.physio.ack)?s.physio:null; if(!p) return '';
+  const who=p.player?(' · '+escH(p.player===1?m.player1_name:m.player2_name)):'';
+  return `<div class="physioalert">⚠️ PHYSIO ANGEFORDERT: ${escH(p.reason)}${who}
+    <button class="btn-ghost btn-sm" onclick="ackPhysio('${m.id}')">Erledigt</button></div>`; }
+async function ackPhysio(id){ const m=MATCHES.find(x=>x.id===id); if(!m||!m.state||!m.state.physio) return;
+  const st=Object.assign({}, m.state); st.physio=Object.assign({}, st.physio,{ack:true,ackAt:Date.now()});
+  try{ await Store.updateMatch(id,{state:st}); toast('Physio erledigt'); }catch(e){ toast('Fehler: '+e.message); } }
 function breakEndsAt(id, bi){
   if(bi.endsAt && bi.endsAt > Date.now()+500) return bi.endsAt;         // vom Court (absoluter Zeitpunkt)
   const sec=Math.max(0, bi.sec||0);
@@ -507,7 +524,7 @@ function refreshAlarms(){
 setInterval(refreshAlarms, 3000);
 function tickInjury(){
   const now=Date.now();
-  document.querySelectorAll('.injtimer, .brktimer').forEach(el=>{
+  document.querySelectorAll('.injtimer, .brktimer, .durtimer').forEach(el=>{
     let s=null;
     if(el.dataset.since){ s=Math.floor((now-parseInt(el.dataset.since,10))/1000); }
     else if(el.dataset.endsat){ s=Math.ceil((parseInt(el.dataset.endsat,10)-now)/1000); }
@@ -626,8 +643,9 @@ function courtCard(cid, venueId, fn){
                    : inj ? injSpan
                    : brk ? brkSpan
                          : `Satz ${g1}–${g2} · Bo${live.best_of}`;
-    div.innerHTML=`<div class="cnum">COURT ${cid}${tag}${hlBadge(live)}</div>
+    div.innerHTML=`<div class="cnum">COURT ${cid}${tag}${hlBadge(live)}${batBadge(s.battery)}${durBadge(s)}</div>
       <div class="live">
+        ${physAlert(live,s)}
         <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}${sd(live.player1_seed)}</span><span class="sc">${p1}</span></div>
         <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}${sd(live.player2_seed)}</span><span class="sc">${p2}</span></div>
         <div class="meta"><span>${metaLeft}</span>${badge}</div>

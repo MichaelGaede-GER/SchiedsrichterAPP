@@ -255,6 +255,15 @@
     </div>
   </div>
 
+  <h2>🚑 Physio</h2>
+  <div class="card">
+    <label class="switch">
+      <input type="checkbox" id="physioEnabled"><span class="track"></span>
+      <span>Physio-Ruf am Schiedsrichter-Tablet freigeben</span>
+    </label>
+    <div class="hint" style="margin-top:8px">Aktiv: Der Schiedsrichter kann über das ⚠️-Menü einen Physio zum Court anfordern (Grund: Blutende Wunde, Umgeknickt, Krämpfe, Sonstiges). Die Turnierleitung sieht die Anforderung in der Übersicht. Deaktivieren, wenn kein Physio vor Ort ist.</div>
+  </div>
+
   <h2>⏱ Timer‑Zeiten (Aufwärmen &amp; Pausen)</h2>
   <div class="card">
     <div class="grid2">
@@ -893,6 +902,7 @@ async function loadSettings(){
   $('courts').value=(S.courts||[]).join(',');
   $('autoAssign').checked=!!S.autoAssign;
   $('autoConfirm').checked=!!S.autoConfirm;
+  $('physioEnabled').checked=!!S.physioEnabled;
   $('autoConfirmSecs').value=(S.autoConfirmSecs!=null?S.autoConfirmSecs:20);
   $('warmupP1').value=S.warmupP1!=null?S.warmupP1:120;
   $('warmupP2').value=S.warmupP2!=null?S.warmupP2:120;
@@ -922,6 +932,7 @@ async function saveAll(){
     tournamentName:$('tournamentName').value.trim(),
     courts, autoAssign:$('autoAssign').checked,
     autoConfirm:$('autoConfirm').checked,
+    physioEnabled:$('physioEnabled').checked,
     autoConfirmSecs:Math.max(5,Math.min(120, parseInt($('autoConfirmSecs').value,10)||20)),
     warmupP1:parseInt($('warmupP1').value,10)||0,
     warmupP2:parseInt($('warmupP2').value,10)||0,
