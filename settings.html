@@ -209,6 +209,15 @@
       <div id="backupList" class="hint">—</div>
       <div id="backupStatus" class="hint" style="margin-top:6px"></div>
     </div>
+    <div class="field">
+      <label>Wiederherstellen</label>
+      <input type="file" id="restoreFile" accept="application/json,.json" style="display:none">
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn-ghost" onclick="restoreFromFile()">📂 Aus Datei wiederherstellen…</button>
+        <span class="hint">oder oben in der Liste „↩︎ Laden“ bei einer Sicherung</span>
+      </div>
+      <div class="hint" style="color:#ffb020">Achtung: Überschreibt den aktuellen Stand des zur Sicherung gehörenden Turniers vollständig.</div>
+    </div>
   </div>
 
   <h2>Ablauf</h2>
@@ -1034,7 +1043,9 @@ async function refreshBackupList(){
     const names=await listBackupNames(dir, tid);
     if(!names.length){ el.textContent='Noch keine Sicherungen für dieses Turnier.'; }
     else{
-      const rows=names.slice().reverse().map(n=>'<div>• '+prettyTs(n.replace('squash-backup_'+tid+'_','').replace('.json',''))+'</div>').join('');
+      const rows=names.slice().reverse().map(n=>`<div style="display:flex;align-items:center;gap:8px;padding:2px 0">
+        <span>• ${prettyTs(n.replace('squash-backup_'+tid+'_','').replace('.json',''))}</span>
+        <button class="btn-ghost" style="font-size:12px;padding:2px 8px" onclick="restoreFromFolder('${n}')">↩︎ Laden</button></div>`).join('');
       el.innerHTML='<b>'+names.length+'/10</b> Sicherungen:'+rows;
     }
   }catch(e){ el.textContent='Fehler beim Lesen: '+e.message; }
@@ -1046,11 +1057,45 @@ function updateBackupStatus(){
   const last=tid?localStorage.getItem('squash_backup_last_'+tid):null;
   el.textContent=(bkEnabled()?('Automatik aktiv – alle '+bkMin()+' Min. '):'Automatik aus. ')+(last?('Letzte Sicherung: '+new Date(+last).toLocaleString()):'Noch keine Sicherung.');
 }
+
+// ---- Wiederherstellung ----
+async function restoreBackup(bk){
+  if(!bk || bk.app!=='squash-referee' || !bk.tournamentId || !Array.isArray(bk.matches)) throw new Error('Keine gültige Squash-Sicherung.');
+  await Store.setActiveTournament(bk.tournamentId);                 // in das richtige Turnier einspielen
+  if(bk.settings){ try{ await Store.saveSettings(bk.settings); }catch(e){} }
+  try{
+    if(Array.isArray(bk.venues) && bk.venues.length){
+      await Store.setTournamentVenues(bk.venues.map(v=>v.venue_id));
+      const byV={}; (bk.courts||[]).forEach(c=>{ (byV[c.venue_id]=byV[c.venue_id]||[]).push({court_no:c.court_no, function:c.function||'normal', sort:c.sort}); });
+      for(const vid of Object.keys(byV)){ await Store.setTournamentCourts(vid, byV[vid]); }
+    }
+  }catch(e){}
+  await Store.deleteAll();                                          // aktuellen Stand des Turniers leeren
+  if(bk.matches.length){ await Store.insertMany(bk.matches.map(m=>Object.assign({}, m))); }
+}
+async function doRestore(bk){
+  if(!bk || bk.app!=='squash-referee' || !bk.tournamentId || !Array.isArray(bk.matches)){ toast('Keine gültige Squash-Sicherung.'); return; }
+  const when=bk.createdAt?new Date(bk.createdAt).toLocaleString():'unbekannt';
+  const nm=bk.tournamentName||bk.tournamentId;
+  if(!confirm('Sicherung vom '+when+' wiederherstellen?\n\nTurnier: '+nm+'\nSpiele: '+((bk.matches||[]).length)+'\n\nACHTUNG: Der aktuelle Stand dieses Turniers wird vollständig überschrieben.')) return;
+  try{ await restoreBackup(bk); toast('Wiederhergestellt ✓'); await loadSettings(); await refreshBackupList(); }
+  catch(e){ toast('Wiederherstellung fehlgeschlagen: '+e.message); }
+}
+function restoreFromFile(){ const f=$('restoreFile'); if(f) f.click(); }
+async function restoreFromFolder(name){
+  const dir=await getDir(); if(!dir){ toast('Kein Ordner'); return; }
+  if(!await ensurePerm(dir,false)){ toast('Ordnerzugriff nötig'); return; }
+  try{ const fh=await dir.getFileHandle(name); const file=await fh.getFile(); await doRestore(JSON.parse(await file.text())); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
 (function initBackup(){
   if(!BK_SUPPORTED){ const u=$('backupUnsupported'); if(u) u.style.display='block'; }
   const auto=$('backupAuto'); if(auto) auto.checked=bkEnabled();
   const min=$('backupMin'); if(min) min.value=bkMin();
   getDir().then(dir=>{ if(dir){ const n=$('backupDirName'); if(n) n.textContent='📁 '+dir.name; } });
+  const rf=$('restoreFile'); if(rf) rf.addEventListener('change', async e=>{
+    const file=e.target.files&&e.target.files[0]; e.target.value=''; if(!file) return;
+    try{ await doRestore(JSON.parse(await file.text())); }catch(err){ toast('Ungültige Datei: '+err.message); } });
   updateBackupStatus();
   setTimeout(()=>{ try{ refreshBackupList(); scheduleBackups(); }catch(e){} }, 900);
 })();
