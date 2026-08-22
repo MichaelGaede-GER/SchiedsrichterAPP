@@ -242,15 +242,16 @@ function upcomingForCourt(){
   return ALL.filter(m => m.status==='scheduled' && m.court_no===COURT && (!VENUE || !m.venue_id || m.venue_id===VENUE))
     .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
 }
+function stTime(raw){ if(!raw) return ''; const s=String(raw); const m=s.match(/(\d{1,2}:\d{2})\s*$/)||s.match(/(\d{1,2}:\d{2})/); return m?m[1]:''; }
 function nextBlock(limit){
   const up=upcomingForCourt(); if(!up.length) return '';
   return `<div class="mo-next">`+up.slice(0,limit||3).map((m,i)=>{
-    const t=m.scheduled_time?String(m.scheduled_time).slice(0,5):'';
+    const t=stTime(m.scheduled_time);
     const cat=[m.event||m.draw, m.round, m.match_no?('#'+m.match_no):''].filter(Boolean).map(escS).join(' · ');
-    const fl1=flagSpan(m.player1_country,'mo-fl','width:34px;height:23px',m.player1_region);
-    const fl2=flagSpan(m.player2_country,'mo-fl','width:34px;height:23px',m.player2_region);
+    const fl1=flagSpan(m.player1_country,'flagimg','width:34px;height:23px;box-shadow:0 0 0 1px rgba(255,255,255,.15)',m.player1_region);
+    const fl2=flagSpan(m.player2_country,'flagimg','width:34px;height:23px;box-shadow:0 0 0 1px rgba(255,255,255,.15)',m.player2_region);
     return `<div class="mo-card${i===0?' first':''}">
-      <div class="mo-when"><div class="mo-time">${escS(t)}</div><div class="mo-lbl">${i===0?'als nächstes':'später'}</div></div>
+      <div class="mo-when"><div class="mo-time">${escS(t)||'--:--'}</div><div class="mo-lbl">${i===0?'als nächstes':'später'}</div></div>
       <div class="mo-cbody">
         <div class="mo-crow">${fl1}<b>${escS(m.player1_name)}</b> <span class="mo-vs">vs</span> ${fl2}<b>${escS(m.player2_name)}</b></div>
         ${cat?`<div class="mo-cmeta">${cat}</div>`:''}
