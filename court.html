@@ -677,7 +677,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v21</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v22</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
@@ -1010,7 +1010,7 @@ function showRest(){
 }
 
 function afterChange(){
-  render(); sync();
+  render();
   if(M.status==='between'){
     const last=M.games[M.games.length-1];
     setText('restInfo', `Satz ${M.games.length} beendet: ${last.p1}-${last.p2}. `
@@ -1018,6 +1018,7 @@ function afterChange(){
     Timer.start((SETTINGS&&SETTINGS.restSeconds!=null)?SETTINGS.restSeconds:120,'Satzpause', null,
       {announce:true, msg15:'15 Sekunden – Spieler bitte auf den Court!'}); showRest();
   }
+  sync();                                    // Status + laufenden Satzpausen-Timer (endsAt) an die Leitung
   if(M.status==='finished'){ onFinished(true); }
 }
 

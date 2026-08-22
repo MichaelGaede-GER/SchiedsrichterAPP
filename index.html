@@ -145,6 +145,10 @@
     background:#4a1113;border:1px solid #e5484d;color:#ff8a8a;font-weight:900;animation:alarmblink 1s ease-in-out infinite}
   .physioalert .btn-sm{margin-left:auto}
   .msgpending{margin:0 0 8px;padding:6px 12px;border-radius:10px;background:#0e2340;border:1px solid #3f7bd6;color:#8fd0ff;font-weight:800;font-size:13px}
+  .court.batalarm{animation:alarmblink 1s ease-in-out infinite;border-color:#ff6b6b!important}
+  .batalert{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:8px 12px;border-radius:10px;
+    background:#4a1113;border:1px solid #e5484d;color:#ff8a8a;font-weight:900;font-size:13px}
+  .batalert .btn-sm{margin-left:auto}
   .setscores{margin-top:4px;font-size:13px;font-weight:700;color:#cfe0ff;font-variant-numeric:tabular-nums;letter-spacing:.3px}
   .recrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 8px;border-bottom:1px solid var(--line,#2a3444)}
   .recrow.focus{background:rgba(47,107,255,.10);border-radius:8px}
@@ -451,7 +455,7 @@ function injuryInfo(s){
 function breakInfo(s){
   if(!s) return null;
   const t=s.timer;
-  const isBreak = s.status==='between' || (t && /satzpause/i.test(t.label||''));
+  const isBreak = s.status==='between';                 // nur echter Zwischenstand-Status (kein veraltetes Label)
   if(!isBreak) return null;
   return { endsAt:(t&&t.endsAt)||0, sec:(t&&t.sec)||0 };
 }
@@ -480,6 +484,17 @@ function beep(freq, dur){ const ctx=_ac(); if(!ctx) return; try{
 }catch(e){} }
 function playPhysioAlarm(){ for(let i=0;i<5;i++){ setTimeout(()=>beep(880,0.3), i*1000); } }
 const physioAlarmed=new Set();
+const batAcked=new Set();
+function ackBattery(id){ batAcked.add(id); try{ renderCourts(); }catch(e){} }
+function checkBatteryAlarm(){
+  const lowNow=new Set();
+  MATCHES.forEach(m=>{ const s=m.state||{};
+    const low = m.status==='live' && s.battery && !s.battery.charging && s.battery.level!=null && s.battery.level<10;
+    if(low){ lowNow.add(m.id); if(!batAcked.has(m.id) && !_batBeeped.has(m.id)){ _batBeeped.add(m.id); beep(440,0.4); setTimeout(()=>beep(440,0.4),500); } }
+    else { batAcked.delete(m.id); _batBeeped.delete(m.id); }   // Akku erholt/lädt -> zurücksetzen
+  });
+}
+const _batBeeped=new Set();
 function checkPhysioAlarm(){
   const active=new Set();
   MATCHES.forEach(m=>{ const s=m.state||{};
@@ -496,6 +511,79 @@ async function sendCourtMessage(id){
 // ===== Schiedsrichter-Protokoll (Formular) =====
 function CONDUCT_LABEL(t){ return ({warning:'Verwarnung',stroke:'Strafpunkt',game:'Strafsatz',match:'Strafspiel'})[t]||t; }
 function refFormHtml(m){
+  const s=m.state||{};
+  const cat=[m.event||m.draw,m.round,m.match_no].filter(Boolean).map(escH).join(' · ');
+  const dur = (s.matchStartedAt && s.finishedAt) ? fmtMMSS(Math.max(0,Math.floor((s.finishedAt-s.matchStartedAt)/1000))) : '';
+  const games=s.games||[];
+  const gw1=s.gamesWon1||0, gw2=s.gamesWon2||0;
+  const winner=(gw1>gw2)?m.player1_name:(gw2>gw1)?m.player2_name:'';
+  const dateStr = m.scheduled_time ? escH(String(m.scheduled_time)) : new Date().toLocaleDateString();
+  // ----- Seite 1: Scoresheet (Layout wie Vorlage) -----
+  const gameBlock=(i)=>{ const g=games[i]; const gwin=g?(g.p1>g.p2?m.player1_name:(g.p2>g.p1?m.player2_name:'')):''; const res=g?`${g.p1} – ${g.p2}`:'';
+    const ord=['1st','2nd','3rd','4th','5th'][i];
+    return `<table class="ss-game"><tr><td class="lbl">Start</td><td></td><td class="lbl">Finish</td><td></td></tr>
+      <tr><th class="ab">A</th><th class="gm">${ord} game</th><th class="ab">B</th><th class="rescol">${res?escH(res):''}</th></tr>
+      <tr><td class="big">${g?g.p1:''}</td><td class="mid">Winner: ${escH(gwin)}</td><td class="big">${g?g.p2:''}</td><td class="mid">Result: ${res?escH(res):''}</td></tr></table>`; };
+  const page1=`<div class="sheet">
+    <h1 class="ss-title">${escH(TOURNAME||'Squash-Turnier')}</h1>
+    <table class="ss-head">
+      <tr><td class="lbl">Event</td><td>${escH(m.event||'')}</td><td class="lbl">Draw</td><td>${escH(m.draw||'')}</td><td class="lbl">Match Nr</td><td>${escH(m.match_no||'')}</td></tr>
+      <tr><td class="lbl">Date</td><td>${dateStr}</td><td class="lbl">Time</td><td>${escH(String(m.scheduled_time||'').slice(0,5))}</td><td class="lbl">Court</td><td>${escH(String(m.court_id||m.court_no||''))}</td></tr>
+    </table>
+    <table class="ss-ab">
+      <tr><td class="lbl">A</td><td class="nm">${escH(m.player1_name)} ${m.player1_country?('('+escH(m.player1_country)+')'):''}</td></tr>
+      <tr><td class="lbl">B</td><td class="nm">${escH(m.player2_name)} ${m.player2_country?('('+escH(m.player2_country)+')'):''}</td></tr>
+    </table>
+    <table class="ss-head">
+      <tr><td class="lbl">Referee</td><td>${escH(m.referee||'')}</td><td class="lbl">Marker</td><td></td><td class="lbl">Duration</td><td>${dur}</td></tr>
+    </table>
+    ${gameBlock(0)}${gameBlock(1)}${gameBlock(2)}${gameBlock(3)}${gameBlock(4)}
+    <div class="ss-final">Endergebnis: <b>${gw1} – ${gw2}</b>${winner?(' · Sieger: <b>'+escH(winner)+'</b>'):''}</div>
+  </div>`;
+  // ----- Seite 2: Strafen & Entscheidungen -----
+  const gamesRows=(games).map((g,i)=>`<tr><td>Satz ${i+1}</td><td>${g.p1} – ${g.p2}</td><td>${g.winner?(g.winner===1?escH(m.player1_name):escH(m.player2_name)):''}${g.conduct?' <i>(Strafsatz)</i>':''}</td></tr>`).join('') || '<tr><td colspan="3" style="color:#888">—</td></tr>';
+  const conductRows=[];
+  [['p1',m.player1_name],['p2',m.player2_name]].forEach(([pk,nm])=>((s.conduct&&s.conduct[pk])||[]).forEach(c=>conductRows.push(`<tr><td>${escH(nm)}</td><td>${escH(CONDUCT_LABEL(c.type))}</td><td>${escH(c.reason||'')}</td></tr>`)));
+  const decRows=(s.decisions||[]).map(d=>{ const who=d.player?(d.player===1?escH(m.player1_name):escH(m.player2_name)):'—'; const tm=d.t?new Date(d.t).toLocaleTimeString():''; return `<tr><td>${tm}</td><td>Satz ${d.game||''} · ${d.g1||0}-${d.g2||0} · ${d.p1||0}-${d.p2||0}</td><td>${escH(d.type||'')}</td><td>${who}</td><td>${escH(d.detail||'')}</td></tr>`; }).join('') || '<tr><td colspan="5" style="color:#888">Keine dokumentierten Entscheidungen</td></tr>';
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Schiedsrichter-Protokoll</title>
+<style>
+ body{font-family:Arial,Helvetica,sans-serif;color:#111;max-width:820px;margin:20px auto;padding:0 18px}
+ h1{font-size:22px;margin:0 0 2px}
+ table{width:100%;border-collapse:collapse}
+ h2{font-size:15px;border-bottom:2px solid #222;padding-bottom:3px;margin:18px 0 6px}
+ .noprint{margin:12px 0} .noprint button{padding:8px 16px;font-size:14px;cursor:pointer}
+ /* Scoresheet */
+ .sheet{page-break-after:always}
+ .ss-title{text-align:center;font-size:20px;border:2px solid #222;padding:8px;margin:0 0 10px}
+ .ss-head td,.ss-ab td,.ss-game td,.ss-game th{border:1px solid #333;padding:6px 8px;font-size:13px}
+ .ss-head .lbl,.ss-ab .lbl,.ss-game .lbl{background:#f0f2f5;font-weight:700;white-space:nowrap;width:78px}
+ .ss-ab .nm{font-weight:700;font-size:15px}
+ .ss-game{margin:8px 0}
+ .ss-game .ab{background:#222;color:#fff;width:60px;text-align:center;font-size:16px}
+ .ss-game .gm{background:#f0f2f5;text-align:center}
+ .ss-game .rescol{background:#f0f2f5;text-align:center}
+ .ss-game .big{font-size:26px;font-weight:800;text-align:center}
+ .ss-game .mid{font-size:13px}
+ .ss-final{margin-top:12px;font-size:16px;text-align:center;border:1px solid #333;padding:8px}
+ /* Seite 2 */
+ .p2 th,.p2 td{border:1px solid #bbb;padding:6px 8px;text-align:left;font-size:14px} .p2 th{background:#f0f2f5}
+ .sig{margin-top:34px;display:flex;gap:40px} .sig div{flex:1;border-top:1px solid #333;padding-top:6px;color:#555;font-size:13px}
+ @media print{.noprint{display:none}}
+</style></head><body>
+ <div class="noprint"><button onclick="window.print()">🖨 Drucken / Als PDF speichern</button></div>
+ ${page1}
+ <h1>Schiedsrichter-Protokoll – Strafen &amp; Entscheidungen</h1>
+ <p style="color:#555;margin:0 0 8px">${cat||''}</p>
+ <h2>Ergebnis</h2>
+ <table class="p2"><thead><tr><th>Satz</th><th>Punkte</th><th>Satzsieger</th></tr></thead><tbody>${gamesRows}</tbody></table>
+ <h2>Verhaltensstrafen</h2>
+ <table class="p2"><thead><tr><th>Spieler</th><th>Strafe</th><th>Grund</th></tr></thead><tbody>${conductRows.join('')||'<tr><td colspan=3 style="color:#888">Keine</td></tr>'}</tbody></table>
+ <h2>Dokumentierte Entscheidungen</h2>
+ <table class="p2"><thead><tr><th>Zeit</th><th>Stand</th><th>Typ</th><th>Spieler</th><th>Detail</th></tr></thead><tbody>${decRows}</tbody></table>
+ <div class="sig"><div>Unterschrift Schiedsrichter</div><div>Unterschrift Turnierleitung</div></div>
+</body></html>`;
+}
+function _refFormHtml_OLD(m){
   const s=m.state||{};
   const cat=[m.event||m.draw,m.round,m.match_no].filter(Boolean).map(escH).join(' · ');
   const gamesRows=(s.games||[]).map((g,i)=>`<tr><td>Satz ${i+1}</td><td>${g.p1} – ${g.p2}</td><td>${g.winner?(g.winner===1?escH(m.player1_name):escH(m.player2_name)):''}${g.conduct?' <i>(Strafsatz)</i>':''}</td></tr>`).join('') || '<tr><td colspan="3" style="color:#888">—</td></tr>';
@@ -601,6 +689,7 @@ function refreshAlarms(){
   }
   checkAutoConfirm();
   checkPhysioAlarm();
+  checkBatteryAlarm();
 }
 setInterval(refreshAlarms, 3000);
 function tickInjury(){
@@ -661,12 +750,14 @@ function venueCourtsFor(venueId){ const v=(COURT_LAYOUT||[]).find(x=>x.venue_id=
 function render(){ renderCourts(); renderSched(); renderDone(); }
 
 let COURT_LAYOUT = null;        // [{venue_id,name,courts:[{no,fn}]}] oder null=Fallback
+let TOURNAME = '';              // Turniername für Protokoll-Kopf
 let COURTS_FALLBACK = null;     // pro-Turnier Court-Liste (Settings) als Fallback
 let TVENUES_IDX = [];           // Locations des aktiven Turniers [{venue_id,name}]
 async function loadCourtLayout(){
   try{
     let st={}; try{ st=await Store.getSettings(); }catch(e){}
     COURTS_FALLBACK = Array.isArray(st.courts) ? st.courts : null;
+    TOURNAME = st.tournamentName || TOURNAME || '';
     HLABELS = Array.isArray(st.highlightLabels)&&st.highlightLabels.length ? st.highlightLabels : ['Halbfinale','Finale'];
     FLOW_AUTOASSIGN = !!st.autoAssign;
     FLOW_AUTOCONFIRM = !!st.autoConfirm;
@@ -681,7 +772,7 @@ async function loadCourtLayout(){
       const byV={}; tc.forEach(c=>{ (byV[c.venue_id]=byV[c.venue_id]||[]).push(c); });
       const order = tv.length ? tv : Object.keys(byV).map(id=>({venue_id:id,name:''}));
       COURT_LAYOUT = order.map(v=>({ venue_id:v.venue_id, name:v.name||'',
-        courts:(byV[v.venue_id]||[]).slice().sort((a,b)=>(a.sort-b.sort)||(a.court_no-b.court_no)).map(c=>({no:c.court_no,fn:c.function})) }))
+        courts:(byV[v.venue_id]||[]).slice().sort((a,b)=>(a.court_no-b.court_no)||(a.sort-b.sort)).map(c=>({no:c.court_no,fn:c.function})) }))
         .filter(v=>v.courts.length);
       if(!COURT_LAYOUT.length) COURT_LAYOUT=null;
     } else COURT_LAYOUT=null;
@@ -711,6 +802,8 @@ function courtCard(cid, venueId, fn){
     if(fin){ div.classList.add('awaiting'); div.dataset.finAt=finAt||''; if(finAt && (Date.now()-finAt)>ALARM_MS) div.classList.add('alarm'); }
     if(inj){ div.classList.add('injurypause'); }
     if(brk){ div.classList.add('setbreak'); }
+    const batLow = !!(s.battery && !s.battery.charging && s.battery.level!=null && s.battery.level<10 && !batAcked.has(live.id));
+    if(batLow){ div.classList.add('batalarm'); }
     const badge = fin ? `<span class="badge awaiting-badge">⏳ Wartet auf Bestätigung</span>`
                  : inj ? `<span class="badge injury-badge">🔴 VERLETZUNGSPAUSE</span>`
                  : brk ? `<span class="badge break-badge">⏸ SATZPAUSE</span>`
@@ -727,6 +820,7 @@ function courtCard(cid, venueId, fn){
     div.innerHTML=`<div class="cnum">COURT ${cid}${tag}${hlBadge(live)}${batBadge(s.battery)}${durBadge(s)}</div>
       <div class="live">
         ${physAlert(live,s)}
+        ${batLow?`<div class="batalert">🪫 AKKU FAST LEER: ${s.battery.level}% – Tablet laden!<button class="btn-ghost btn-sm" onclick="ackBattery('${live.id}')">OK</button></div>`:''}
         ${(s.message)?`<div class="msgpending">✉ Nachricht gesendet – wartet auf Bestätigung</div>`:''}
         <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}${sd(live.player1_seed)}</span><span class="sc">${p1}</span></div>
         <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}${sd(live.player2_seed)}</span><span class="sc">${p2}</span></div>
@@ -756,7 +850,7 @@ function renderCourts(){
       v.courts.forEach(c=> wrap.appendChild(courtCard(c.no, v.venue_id, c.fn)));
     });
   } else {
-    const list = (COURTS_FALLBACK && COURTS_FALLBACK.length) ? COURTS_FALLBACK : COURTS;
+    const list = ((COURTS_FALLBACK && COURTS_FALLBACK.length) ? COURTS_FALLBACK : COURTS).slice().sort((a,b)=>a-b);
     list.forEach(cid=> wrap.appendChild(courtCard(cid, null, 'normal')));
   }
   try{ refreshAlarms(); }catch(e){}
@@ -951,7 +1045,12 @@ async function assign(id,cid,venueId){
   if(vid && vid!==m.venue_id){ try{ await Store.updateMatch(id,{venue_id:vid}); }catch(e){} }
   try{ await Store.assignToCourt(id,cid,Number(m.best_of)||3); selectedMatch=null; updateSelBar(); toast(`Auf Court ${cid} gelegt`); }
   catch(e){ toast(e.message); } }
-async function unassign(id){ await Store.unassign(id); toast('Zurück in die Ansetzungen'); }
+async function unassign(id){
+  const m=MATCHES.find(x=>x.id===id);
+  const nm=m?`${m.player1_name} vs ${m.player2_name}`:'dieses Spiel';
+  if(!confirm('Spiel wirklich vom Court nehmen?\n\n'+nm+'\n\nDer aktuelle Spielstand bleibt erhalten und das Spiel geht zurück in die Ansetzungen.')) return;
+  await Store.unassign(id); toast('Zurück in die Ansetzungen');
+}
 async function confirmR(id, force){
   const m=MATCHES.find(x=>x.id===id); const court=m?m.court_id:null;
   await Store.confirmResult(id);

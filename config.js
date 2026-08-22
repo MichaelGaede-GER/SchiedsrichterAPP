@@ -12,7 +12,7 @@ window.CONFIG = {
                            // leer = LOKALER TESTMODUS (nur dieser Browser)
 
   // ---- Courts (Standard – in settings.html änderbar) --------------
-  COURTS: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
+  COURTS: [1,2,3,4,5,6],
 
   // Court-Label aus der Importdatei -> Court-Nummer
   //  "CC" (Center Court) = Court 1;  "C2".."C15" automatisch über Ziffer
