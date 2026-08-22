@@ -129,6 +129,7 @@
   .decbtn .dsub{display:block;font-size:13px;color:#9fb3cc;font-weight:700}
   .decbtn.nolet{border-color:#e5484d} .decbtn.let{border-color:#3f7bd6}
   .decbtn.stroke{border-color:#2fbf71} .decbtn.conduct{border-color:#ffb020} .decbtn.injury{border-color:#e5484d}
+  .decbtn.equip{border-color:#9fb3cc}
   .choice.blue{border-color:var(--blue)}.choice.red{border-color:var(--red)}
   .choice.small{padding:12px;font-size:15px}
   .sech{font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:20px 0 8px;text-align:left}
@@ -246,6 +247,7 @@
       <button class="decbtn stroke" onclick="decAct('stroke')"><span class="dic">✊</span><span class="dlab">Stroke</span><span class="dsub" id="decStroke">Punkt → Spieler</span></button>
       <button class="decbtn conduct" onclick="decAct('conduct')"><span class="dic">⚖️</span><span class="dlab">Entscheidung</span><span class="dsub">Strafen</span></button>
       <button class="decbtn injury" onclick="decAct('injury')"><span class="dic">🚑</span><span class="dlab">Verletzung</span><span class="dsub">Pause / Physio</span></button>
+      <button class="decbtn equip" onclick="decAct('equipment')"><span class="dic"><svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="19" cy="18" rx="11" ry="13.5" transform="rotate(-35 19 18)"/><line x1="11.5" y1="13" x2="26" y2="23" stroke-width="1.1"/><line x1="15" y1="8" x2="24" y2="28" stroke-width="1.1"/><path d="M27 28 L41 42"/></svg></span><span class="dlab">Defekte Ausrüstung</span><span class="dsub">Auszeit 2:00</span></button>
     </div>
   </div>
   <div class="row"><button class="btn btn-gray" onclick="hide('ovDecide')">Abbrechen</button></div>
@@ -279,12 +281,12 @@
   <div id="penInjury">
   <h3 class="sech">Verletzungs-/Auszeit-Timer</h3>
   <div class="row inj">
-    <button class="choice" onclick="startInjury(120,'Defekte Ausrüstung')">Defekte Ausrüstung · 2:00</button>
     <button class="choice" onclick="startInjury(180,'Selbst verschuldet')">Selbst verschuldet · 3:00</button>
+    <button class="choice" onclick="startInjury(900,'Beide / Contributed')">Beide / Contributed · 15:00</button>
   </div>
   <div class="row inj">
-    <button class="choice" onclick="startInjury(900,'Beide / Contributed')">Beide / Contributed · 15:00</button>
     <button class="choice" onclick="startInjury(900,'Gegner (unbeabsichtigt)')">Gegner unbeabsichtigt · 15:00</button>
+    <button class="choice" onclick="startInjuryOpen('Angemessene Zeit')">Angemessene Zeit (Referee)</button>
   </div>
   <h3 class="sech" style="margin-top:14px">Blutverletzung</h3>
   <div class="row inj">
@@ -293,21 +295,7 @@
   </div>
   <div class="row inj">
     <button class="choice" onclick="startInjuryOpen('Blutend – Gegner (angemessen)')">Blutend – Gegner · angemessen</button>
-    <button class="choice" onclick="startInjuryOpen('Angemessene Zeit')">Angemessene Zeit (Referee)</button>
   </div>
-
-  <div id="physioBox" style="display:none;margin-top:6px">
-    <div style="font-size:13px;font-weight:900;letter-spacing:.6px;color:#ff8a8a;text-transform:uppercase;margin:10px 0 6px">⚠️ Physio zum Court anfordern</div>
-    <div class="row inj">
-      <button class="choice" onclick="requestPhysio('Blutende Wunde')">Blutende Wunde</button>
-      <button class="choice" onclick="requestPhysio('Umgeknickt')">Umgeknickt</button>
-    </div>
-    <div class="row inj">
-      <button class="choice" onclick="requestPhysio('Krämpfe')">Krämpfe</button>
-      <button class="choice" onclick="requestPhysio('Sonstiges')">Sonstiges</button>
-    </div>
-  </div>
-
   </div>
   <div class="row"><button class="btn btn-gray" onclick="hide('ovPenalty')">Schließen</button></div>
 </div></div>
@@ -689,7 +677,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v20</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v21</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
@@ -852,6 +840,7 @@ function decAct(what){
   else if(what==='stroke'){ hide('ovDecide'); point(p); M.logDecision('Stroke',p,'Punkt → '+nm); sync(); toast('Stroke – Punkt → '+nm); }
   else if(what==='conduct'){ hide('ovDecide'); openPenalty(p,'conduct'); }
   else if(what==='injury'){ hide('ovDecide'); openPenalty(p,'injury'); }
+  else if(what==='equipment'){ hide('ovDecide'); penaltyPlayer=p; startInjury(120,'Defekte Ausrüstung'); }
 }
 function toggleFull(){
   const el=document.documentElement;
@@ -1147,7 +1136,8 @@ function showWarmup(){
 function askServer(){
   if(!Timer.running && Timer.sec>0) Timer.toggle();   // Aufwärm-Timer starten
   const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='none';
-  const qr=document.getElementById('warmServeRow'); if(qr) qr.style.display='block';
+  const qr=document.getElementById('warmServeRow'); if(qr){ qr.style.display='block';
+    setTimeout(()=>qr.scrollIntoView({block:'center',behavior:'smooth'}),60); }
 }
 function primeWarmPhase(){
   const phases=warmPhaseList();
@@ -1176,6 +1166,8 @@ function onWarmPhaseEnd(){
     // Endphase vorbei -> großer Aufschlag-Prompt, Buttons bleiben sichtbar
     const lbl=document.getElementById('warmPhaseLabel');
     setText('warmPhaseLabel','Wer schlägt auf?'); lbl.classList.add('big');
+    const qr=document.getElementById('warmServeRow');
+    if(qr){ qr.style.display='block'; setTimeout(()=>qr.scrollIntoView({block:'center',behavior:'smooth'}),60); }
     return;
   }
   const wasFirst=(warmPhase===0);
