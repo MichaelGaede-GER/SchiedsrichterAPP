@@ -678,7 +678,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v23</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v24</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
@@ -1120,7 +1120,7 @@ function showWarmup(){
   const wi=document.getElementById('warmInfo');
   if(wi){
     if(match){
-      const t=match.scheduled_time?String(match.scheduled_time).slice(0,5):'';
+      const t=shortTime(match.scheduled_time)||'';
       const cat=[match.event||match.draw, match.round, match.match_no].filter(Boolean).join(' · ');
       wi.innerHTML=`<div class="wi-top">${t?`<span class="wi-t">${t}</span>`:''}
           <span class="wi-p">${flagImg(match.player1_country,match.player1_region)} ${escC(match.player1_name)}</span>

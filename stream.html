@@ -152,7 +152,7 @@ function flagUrl(code, region){
   const map={eng:'gb-eng',sct:'gb-sct',wls:'gb-wls'};
   return `https://flagcdn.com/h80/${map[c]||c}.png`;
 }
-function flagCss(code, region){ const u=flagUrl(code, region); return u?`background-image:url("${u}")`:''; }
+function flagCss(code, region){ const u=flagUrl(code, region); return u?`background-image:url('${u}')`:''; }
 // Flaggen-Element (Bundesland bevorzugt), '' wenn keine gültige Angabe
 function flagSpan(code,cls,style,region){ const css=flagCss(code,region); return css?`<span class="${cls}" style="${style?style+';':''}${css}"></span>`:''; }
 function flagDiv(code,cls,style,region){ const css=flagCss(code,region); return css?`<div class="${cls}" style="${style?style+';':''}${css}"></div>`:''; }
@@ -247,7 +247,7 @@ function nextBlock(limit){
   const up=upcomingForCourt(); if(!up.length) return '';
   return `<div class="mo-next">`+up.slice(0,limit||3).map((m,i)=>{
     const t=stTime(m.scheduled_time);
-    const cat=[m.event||m.draw, m.round, m.match_no?('#'+m.match_no):''].filter(Boolean).map(escS).join(' · ');
+    const cat=[m.event||m.draw, m.round, m.match_no?('#'+String(m.match_no).replace(/^#+/,'')):''].filter(Boolean).map(escS).join(' · ');
     const fl1=flagSpan(m.player1_country,'flagimg','width:34px;height:23px;box-shadow:0 0 0 1px rgba(255,255,255,.15)',m.player1_region);
     const fl2=flagSpan(m.player2_country,'flagimg','width:34px;height:23px;box-shadow:0 0 0 1px rgba(255,255,255,.15)',m.player2_region);
     return `<div class="mo-card${i===0?' first':''}">
