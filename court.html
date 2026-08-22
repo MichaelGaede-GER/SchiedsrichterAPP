@@ -417,26 +417,27 @@ class SquashMatch {
     this.p1=cfg.p1; this.p2=cfg.p2; this.reset(); this.shirt1=cfg.shirt1||null; this.shirt2=cfg.shirt2||null; }
   reset(){ this.games=[]; this.g={p1:0,p2:0}; this.server=null; this.side='R';
     this.status='warmup'; this.matchWinner=null; this._nextServer=null; this.history=[];
-    this.conduct={p1:[],p2:[]}; this.ending=null; this.decisions=[]; }
+    this.conduct={p1:[],p2:[]}; this.ending=null; this.decisions=[]; this.rallies=[]; }
   gamesNeeded(){ return Math.floor(this.bestOf/2)+1; }
   gamesWon(p){ return this.games.filter(x=>x.winner===p).length; }
   _snap(){ this.history.push(JSON.stringify({games:this.games,g:this.g,server:this.server,
     side:this.side,status:this.status,matchWinner:this.matchWinner,_nextServer:this._nextServer,
-    conduct:this.conduct,ending:this.ending}));
+    conduct:this.conduct,ending:this.ending,rallies:this.rallies}));
     if(this.history.length>60) this.history.shift(); }
   undo(){ if(!this.history.length) return false; const s=JSON.parse(this.history.pop());
     this.games=s.games; this.g=s.g; this.server=s.server; this.side=s.side; this.status=s.status;
-    this.matchWinner=s.matchWinner; this._nextServer=s._nextServer;
+    this.matchWinner=s.matchWinner; this._nextServer=s._nextServer; this.rallies=s.rallies||[];
     this.conduct=s.conduct||{p1:[],p2:[]}; this.ending=s.ending||null; return true; }
   startMatch(server){ this._snap(); this.server=server; this.side='R'; this.status='playing'; }
-  _awardPoint(winner){ if(this.server===winner){ this.g['p'+winner]++; this.side=this.side==='R'?'L':'R'; }
+  _awardPoint(winner){ this.rallies.push(winner);                       // Punkt-für-Punkt-Log
+    if(this.server===winner){ this.g['p'+winner]++; this.side=this.side==='R'?'L':'R'; }
     else { this.g['p'+winner]++; this.server=winner; this.side='R'; } }
   point(winner){ if(this.status!=='playing') return; this._snap(); this._awardPoint(winner); this._checkGame(); }
   _checkGame(){ const a=this.g.p1,b=this.g.p2,N=this.pointsToWin;
-    if((a>=N||b>=N)&&Math.abs(a-b)>=2){ const w=a>b?1:2; this.games.push({p1:a,p2:b,winner:w});
+    if((a>=N||b>=N)&&Math.abs(a-b)>=2){ const w=a>b?1:2; this.games.push({p1:a,p2:b,winner:w,pts:this.rallies.slice()});
       if(this.gamesWon(w)>=this.gamesNeeded()){ this.status='finished'; this.matchWinner=w; }
       else { this.status='between'; this._nextServer=w; } } }
-  startNextGame(){ this._snap(); this.g={p1:0,p2:0}; this.server=this._nextServer; this.side='R'; this.status='playing'; }
+  startNextGame(){ this._snap(); this.g={p1:0,p2:0}; this.server=this._nextServer; this.side='R'; this.status='playing'; this.rallies=[]; }
   gameBall(p){ const me=this.g['p'+p],opp=this.g['p'+(p===1?2:1)]; return (me+1>=this.pointsToWin)&&(me+1-opp>=2); }
   matchBall(p){ return this.gameBall(p)&&this.gamesWon(p)===this.gamesNeeded()-1; }
 
@@ -463,12 +464,12 @@ class SquashMatch {
     gamesWon1:this.gamesWon(1), gamesWon2:this.gamesWon(2),
     cur:{p1:this.g.p1,p2:this.g.p2,server:this.server,side:this.side},
     matchWinner:this.matchWinner, _nextServer:this._nextServer, history:this.history,
-    conduct:this.conduct, ending:this.ending, shirt1:this.shirt1, shirt2:this.shirt2, decisions:this.decisions }; }
+    conduct:this.conduct, ending:this.ending, shirt1:this.shirt1, shirt2:this.shirt2, decisions:this.decisions, rallies:this.rallies }; }
   hydrate(s){ if(!s) return; this.status=s.status; this.bestOf=s.bestOf; this.games=s.games||[];
     this.g={p1:s.cur.p1,p2:s.cur.p2}; this.server=s.cur.server; this.side=s.cur.side;
     this.matchWinner=s.matchWinner; this._nextServer=s._nextServer; this.history=s.history||[];
     this.conduct=s.conduct||{p1:[],p2:[]}; this.ending=s.ending||null;
-    this.decisions=s.decisions||[];
+    this.decisions=s.decisions||[]; this.rallies=s.rallies||[];
     this.shirt1=s.shirt1||null; this.shirt2=s.shirt2||null; }
 }
 
@@ -677,7 +678,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v22</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v23</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>

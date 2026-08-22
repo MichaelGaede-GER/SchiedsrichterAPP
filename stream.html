@@ -49,9 +49,12 @@
   .psaline{display:flex;align-items:stretch;gap:14px;width:min(1760px,96vw)}
   /* PSA-Broadcast-Leiste (nach Vorlage: weiße Pille + Satzboxen darunter) */
   .psawrap{position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;max-width:96vw}
+  .psaball{white-space:nowrap;max-width:96vw;font-weight:900;letter-spacing:.06em;font-size:26px;padding:6px 22px;border-radius:12px;color:#111;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+  .psaball.set{background:#ffd23f}
+  .psaball.match{background:#ff4b4b;color:#fff}
   .psabar{display:inline-flex;align-items:stretch;background:#fff;border-radius:16px;box-shadow:0 8px 34px rgba(0,0,0,.4);
     overflow:hidden;font-weight:800;color:#111;white-space:nowrap;max-width:96vw;line-height:1}
-  .psabar .ps-name{display:inline-flex;align-items:center;gap:.28em;padding:.42em .7em;min-width:0}
+  .psabar .ps-name{display:inline-flex;align-items:center;gap:.28em;padding:.42em .7em;box-sizing:content-box}
   .psabar .ps-name.n1{justify-content:flex-end}
   .psabar .ps-name.n2{justify-content:flex-start}
   .psabar .ps-t{overflow:hidden;text-overflow:ellipsis}
@@ -59,8 +62,15 @@
   .psabar .ps-g{background:#1b1b1b;color:#fff;display:flex;align-items:center;justify-content:center;min-width:1.5em;padding:0 .35em;font-size:1.05em}
   .psabar .ps-pts{background:#fff;color:#111;display:flex;align-items:center;justify-content:center;padding:0 .6em;font-variant-numeric:tabular-nums;letter-spacing:.06em}
   .psabar .ps-dot{width:.34em;height:.34em;border-radius:50%;background:#1a9bff;flex:0 0 auto;margin:0 .1em}
-  .psasets{display:flex;gap:10px}
+  .psasets{display:flex;justify-content:center;gap:10px}
   .psasets .ps-set{background:#1b1b1b;color:#e8eef7;border-radius:9px;padding:6px 16px;font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+  .statframe{background:rgba(6,10,16,.96);border:2px solid rgba(255,255,255,.16);border-radius:22px;padding:24px 30px;max-width:min(90vw,1000px);box-shadow:0 20px 80px rgba(0,0,0,.55);color:#fff;text-align:center}
+  .statframe .stat-title{font-size:34px;font-weight:900;margin-bottom:10px}
+  .statframe .stat-names{display:flex;gap:28px;justify-content:center;font-size:20px;font-weight:800;margin-bottom:16px}
+  .statframe .sn1{color:#7cc0ff} .statframe .sn2{color:#ff9a9a}
+  .statframe .stat-seq{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;max-width:900px}
+  .statframe .sd{width:16px;height:28px;border-radius:4px}
+  .statframe .sd1{background:#1a9bff} .statframe .sd2{background:#ff4b4b}
   .psaline .nm{flex:1 1 0;min-width:0;max-width:none;background:#fff;border:6px solid #999;border-radius:14px;
     display:flex;align-items:center;gap:12px;padding:16px 30px;font-weight:800;color:#111;line-height:1.05}
   .psaline .nm .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
@@ -198,11 +208,15 @@ function render(){
     paintTimer(); return;
   }
   document.title='Court '+COURT+' – '+VIEW;
-  if(VIEW==='psaline') stage.innerHTML=viewPsa(d);
+  if(VIEW==='psaline'){
+    const el = (d.mstatus==='between') ? (Date.now()-_betwAt) : -1;
+    stage.innerHTML = (el>=6000 && el<16000) ? viewSetStats(d) : viewPsa(d);   // Pause: 0-6s Stand, 6-16s Statistik, danach Stand
+  }
   else if(VIEW==='fullscore') stage.innerHTML=viewFull(d);
   else if(VIEW==='modern') stage.innerHTML=viewModern(d);
   else stage.innerHTML=viewScore(d);
   paintTimer();
+  if(VIEW==='psaline') requestAnimationFrame(adjustPsa);
 }
 
 // ---- Match-Over / Vorschau (Courtview) ----  (kein „Undo" auf der Courtview!)
@@ -287,7 +301,17 @@ function viewPsa(d){
   const dot1=d.server===1?'<span class="ps-dot"></span>':'';
   const dot2=d.server===2?'<span class="ps-dot"></span>':'';
   const sets=(d.games||[]).map(g=>`<span class="ps-set">${g.p1}-${g.p2}</span>`).join('');
+  // Satz-/Matchball
+  const N=11, need=Math.floor((d.bestOf||3)/2)+1;
+  const gb=(me,opp)=>(me+1>=N)&&(me+1-opp>=2);
+  let ball='';
+  if(d.mstatus==='playing'){
+    const b1=gb(d.pts1,d.pts2), b2=gb(d.pts2,d.pts1);
+    if(b1||b2){ const who=b1?d.p1raw:d.p2raw; const gw=(b1?d.g1:d.g2)+1; const isMatch=gw>=need;
+      ball=`<div class="psaball ${isMatch?'match':'set'}">${isMatch?'MATCHBALL':'SATZBALL'} · ${escS(who)}</div>`; }
+  }
   return `<div class="psawrap">
+    ${ball}
     <div class="psabar" style="font-size:${fs}px">
       <span class="ps-name n1"><span class="ps-t">${escS(d.p1raw)}</span>${d.cc1?` <span class="ps-cc">(${escS(d.cc1)})</span>`:''}${dot1}</span>
       <span class="ps-g">${d.g1}</span>
@@ -297,6 +321,25 @@ function viewPsa(d){
     </div>
     ${sets?`<div class="psasets">${sets}</div>`:''}
   </div>`;
+}
+function viewSetStats(d){
+  const games=d.games||[]; const last=games[games.length-1];
+  if(!last || !Array.isArray(last.pts) || !last.pts.length) return viewPsa(d);
+  const setNo=games.length;
+  let a=0,b=0;
+  const dots=last.pts.map(w=>{ if(w===1)a++; else b++; return `<span class="sd ${w===1?'sd1':'sd2'}" title="${a}-${b}"></span>`; }).join('');
+  return `<div class="psawrap"><div class="statframe">
+    <div class="stat-title">Satz ${setNo} · ${last.p1}-${last.p2}</div>
+    <div class="stat-names"><span class="sn1">■ ${escS(d.p1raw)}</span><span class="sn2">■ ${escS(d.p2raw)}</span></div>
+    <div class="stat-seq">${dots}</div>
+  </div></div>`;
+}
+function adjustPsa(){
+  const n1=document.querySelector('.psabar .ps-name.n1'), n2=document.querySelector('.psabar .ps-name.n2');
+  if(!n1||!n2) return;
+  n1.style.width='auto'; n2.style.width='auto';
+  const w=Math.ceil(Math.max(n1.getBoundingClientRect().width, n2.getBoundingClientRect().width));
+  n1.style.width=w+'px'; n2.style.width=w+'px';
 }
 
 function txtOn(hex){ try{ const c=String(hex).replace('#',''); const r=parseInt(c.substr(0,2),16),g=parseInt(c.substr(2,2),16),b=parseInt(c.substr(4,2),16); if([r,g,b].some(isNaN)) return '#fff'; return (0.299*r+0.587*g+0.114*b)/255>0.6?'#111':'#fff'; }catch(e){ return '#fff'; } }
