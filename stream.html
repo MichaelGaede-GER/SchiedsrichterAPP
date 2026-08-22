@@ -208,10 +208,7 @@ function render(){
     paintTimer(); return;
   }
   document.title='Court '+COURT+' – '+VIEW;
-  if(VIEW==='psaline'){
-    const el = (d.mstatus==='between') ? (Date.now()-_betwAt) : -1;
-    stage.innerHTML = (el>=6000 && el<16000) ? viewSetStats(d) : viewPsa(d);   // Pause: 0-6s Stand, 6-16s Statistik, danach Stand
-  }
+  if(VIEW==='psaline') stage.innerHTML=viewPsa(d);
   else if(VIEW==='fullscore') stage.innerHTML=viewFull(d);
   else if(VIEW==='modern') stage.innerHTML=viewModern(d);
   else stage.innerHTML=viewScore(d);
@@ -321,18 +318,6 @@ function viewPsa(d){
     </div>
     ${sets?`<div class="psasets">${sets}</div>`:''}
   </div>`;
-}
-function viewSetStats(d){
-  const games=d.games||[]; const last=games[games.length-1];
-  if(!last || !Array.isArray(last.pts) || !last.pts.length) return viewPsa(d);
-  const setNo=games.length;
-  let a=0,b=0;
-  const dots=last.pts.map(w=>{ if(w===1)a++; else b++; return `<span class="sd ${w===1?'sd1':'sd2'}" title="${a}-${b}"></span>`; }).join('');
-  return `<div class="psawrap"><div class="statframe">
-    <div class="stat-title">Satz ${setNo} · ${last.p1}-${last.p2}</div>
-    <div class="stat-names"><span class="sn1">■ ${escS(d.p1raw)}</span><span class="sn2">■ ${escS(d.p2raw)}</span></div>
-    <div class="stat-seq">${dots}</div>
-  </div></div>`;
 }
 function adjustPsa(){
   const n1=document.querySelector('.psabar .ps-name.n1'), n2=document.querySelector('.psabar .ps-name.n2');
