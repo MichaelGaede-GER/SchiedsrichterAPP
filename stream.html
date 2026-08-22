@@ -13,11 +13,6 @@
   #stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
 
   /* Steuerleiste (im Stream weg-croppen oder mit H ausblenden) */
-  #bar{position:fixed;top:8px;right:8px;z-index:50;display:flex;gap:6px;background:rgba(0,0,0,.55);
-    padding:6px;border-radius:10px;transition:opacity .3s}
-  #bar.hide{opacity:0;pointer-events:none}
-  #bar button{background:#222;color:#fff;border:1px solid #444;border-radius:7px;padding:6px 10px;font-size:12px;cursor:pointer}
-  #bar button.active{background:var(--blue);border-color:var(--blue)}
   .idle{opacity:.25;font-weight:800;font-size:5vw;color:#0a3d0a}
   .mo{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;
     background:transparent;color:#fff;text-align:center;padding:3vh 4vw}
@@ -52,25 +47,20 @@
 
   /* ===== PSA LINE ===== */
   .psaline{display:flex;align-items:stretch;gap:14px;width:min(1760px,96vw)}
-  /* PSA-Broadcast-Leiste (untere Zweizeilen-Anzeige) */
-  .psa2{position:absolute;left:4vw;bottom:6vh;width:min(64vw,1000px);display:flex;flex-direction:column;gap:3px}
-  .psa2 .pr{display:grid;grid-template-columns:70px 1fr auto 118px;align-items:stretch;height:66px;
-    background:linear-gradient(180deg,#16233d,#0c1626);border:1px solid rgba(255,255,255,.10);overflow:hidden}
-  .psa2 .pr.p1{border-radius:12px 12px 0 0}
-  .psa2 .pr.p2{border-radius:0 0 12px 12px;border-top:0}
-  .psa2 .pr.srv{box-shadow:inset 5px 0 0 var(--yellow)}
-  .psa2 .pr-fl-wrap{display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.25)}
-  .psa2 .pr-fl{border-radius:4px;box-shadow:0 0 0 1px rgba(255,255,255,.15)}
-  .psa2 .pr-name{display:flex;align-items:center;gap:10px;min-width:0;padding:0 16px;font-size:30px;font-weight:800;color:#fff}
-  .psa2 .pr-t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .psa2 .pr-ball{width:16px;color:var(--yellow);font-size:16px;line-height:1;flex:0 0 auto}
-  .psa2 .pr-games{display:flex}
-  .psa2 .pg{width:54px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;
-    color:#8fb0d8;border-left:1px solid rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
-  .psa2 .pg.win{color:#fff;background:rgba(255,255,255,.07)}
-  .psa2 .pr-pts{display:flex;align-items:center;justify-content:center;font-size:46px;font-weight:900;
-    color:#111;background:var(--yellow);font-variant-numeric:tabular-nums}
-  .psa2 .pr.p2 .pr-pts{background:#ffe173}
+  /* PSA-Broadcast-Leiste (nach Vorlage: weiße Pille + Satzboxen darunter) */
+  .psawrap{position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;max-width:96vw}
+  .psabar{display:inline-flex;align-items:stretch;background:#fff;border-radius:16px;box-shadow:0 8px 34px rgba(0,0,0,.4);
+    overflow:hidden;font-weight:800;color:#111;white-space:nowrap;max-width:96vw;line-height:1}
+  .psabar .ps-name{display:inline-flex;align-items:center;gap:.28em;padding:.42em .7em;min-width:0}
+  .psabar .ps-name.n1{justify-content:flex-end}
+  .psabar .ps-name.n2{justify-content:flex-start}
+  .psabar .ps-t{overflow:hidden;text-overflow:ellipsis}
+  .psabar .ps-cc{color:#6b7280;font-size:.62em;font-weight:800}
+  .psabar .ps-g{background:#1b1b1b;color:#fff;display:flex;align-items:center;justify-content:center;min-width:1.5em;padding:0 .35em;font-size:1.05em}
+  .psabar .ps-pts{background:#fff;color:#111;display:flex;align-items:center;justify-content:center;padding:0 .6em;font-variant-numeric:tabular-nums;letter-spacing:.06em}
+  .psabar .ps-dot{width:.34em;height:.34em;border-radius:50%;background:#1a9bff;flex:0 0 auto;margin:0 .1em}
+  .psasets{display:flex;gap:10px}
+  .psasets .ps-set{background:#1b1b1b;color:#e8eef7;border-radius:9px;padding:6px 16px;font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;box-shadow:0 4px 16px rgba(0,0,0,.3)}
   .psaline .nm{flex:1 1 0;min-width:0;max-width:none;background:#fff;border:6px solid #999;border-radius:14px;
     display:flex;align-items:center;gap:12px;padding:16px 30px;font-weight:800;color:#111;line-height:1.05}
   .psaline .nm .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
@@ -121,13 +111,6 @@
 </style>
 </head>
 <body>
-<div id="bar">
-  <button data-v="scoreboard" onclick="setView('scoreboard')">Vollbild</button>
-  <button data-v="psaline"   onclick="setView('psaline')">PSA Line</button>
-  <button data-v="fullscore" onclick="setView('fullscore')">Fullscore</button>
-  <button data-v="modern"    onclick="setView('modern')">Modern</button>
-  <button onclick="goFull()">⛶</button>
-</div>
 <div id="stage"><div class="idle" id="idle">–</div></div>
 <div id="stimer" class="stimer"></div>
 
@@ -190,6 +173,8 @@ function liveState(){
     event:MATCH.event||MATCH.draw||'', round:MATCH.round||'',
     timer:s.timer||null, mstatus:s.status||'',
     shirt1:s.shirt1||null, shirt2:s.shirt2||null,
+    p1raw:MATCH.player1_name||'', p2raw:MATCH.player2_name||'',
+    cc1:(MATCH.player1_country||'').toUpperCase(), cc2:(MATCH.player2_country||'').toUpperCase(),
   };
 }
 
@@ -293,19 +278,24 @@ function psaNameFont(a,b){
   const n=Math.max((''+(a||'')).length,(''+(b||'')).length);
   if(n<=12) return 56; if(n<=16) return 48; if(n<=20) return 42; if(n<=24) return 36; if(n<=30) return 31; return 27;
 }
+function psaNameFont2(a,b){
+  const n=Math.max(String(a||'').length, String(b||'').length);
+  if(n<=14) return 40; if(n<=18) return 34; if(n<=22) return 30; if(n<=26) return 26; if(n<=32) return 22; return 19;
+}
 function viewPsa(d){
-  const cols1=setCols(d,1), cols2=setCols(d,2);
-  const gcell=c=>`<span class="pg${c&&c.win?' win':''}">${c?c.v:''}</span>`;
-  const row=(flag,name,isServer,cols,pts,cls)=>`
-    <div class="pr ${cls}${isServer?' srv':''}">
-      <span class="pr-fl-wrap">${flag}</span>
-      <span class="pr-name"><span class="pr-ball">${isServer?'●':''}</span><span class="pr-t">${escS(name)}</span></span>
-      <span class="pr-games">${cols.map(gcell).join('')}</span>
-      <span class="pr-pts">${pts}</span>
-    </div>`;
-  return `<div class="psa2">
-    ${row(flagSpan(d.c1,'pr-fl','width:54px;height:36px',d.r1), d.p1, d.server===1, cols1, d.pts1, 'p1')}
-    ${row(flagSpan(d.c2,'pr-fl','width:54px;height:36px',d.r2), d.p2, d.server===2, cols2, d.pts2, 'p2')}
+  const fs=psaNameFont2(d.p1raw+(d.cc1?(' ('+d.cc1+')'):''), d.p2raw+(d.cc2?(' ('+d.cc2+')'):''));
+  const dot1=d.server===1?'<span class="ps-dot"></span>':'';
+  const dot2=d.server===2?'<span class="ps-dot"></span>':'';
+  const sets=(d.games||[]).map(g=>`<span class="ps-set">${g.p1}-${g.p2}</span>`).join('');
+  return `<div class="psawrap">
+    <div class="psabar" style="font-size:${fs}px">
+      <span class="ps-name n1"><span class="ps-t">${escS(d.p1raw)}</span>${d.cc1?` <span class="ps-cc">(${escS(d.cc1)})</span>`:''}${dot1}</span>
+      <span class="ps-g">${d.g1}</span>
+      <span class="ps-pts">${d.pts1} - ${d.pts2}</span>
+      <span class="ps-g">${d.g2}</span>
+      <span class="ps-name n2">${dot2}<span class="ps-t">${escS(d.p2raw)}</span>${d.cc2?` <span class="ps-cc">(${escS(d.cc2)})</span>`:''}</span>
+    </div>
+    ${sets?`<div class="psasets">${sets}</div>`:''}
   </div>`;
 }
 
@@ -367,17 +357,9 @@ function viewModern(d){
 }
 
 // ---- Steuerung ----
-function setView(v){ VIEW=v; document.querySelectorAll('#bar button[data-v]').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
-  const u=new URL(location); u.searchParams.set('view',v); history.replaceState(null,'',u); render(); }
+function setView(v){ VIEW=v; const u=new URL(location); u.searchParams.set('view',v); history.replaceState(null,'',u); render(); }
 function goFull(){ if(!document.fullscreenElement) document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen(); else document.exitFullscreen&&document.exitFullscreen(); }
-document.addEventListener('keydown',e=>{
-  if(e.key==='f') goFull();
-  if(e.key==='h'||e.key==='H') document.getElementById('bar').classList.toggle('hide');
-  const m={'1':'scoreboard','2':'psaline','3':'fullscore','4':'modern'}; if(m[e.key]) setView(m[e.key]);
-});
-// Leiste nach Inaktivität ausblenden
-let hideT; function nudge(){ const bar=document.getElementById('bar'); bar.classList.remove('hide'); clearTimeout(hideT); hideT=setTimeout(()=>bar.classList.add('hide'),3000); }
-document.addEventListener('mousemove',nudge); nudge();
+document.addEventListener('keydown',e=>{ if(e.key==='f') goFull(); });
 
 // ---- Daten / Realtime ----
 async function refreshSettings(){ SET=await Store.getSettings(); setBg(); render(); load(); }
