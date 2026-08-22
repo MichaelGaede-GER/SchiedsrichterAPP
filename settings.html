@@ -489,8 +489,9 @@ async function renderLinks(){
         const fnTag = c.function==='center'?' (Center)':c.function==='semi'?' (Halbfinale)':'';
         const links=[
           ['Schiedsrichter-Tablet', wq(`court.html?court=${c.court_no}`,[locq])],
-          ['Vollbild-Anzeige',      wq(`stream.html?court=${c.court_no}&view=scoreboard`,[locq])],
-          ['Stream · PSA Line',     wq(`stream.html?court=${c.court_no}&view=psaline`,[locq])],
+          ['Anzeige',               wq(`stream.html?court=${c.court_no}&view=scoreboard`,[locq])],
+          ['Live',                  wq('live.html',[locq])],
+          ['Stream',                wq(`stream.html?court=${c.court_no}&view=psaline`,[locq])],
           ['Stream · Fullscore',    wq(`stream.html?court=${c.court_no}&view=fullscore`,[locq])],
           ['Stream · Modern',       wq(`stream.html?court=${c.court_no}&view=modern`,[locq])],
         ];
@@ -509,8 +510,9 @@ async function renderLinks(){
   const rows=list.map(n=>{
     const links=[
       ['Schiedsrichter-Tablet', wq(`court.html?court=${n}`)],
-      ['Vollbild-Anzeige',      wq(`stream.html?court=${n}&view=scoreboard`)],
-      ['Stream · PSA Line',     wq(`stream.html?court=${n}&view=psaline`)],
+      ['Anzeige',               wq(`stream.html?court=${n}&view=scoreboard`)],
+      ['Live',                  wq('live.html')],
+      ['Stream',                wq(`stream.html?court=${n}&view=psaline`)],
       ['Stream · Fullscore',    wq(`stream.html?court=${n}&view=fullscore`)],
       ['Stream · Modern',       wq(`stream.html?court=${n}&view=modern`)],
     ];

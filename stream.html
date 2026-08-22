@@ -20,7 +20,12 @@
   #bar button.active{background:var(--blue);border-color:var(--blue)}
   .idle{opacity:.25;font-weight:800;font-size:5vw;color:#0a3d0a}
   .mo{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;
-    background:rgba(6,10,16,.92);color:#fff;text-align:center;padding:3vh 4vw}
+    background:transparent;color:#fff;text-align:center;padding:3vh 4vw}
+  .mo-frame{background:rgba(6,10,16,.96);border:2px solid rgba(255,255,255,.16);border-radius:28px;
+    padding:4vh 4vw;max-width:min(92vw,1200px);display:flex;flex-direction:column;align-items:center;gap:2.2vh;box-shadow:0 20px 80px rgba(0,0,0,.55)}
+  .mo-players{font-size:4.4vw;font-weight:900;color:#fff;line-height:1.1}
+  .mo-vs2{color:#9fb3cc;font-size:.6em;font-weight:700}
+  .mo-heading{font-size:5vw;font-weight:900;color:#fff;line-height:1.05}
   .mo-big{font-size:9vw;font-weight:900;letter-spacing:.5vw;color:#ffd54a;text-shadow:0 4px 24px rgba(0,0,0,.6)}
   .mo-win{font-size:5.5vw;font-weight:900}
   .mo-score{font-size:4.5vw;font-weight:900;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:1.4vw;justify-content:center;flex-wrap:wrap}
@@ -144,20 +149,28 @@ function nat(code){ if(!code) return ''; const c=String(code).toLowerCase(); ret
 
 function clock(){ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
 
+let _betwAt=0, _betwKey='';
 function liveState(){
   if(!MATCH||!MATCH.state) return null;
   const s=MATCH.state;
+  let p1=s.cur?s.cur.p1:0, p2=s.cur?s.cur.p2:0;
+  if(s.status==='between'){                                   // Satzpause: 15s letzten Stand halten, dann 0:0
+    const key=MATCH.id+':'+((s.games||[]).length);
+    if(_betwKey!==key){ _betwKey=key; _betwAt=Date.now(); }
+    if(Date.now()-_betwAt >= 15000){ p1=0; p2=0; }
+  } else { _betwKey=''; }
   return {
     p1:MATCH.player1_name + (MATCH.player1_seed?(' ['+MATCH.player1_seed+']'):''),
     p2:MATCH.player2_name + (MATCH.player2_seed?(' ['+MATCH.player2_seed+']'):''),
     c1:MATCH.player1_country, c2:MATCH.player2_country,
     r1:MATCH.player1_region, r2:MATCH.player2_region,
-    pts1:s.cur?s.cur.p1:0, pts2:s.cur?s.cur.p2:0,
+    pts1:p1, pts2:p2,
     server:s.cur?s.cur.server:null, side:s.cur?s.cur.side:'R',
     g1:s.gamesWon1||0, g2:s.gamesWon2||0,
     games:s.games||[], bestOf:s.bestOf||MATCH.best_of||3,
     event:MATCH.event||MATCH.draw||'', round:MATCH.round||'',
     timer:s.timer||null, mstatus:s.status||'',
+    shirt1:s.shirt1||null, shirt2:s.shirt2||null,
   };
 }
 
@@ -204,29 +217,29 @@ function upcomingForCourt(){
   return ALL.filter(m => m.status==='scheduled' && m.court_no===COURT && (!VENUE || !m.venue_id || m.venue_id===VENUE))
     .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
 }
-function nextBlock(limit){
+function nextBlock(limit, noHead){
   const up=upcomingForCourt(); if(!up.length) return '';
-  return `<div class="mo-next"><div class="mo-next-h">Nächste Spiele · Court ${COURT}</div>`+
+  return `<div class="mo-next">${noHead?'':`<div class="mo-next-h">Nächste Spiele · Court ${COURT}</div>`}`+
     up.slice(0,limit||4).map(m=>`<div class="mo-next-row"><span class="mo-t">${escS(timeStr(m))}</span><b>${escS(m.player1_name)}</b> <span class="mo-vs">vs</span> <b>${escS(m.player2_name)}</b>${(m.event||m.draw)?` <span class="mo-ev">${escS(m.event||m.draw)}${m.round?(' · '+escS(m.round)):''}</span>`:''}</div>`).join('')+
     `</div>`;
 }
 function viewMatchOver(d, full){
-  const win = (d.g1===d.g2) ? '' : (d.g1>d.g2 ? d.p1 : d.p2);
   const sets = (d.games||[]).map(g=>`${g.p1}-${g.p2}`).join('   ');
+  const head = `<div class="mo-players">${escS(d.p1)} <span class="mo-vs2">vs</span> ${escS(d.p2)}</div>
+    <div class="mo-score">${d.g1}–${d.g2}${sets?`<span class="mo-sets">${escS(sets)}</span>`:''}</div>`;
   if(!full){
-    return `<div class="mo"><div class="mo-big">MATCH&nbsp;OVER</div></div>`;
+    return `<div class="mo"><div class="mo-frame">${head}</div></div>`;
   }
-  return `<div class="mo">
-    <div class="mo-big">MATCH&nbsp;OVER</div>
-    ${win?`<div class="mo-win">🏆 ${escS(win)}</div>`:''}
-    <div class="mo-score">${d.g1}–${d.g2}${sets?`<span class="mo-sets">${escS(sets)}</span>`:''}</div>
-    ${nextBlock(4)}
-  </div>`;
+  return `<div class="mo"><div class="mo-frame">
+    ${head}
+    <div class="mo-heading">Nächste Spiele auf Court ${COURT}</div>
+    ${nextBlock(4, true)}
+  </div></div>`;
 }
 function viewUpcoming(){
   const up=upcomingForCourt();
   if(!up.length) return `<div class="idle">Court ${COURT}</div>`;
-  return `<div class="mo"><div class="mo-court">Court ${COURT}</div>${nextBlock(6)}</div>`;
+  return `<div class="mo"><div class="mo-frame"><div class="mo-heading">Nächste Spiele auf Court ${COURT}</div>${nextBlock(6, true)}</div></div>`;
 }
 
 // ---- Timer-Anzeige (aus den Spieldaten, lokal heruntergezählt) ----
@@ -274,16 +287,18 @@ function viewPsa(d){
   </div>`;
 }
 
+function txtOn(hex){ try{ const c=String(hex).replace('#',''); const r=parseInt(c.substr(0,2),16),g=parseInt(c.substr(2,2),16),b=parseInt(c.substr(4,2),16); if([r,g,b].some(isNaN)) return '#fff'; return (0.299*r+0.587*g+0.114*b)/255>0.6?'#111':'#fff'; }catch(e){ return '#fff'; } }
 function viewScore(d){
   const side=d.side==='L'?'L':'R';
+  const sh1=d.shirt1||'#000', sh2=d.shirt2||'#000';
   return `<div class="sb">
     <div class="top">
-      <div class="name p1">${flagSpan(d.c1,'flagimg','width:44px;height:30px',d.r1)}${d.p1}${d.server===1?'<span class="dot"></span>':''}</div>
+      <div class="name p1" style="background:${sh1};color:${txtOn(sh1)}">${flagSpan(d.c1,'flagimg','width:44px;height:30px',d.r1)}${d.p1}${d.server===1?'<span class="dot"></span>':''}</div>
       <div class="center">
         <div class="gp"><b>${d.g1}</b><b>${d.g2}</b></div>
         <div class="serve">${side}</div>
       </div>
-      <div class="name p2">${d.server===2?'<span class="dot"></span>':''}${d.p2}${flagSpan(d.c2,'flagimg','width:44px;height:30px',d.r2)}</div>
+      <div class="name p2" style="background:${sh2};color:${txtOn(sh2)}">${d.server===2?'<span class="dot"></span>':''}${d.p2}${flagSpan(d.c2,'flagimg','width:44px;height:30px',d.r2)}</div>
     </div>
     <div class="big">
       <div class="bigbox"><span class="n">${d.pts1}</span></div>
@@ -357,6 +372,7 @@ Auth.guard('view').then(()=>{
   load();
 });
 setInterval(()=>{ if(VIEW==='fullscore') render(); },30000); // Uhr aktualisieren
+setInterval(()=>{ const d=liveState(); if(d && d.mstatus==='between') render(); }, 1000); // Satzpause: 15s letzten Stand, dann 0:0
 setInterval(()=>{ const s=MATCH&&MATCH.state; if((s&&s.status==='finished') || !MATCH) render(); },1000); // Match-Over-Übergang & Vorschau
 </script>
 </body>
