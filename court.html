@@ -678,7 +678,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v25</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v26</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
@@ -1137,13 +1137,12 @@ function showWarmup(){
   show('ovWarmup');
 }
 function warmServeView(){
-  // Aufschlag-Modus: alles außer Titel + Aufschlagfrage + Buttons ausblenden (passt immer)
-  ['warmClock','warmCtrlRow','warmLogo','warmInfo'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; });
-  const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='none';
+  // Aufschlagwahl anzeigen – Timer/Steuerung/Logo/Info bleiben sichtbar (wie vorher)
+  const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='none';  // Start-Button -> Aufschlagwahl
   const qr=document.getElementById('warmServeRow'); if(qr) qr.style.display='block';
-  const ov=document.getElementById('ovWarmup'); if(ov) ov.scrollTop=0;   // Overlay ist der Scroll-Container
+  const ov=document.getElementById('ovWarmup'); if(ov) ov.scrollTop=0;               // Overlay ist der Scroll-Container
   const c=document.querySelector('#ovWarmup .card'); if(c) c.scrollTop=0;
-  if(qr) qr.scrollIntoView({block:'center'});
+  if(qr) setTimeout(()=>{ try{ qr.scrollIntoView({block:'center',behavior:'smooth'}); }catch(e){} }, 60);
 }
 function askServer(){
   if(!Timer.running && Timer.sec>0) Timer.toggle();   // Aufwärm-Timer starten

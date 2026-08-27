@@ -94,6 +94,7 @@ const Store = (() => {
       if (id) await sb.from('matches').delete().eq('tournament_id', id);
       else await sb.from('matches').delete().is('tournament_id', null);
     },
+    async deleteMatch(id) { const { error } = await sb.from('matches').delete().eq('id', id); if (error) throw error; },
     async adoptOrphans(toId) {
       const { error } = await sb.from('matches').update({ tournament_id: toId }).is('tournament_id', null);
       if (error) throw error;
@@ -237,6 +238,7 @@ const Store = (() => {
       const rows = readLS().filter(m => (id ? m.tournament_id !== id : !!m.tournament_id));
       writeLS(rows);
     },
+    async deleteMatch(id) { writeLS(readLS().filter(m => m.id !== id)); },
     async adoptOrphans(toId) {
       const rows = readLS(); rows.forEach(m => { if (!m.tournament_id) m.tournament_id = toId; }); writeLS(rows);
     },
@@ -352,6 +354,7 @@ const Store = (() => {
         if (row.tournament_id === undefined) row.tournament_id = ACTIVE || null;
         return row; })); },
     async deleteAll() { await ensureActive(); return backend.deleteMatchesOfTournament(ACTIVE || null); },
+    async deleteMatch(id) { return backend.deleteMatch(id); },
     subscribeAll: (...a) => backend.subscribeAll(...a),
     subscribeCourt: (courtId, cb) => backend.subscribeAll(cb),
     subscribeSettings: (...a) => backend.subscribeSettings(...a),
