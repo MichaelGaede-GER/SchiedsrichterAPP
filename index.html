@@ -651,7 +651,7 @@ function breakEndsAt(id, bi){
 }
 function upcomingMissing(limit){
   return MATCHES.filter(m=>m.status==='scheduled')
-    .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0)).slice(0,limit||20)
+    .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0) || tpNum(a)-tpNum(b)).slice(0,limit||20)
     .filter(matchHasMissing);
 }
 function M_result(s){ try{ if(!s||!s.games) return ''; return s.games.map(g=>`${g.p1}-${g.p2}`).join(', '); }catch(e){ return ''; } }
@@ -869,6 +869,7 @@ function renderSched(){
   let rows=MATCHES.filter(m=>!m.court_id && m.status==='scheduled');
   if(cf) rows=rows.filter(m=>String(m.court_no)===cf);
   if(q) rows=rows.filter(m=>(`${m.player1_name} ${m.player2_name} ${m.event||m.draw||''}`).toLowerCase().includes(q));
+  rows.sort((a,b)=> tpNum(a)-tpNum(b) || (a.sort_ts||0)-(b.sort_ts||0));   // nach Spielnummer (#Nr), dann Zeit
   document.getElementById('schedCount').textContent=rows.length;
 
   if(!rows.length){

@@ -290,8 +290,9 @@ function finishAtOf(){
 }
 function timeStr(m){ return m.scheduled_time ? (String(m.scheduled_time).slice(0,5)+' ') : ''; }
 function upcomingForCourt(){
+  const mno=m=>{ const s=String(m.match_no||'').match(/\d+/); return s?parseInt(s[0],10):999999; };
   return ALL.filter(m => m.status==='scheduled' && m.court_no===COURT && (!VENUE || !m.venue_id || m.venue_id===VENUE))
-    .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
+    .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0) || mno(a)-mno(b));
 }
 function stTime(raw){ if(!raw) return ''; const s=String(raw); const m=s.match(/(\d{1,2}:\d{2})\s*$/)||s.match(/(\d{1,2}:\d{2})/); return m?m[1]:''; }
 // ===== Court-Vollbildanzeige ("Anzeige", view=scoreboard) – 1920x1080 =====
