@@ -186,7 +186,7 @@
   <h2 id="warmTitle">Nächstes Spiel auf Court</h2>
   <div id="warmPhaseLabel" style="opacity:.8;margin:-6px 0 8px;letter-spacing:.5px;font-weight:700">Aufwärmen</div>
   <div id="warmClock" class="timerbig">5:00</div>
-  <div class="row">
+  <div class="row" id="warmCtrlRow">
     <button class="btn btn-gray" onclick="Timer.reset('warmup')">Reset</button>
   </div>
   <div id="warmStartRow" class="row" style="margin-top:22px">
@@ -678,7 +678,7 @@ function render(){
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
-      <div class="right"><span class="ver">v24</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
+      <div class="right"><span class="ver">v25</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
@@ -1109,6 +1109,7 @@ function bigBanner(text,ms){
 function hideBigBanner(){ const b=document.getElementById('bigBanner'); if(b) b.style.display='none'; }
 function showWarmup(){
   warmPhase=0;
+  ['warmClock','warmCtrlRow'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display=''; });  // ggf. aus Aufschlag-Modus zurück
   const lg=document.getElementById('warmLogo');
   if(lg){ if(SETTINGS&&SETTINGS.logoUrl){ lg.src=SETTINGS.logoUrl; lg.style.display='block'; } else lg.style.display='none'; }
   setText('warmTitle','Nächstes Spiel auf Court '+COURT);
@@ -1135,11 +1136,18 @@ function showWarmup(){
   primeWarmPhase();            // Phase 1 bereit (pausiert) – Schiri startet
   show('ovWarmup');
 }
+function warmServeView(){
+  // Aufschlag-Modus: alles außer Titel + Aufschlagfrage + Buttons ausblenden (passt immer)
+  ['warmClock','warmCtrlRow','warmLogo','warmInfo'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; });
+  const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='none';
+  const qr=document.getElementById('warmServeRow'); if(qr) qr.style.display='block';
+  const ov=document.getElementById('ovWarmup'); if(ov) ov.scrollTop=0;   // Overlay ist der Scroll-Container
+  const c=document.querySelector('#ovWarmup .card'); if(c) c.scrollTop=0;
+  if(qr) qr.scrollIntoView({block:'center'});
+}
 function askServer(){
   if(!Timer.running && Timer.sec>0) Timer.toggle();   // Aufwärm-Timer starten
-  const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='none';
-  const qr=document.getElementById('warmServeRow'); if(qr){ qr.style.display='block';
-    setTimeout(()=>qr.scrollIntoView({block:'center',behavior:'smooth'}),60); }
+  warmServeView();
 }
 function primeWarmPhase(){
   const phases=warmPhaseList();
@@ -1165,11 +1173,10 @@ function onWarmPhaseEnd(){
   const phases=warmPhaseList();
   const isLast=(warmPhase>=phases.length-1);
   if(isLast){
-    // Endphase vorbei -> großer Aufschlag-Prompt, Buttons bleiben sichtbar
+    // Endphase vorbei -> großer Aufschlag-Prompt, kompakt (Buttons immer sichtbar)
     const lbl=document.getElementById('warmPhaseLabel');
     setText('warmPhaseLabel','Wer schlägt auf?'); lbl.classList.add('big');
-    const qr=document.getElementById('warmServeRow');
-    if(qr){ qr.style.display='block'; setTimeout(()=>qr.scrollIntoView({block:'center',behavior:'smooth'}),60); }
+    warmServeView();
     return;
   }
   const wasFirst=(warmPhase===0);

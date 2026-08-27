@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+<script>
+  // Supabase-Passwort-Reset: Recovery-Link landet auf der Site-URL -> zur Reset-Seite weiterleiten
+  if(location.hash && /type=recovery/.test(location.hash) && !/reset-password/.test(location.pathname)){
+    location.replace('reset-password.html'+location.hash);
+  }
+</script>
 <script src="i18n.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1297,20 +1303,52 @@ fileInput.addEventListener('change', async e=>{
     });
     const open=recs.filter(r=>!r.played);
     const played=recs.length-open.length;
-    const existing=new Set(MATCHES.map(m=>m.import_key).filter(Boolean));
-    const defVenue=defLocId();                                   // Standard-Location (falls Turnier Anlagen hat)
+    // Stabile Zuordnung über Event|Runde|Match-Nr (OHNE Spielernamen) -> Update bei aufgelösten Platzhaltern
+    const norm=s=>String(s==null?'':s).toLowerCase().replace(/\s+/g,' ').trim();
+    const nrOf=nr=>String(nr==null?'':nr).replace(/^#+/,'').trim();
+    function stableKey(ev,rd,nr){ const n=nrOf(nr); if(!n) return null; return norm(ev)+'|'+norm(rd)+'|'+n; }
+    function evNrKey(ev,nr){ const n=nrOf(nr); if(!n) return null; return norm(ev)+'|'+n; }
+    const byStable={}, byEvNr={};
+    MATCHES.forEach(m=>{
+      const sk=stableKey(m.event, m.round, m.match_no); if(sk && !byStable[sk]) byStable[sk]=m;
+      const ek=evNrKey(m.event, m.match_no); if(ek && !(ek in byEvNr)) byEvNr[ek]=m;  // Fallback: Rundenbezeichnung kann abweichen
+    });
+    const existing=new Set(MATCHES.map(m=>m.import_key).filter(Boolean));   // Fallback für Zeilen ohne Match-Nr
+    const defVenue=defLocId();
     const autoCourt=!!(document.getElementById('autoCourt') && document.getElementById('autoCourt').checked);
-    const rr=defVenue?venueCourtsFor(defVenue):[];               // Courts der Location für Reihum-Verteilung
+    const rr=defVenue?venueCourtsFor(defVenue):[];
     let rrIdx=0;
-    const toInsert=[]; let dup=0;
+    const toInsert=[]; let dup=0, upd=0;
     for(const r of open){
-      const key=importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw);
-      if(existing.has(key)){ dup++; continue; }
-      existing.add(key);
       const p1=parsePlayer(r.t1raw), p2=parsePlayer(r.t2raw);
-      // Location: aus Datei (falls vorhanden) sonst Standard-Location
+      const sk=stableKey(r.event, r.round, r.nr);
+      const enk=evNrKey(r.event, r.nr);
+      const ex = (sk && byStable[sk]) || (enk && byEvNr[enk]) || null;
+      if(ex){
+        // Vorhandenes Spiel: aktualisieren, solange es noch nicht gestartet/gespielt ist
+        if(ex.status==='scheduled'){
+          const n1=p1.name, c1=countryToISO(p1.country), n2=p2.name, c2=countryToISO(p2.country);
+          const patch={};
+          if(ex.player1_name!==n1) patch.player1_name=n1;
+          if(ex.player1_country!==c1) patch.player1_country=c1;
+          if((ex.player1_seed||null)!==(p1.seed||null)) patch.player1_seed=p1.seed||null;
+          if(ex.player2_name!==n2) patch.player2_name=n2;
+          if(ex.player2_country!==c2) patch.player2_country=c2;
+          if((ex.player2_seed||null)!==(p2.seed||null)) patch.player2_seed=p2.seed||null;
+          if(r.round!=null && (ex.round||'')!==r.round) patch.round=r.round;
+          if(r.referee!=null && (ex.referee||'')!==r.referee) patch.referee=r.referee;
+          if(r.time!=null && (ex.scheduled_time||'')!==r.time){ patch.scheduled_time=r.time; if(r.sort_ts!=null) patch.sort_ts=r.sort_ts; }
+          if(Object.keys(patch).length){ try{ await Store.updateMatch(ex.id, patch); upd++; }catch(e){ console.error(e); } }
+          else dup++;
+        } else dup++;   // laufend/beendet -> nicht überschreiben
+        continue;
+      }
+      if(!sk){                                    // keine Match-Nr -> alte namensbasierte Dedupe
+        const key=importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw);
+        if(existing.has(key)){ dup++; continue; }
+        existing.add(key);
+      }
       const venue_id = r.venue_id || defVenue || null;
-      // Court: aus Datei (falls vorhanden) sonst optional automatisch reihum
       let court_no = r.court_no;
       let court_label = r.court!=null?String(r.court):null;
       if(court_no==null && autoCourt && rr.length && !r.venue_id){ court_no=rr[rrIdx%rr.length]; rrIdx++; court_label='C'+court_no; }
@@ -1323,12 +1361,12 @@ fileInput.addEventListener('change', async e=>{
         court_id:null, court_no:court_no, court_label:court_label,
         venue_id:venue_id,
         scheduled_time:r.time||null, sort_ts:r.sort_ts||null,
-        referee:r.referee||null, import_key:key,
+        referee:r.referee||null, import_key:(sk||importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw)),
         status:'scheduled', state:null, result:null, winner:null, score_text:null });
     }
-    await Store.insertMany(toInsert);
+    if(toInsert.length) await Store.insertMany(toInsert);
     const locNote = defVenue ? (' · Location: '+((TVENUES_IDX.find(v=>v.venue_id===defVenue)||{}).name||'')) : '';
-    toast(`${toInsert.length} importiert${locNote} · ${played} gespielt übersprungen · ${dup} Duplikate`);
+    toast(`${toInsert.length} neu · ${upd} aktualisiert · ${played} gespielt übersprungen · ${dup} unverändert`);
   }catch(err){ console.error(err); toast('Import-Fehler: '+err.message); }
 });
 
