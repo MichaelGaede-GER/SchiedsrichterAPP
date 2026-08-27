@@ -283,6 +283,10 @@
         <label>Pause zwischen den Sätzen (Sekunden)</label>
         <input type="number" id="restSeconds" min="0" step="5" placeholder="120">
       </div>
+      <div class="field">
+        <label>Warnung „Fehlende Spieler": Anzahl der geprüften nächsten Spiele</label>
+        <input type="number" id="missingCheckCount" min="0" step="1" placeholder="20">
+      </div>
     </div>
     <div class="hint">Aufwärmen läuft in zwei Phasen (je Standard 2 Min., dazwischen Seitenwechsel),
       danach die letzte Minute. Bei 60/30/15 Sekunden Restzeit kommen Ansage und Warnton.</div>
@@ -910,6 +914,7 @@ async function loadSettings(){
   $('warmupP2').value=S.warmupP2!=null?S.warmupP2:120;
   $('warmupFinal').value=S.warmupFinal!=null?S.warmupFinal:60;
   $('restSeconds').value=S.restSeconds!=null?S.restSeconds:120;
+  $('missingCheckCount').value=S.missingCheckCount!=null?S.missingCheckCount:20;
   $('liveRotate').value=S.liveRotate!=null?S.liveRotate:12;
   $('liveMode').value=S.liveMode||'rotate';
   $('hlLabels').value=(Array.isArray(S.highlightLabels)?S.highlightLabels:['Halbfinale','Finale']).join('\n');
@@ -940,6 +945,7 @@ async function saveAll(){
     warmupP2:parseInt($('warmupP2').value,10)||0,
     warmupFinal:parseInt($('warmupFinal').value,10)||0,
     restSeconds:parseInt($('restSeconds').value,10)||0,
+    missingCheckCount:(parseInt($('missingCheckCount').value,10)||20),
     liveRotate:parseInt($('liveRotate').value,10)||12,
     liveMode:$('liveMode').value||'rotate',
     highlightLabels:($('hlLabels').value||'').split('\n').map(s=>s.trim()).filter(Boolean),

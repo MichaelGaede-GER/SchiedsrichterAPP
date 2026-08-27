@@ -711,10 +711,11 @@ function tickInjury(){
 }
 setInterval(tickInjury, 1000);
 function checkMissing(){
-  const miss=upcomingMissing(20); MISSING_ACTIVE=miss.length>0;
+  const N=Math.max(0, MISS_CHECK||0);
+  const miss=upcomingMissing(N); MISSING_ACTIVE=miss.length>0;
   const bar=document.getElementById('missingBanner'); if(!bar) return;
   if(MISSING_ACTIVE){ bar.style.display='flex';
-    const t=bar.querySelector('.mbtext'); if(t) t.textContent=`⚠️ Fehlende Spieler erkannt – bitte importiere die fehlenden Spieler.  (${miss.length} betroffene${miss.length>1?' Spiele':'s Spiel'} in den nächsten 20)`;
+    const t=bar.querySelector('.mbtext'); if(t) t.textContent=`⚠️ Fehlende Spieler erkannt – bitte importiere die fehlenden Spieler.  (${miss.length} betroffene${miss.length>1?' Spiele':'s Spiel'} in den nächsten ${N})`;
   } else bar.style.display='none';
 }
 if (Store.ready){ modeEl.textContent='● Supabase verbunden'; modeEl.className='mode live'; }
@@ -757,6 +758,7 @@ function render(){ renderCourts(); renderSched(); renderDone(); }
 
 let COURT_LAYOUT = null;        // [{venue_id,name,courts:[{no,fn}]}] oder null=Fallback
 let TOURNAME = '';              // Turniername für Protokoll-Kopf
+let MISS_CHECK = 20;            // Anzahl geprüfter nächster Spiele für „Fehlende Spieler"-Warnung
 let COURTS_FALLBACK = null;     // pro-Turnier Court-Liste (Settings) als Fallback
 let TVENUES_IDX = [];           // Locations des aktiven Turniers [{venue_id,name}]
 async function loadCourtLayout(){
@@ -764,6 +766,7 @@ async function loadCourtLayout(){
     let st={}; try{ st=await Store.getSettings(); }catch(e){}
     COURTS_FALLBACK = Array.isArray(st.courts) ? st.courts : null;
     TOURNAME = st.tournamentName || TOURNAME || '';
+    MISS_CHECK = (st.missingCheckCount!=null ? Number(st.missingCheckCount) : 20);
     HLABELS = Array.isArray(st.highlightLabels)&&st.highlightLabels.length ? st.highlightLabels : ['Halbfinale','Finale'];
     FLOW_AUTOASSIGN = !!st.autoAssign;
     FLOW_AUTOCONFIRM = !!st.autoConfirm;
