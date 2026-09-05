@@ -51,14 +51,14 @@
   /* ===== PSA LINE ===== */
   .psaline{display:flex;align-items:stretch;gap:14px;width:min(1760px,96vw)}
   /* PSA-Broadcast-Leiste (nach Vorlage: weiße Pille + Satzboxen darunter) */
-  .psawrap{position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;max-width:96vw}
-  .psaball{white-space:nowrap;max-width:96vw;font-weight:900;letter-spacing:.06em;font-size:26px;padding:6px 22px;border-radius:12px;color:#111;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+  .psawrap{position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;max-width:96vw}
+  .psaball{white-space:nowrap;max-width:96vw;font-weight:900;letter-spacing:.06em;font-size:17px;padding:4px 15px;border-radius:9px;color:#111;box-shadow:0 5px 18px rgba(0,0,0,.4)}
   .psaball.set{background:#ffd23f}
   .psaball.match{background:#ff4b4b;color:#fff}
-  .psabar{display:inline-flex;align-items:stretch;background:#fff;border-radius:16px;box-shadow:0 8px 34px rgba(0,0,0,.4);
-    overflow:hidden;font-weight:800;color:#111;white-space:nowrap;max-width:96vw;line-height:1.25}
-  .psabar .ps-name{display:inline-flex;align-items:center;gap:.28em;padding:.5em .7em;box-sizing:content-box}
-  .psabar .ps-t{line-height:1.25;padding-bottom:.04em}
+  .psabar{display:inline-flex;align-items:stretch;background:#fff;border-radius:12px;box-shadow:0 6px 26px rgba(0,0,0,.4);
+    overflow:hidden;font-weight:800;color:#111;white-space:nowrap;max-width:96vw;line-height:1.2}
+  .psabar .ps-name{display:inline-flex;align-items:center;gap:.28em;padding:.3em .7em;box-sizing:content-box}
+  .psabar .ps-t{line-height:1.2;padding-bottom:.03em}
   .psabar .ps-name.n1{justify-content:flex-end}
   .psabar .ps-name.n2{justify-content:flex-start}
   .psabar .ps-t{overflow:hidden;text-overflow:ellipsis}
@@ -66,8 +66,8 @@
   .psabar .ps-g{background:#1b1b1b;color:#fff;display:flex;align-items:center;justify-content:center;min-width:1.5em;padding:0 .35em;font-size:1.05em}
   .psabar .ps-pts{background:#fff;color:#111;display:flex;align-items:center;justify-content:center;padding:0 .6em;font-variant-numeric:tabular-nums;letter-spacing:.06em}
   .psabar .ps-dot{width:.34em;height:.34em;border-radius:50%;background:#1a9bff;flex:0 0 auto;margin:0 .1em}
-  .psasets{display:flex;justify-content:center;gap:10px}
-  .psasets .ps-set{background:#1b1b1b;color:#e8eef7;border-radius:9px;padding:6px 16px;font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+  .psasets{display:flex;justify-content:center;gap:7px}
+  .psasets .ps-set{background:#1b1b1b;color:#e8eef7;border-radius:6px;padding:2px 11px;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;box-shadow:0 3px 12px rgba(0,0,0,.3)}
   .statframe{background:rgba(6,10,16,.96);border:2px solid rgba(255,255,255,.16);border-radius:22px;padding:24px 30px;max-width:min(90vw,1000px);box-shadow:0 20px 80px rgba(0,0,0,.55);color:#fff;text-align:center}
   .statframe .stat-title{font-size:34px;font-weight:900;margin-bottom:10px}
   .statframe .stat-names{display:flex;gap:28px;justify-content:center;font-size:20px;font-weight:800;margin-bottom:16px}
@@ -448,7 +448,7 @@ function psaNameFont(a,b){
 }
 function psaNameFont2(a,b){
   const n=Math.max(String(a||'').length, String(b||'').length);
-  if(n<=14) return 40; if(n<=18) return 34; if(n<=22) return 30; if(n<=26) return 26; if(n<=32) return 22; return 19;
+  if(n<=14) return 28; if(n<=18) return 25; if(n<=22) return 23; if(n<=26) return 21; if(n<=32) return 18; return 16;
 }
 function viewPsa(d){
   const fs=psaNameFont2(d.p1raw+(d.cc1?(' ('+d.cc1+')'):''), d.p2raw+(d.cc2?(' ('+d.cc2+')'):''));
