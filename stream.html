@@ -66,7 +66,7 @@
   .psabar .ps-g{background:#1b1b1b;color:#fff;display:flex;align-items:center;justify-content:center;min-width:1.5em;padding:0 .35em;font-size:1.05em}
   .psabar .ps-pts{background:#fff;color:#111;display:flex;align-items:center;justify-content:center;padding:0 .6em;font-variant-numeric:tabular-nums;letter-spacing:.06em}
   .psabar .ps-dot{width:.34em;height:.34em;border-radius:50%;background:#1a9bff;flex:0 0 auto;margin:0 .1em}
-  .psasets{display:flex;justify-content:center;gap:7px}
+  .psasets{display:flex;justify-content:center;align-items:center;gap:7px;width:100%}
   .psasets .ps-set{background:#1b1b1b;color:#e8eef7;border-radius:6px;padding:2px 11px;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;box-shadow:0 3px 12px rgba(0,0,0,.3)}
   .statframe{background:rgba(6,10,16,.96);border:2px solid rgba(255,255,255,.16);border-radius:22px;padding:24px 30px;max-width:min(90vw,1000px);box-shadow:0 20px 80px rgba(0,0,0,.55);color:#fff;text-align:center}
   .statframe .stat-title{font-size:34px;font-weight:900;margin-bottom:10px}
@@ -448,7 +448,7 @@ function psaNameFont(a,b){
 }
 function psaNameFont2(a,b){
   const n=Math.max(String(a||'').length, String(b||'').length);
-  if(n<=14) return 28; if(n<=18) return 25; if(n<=22) return 23; if(n<=26) return 21; if(n<=32) return 18; return 16;
+  if(n<=14) return 34; if(n<=18) return 30; if(n<=22) return 27; if(n<=26) return 24; if(n<=32) return 21; return 18;
 }
 function viewPsa(d){
   const fs=psaNameFont2(d.p1raw+(d.cc1?(' ('+d.cc1+')'):''), d.p2raw+(d.cc2?(' ('+d.cc2+')'):''));
