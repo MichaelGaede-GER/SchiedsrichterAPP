@@ -9,7 +9,7 @@
   :root{ --green:#82F84E; --blue:#1a4bff; --red:#e5343b; --dark:#1b1b1b; --yellow:#ffd23f; }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;font-family:"Segoe UI",Arial,system-ui,sans-serif;
-    background:var(--green);overflow:hidden;color:#111}
+    background:transparent;overflow:hidden;color:#111}
   #stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
 
   /* Steuerleiste (im Stream weg-croppen oder mit H ausblenden) */
@@ -242,7 +242,13 @@ function liveState(){
   };
 }
 
-function setBg(){ document.body.style.background = (VIEW==='scoreboard') ? '#0b0f1c' : ((SET&&SET.green)||'#82F84E'); }
+function setBg(){
+  const el=document.documentElement, bd=document.body;
+  if(VIEW==='scoreboard'){ el.style.background='#0b0f1c'; bd.style.background='#0b0f1c'; return; }  // Anzeige = eigener dunkler Screen
+  const green = new URLSearchParams(location.search).has('green');   // ?green=1 -> Greenscreen zum Chroma-Keyen
+  const bg = green ? ((SET&&SET.green)||'#82F84E') : 'transparent';  // sonst transparent (OBS-Browserquelle)
+  el.style.background=bg; bd.style.background=bg;
+}
 
 function render(){
   setBg();
