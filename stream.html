@@ -54,6 +54,16 @@
   .psawrap{position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;max-width:96vw}
   .psafade{position:absolute;inset:0;opacity:0;transition:opacity 3000ms ease;pointer-events:none}
   .psafade.on{opacity:1}
+  .sbwrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .sbframe{background:rgba(10,14,22,.88);border:1px solid rgba(255,255,255,.12);border-radius:26px;padding:34px 64px;
+    display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 24px 90px rgba(0,0,0,.55);max-width:92vw}
+  .sbframe .sb-logo{height:auto;width:auto;max-height:64px;max-width:280px;object-fit:contain;margin-bottom:2px}
+  .sbframe .sb-players{font-size:34px;font-weight:900;color:#fff;text-align:center;line-height:1.15;white-space:nowrap}
+  .sbframe .sb-vs{color:#9fb3cc;font-size:.62em;font-weight:700}
+  .sbframe .sb-sets{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;font-size:88px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;line-height:1}
+  .sbframe .sb-timer{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:8px}
+  .sbframe .sb-timer span{font-size:20px;font-weight:800;letter-spacing:.22em;color:#9fb3cc}
+  .sbframe .sb-timer b{font-size:50px;font-weight:900;color:var(--yellow);font-variant-numeric:tabular-nums;line-height:1}
   .psaball{white-space:nowrap;max-width:96vw;font-weight:900;letter-spacing:.06em;font-size:17px;padding:4px 15px;border-radius:9px;color:#111;box-shadow:0 5px 18px rgba(0,0,0,.4)}
   .psaball.set{background:#ffd23f}
   .psaball.match{background:#ff4b4b;color:#fff}
@@ -428,7 +438,8 @@ function timerInfo(){
 function paintTimer(){
   const el=document.getElementById('stimer'); if(!el) return;
   const info=timerInfo();
-  if(!info){ el.style.display='none'; return; }
+  const hidePsaBreak = (VIEW==='psaline' && MATCH && MATCH.state && MATCH.state.status==='between'); // Satzpause: Timer steckt im zentralen Block
+  if(!info || hidePsaBreak){ el.style.display='none'; return; }
   el.style.display='flex';
   el.innerHTML=`<span class="lbl">${info.label}${info.paused?' · Pause':''}</span><span class="clk">${fmtT(info.left)}</span>`;
 }
@@ -501,14 +512,28 @@ function psaPhaseApply(immediate){
   const set=(el,on)=>{ if(immediate) el.style.transition='none'; el.classList.toggle('on',on); if(immediate){ void el.offsetWidth; el.style.transition=''; } };
   set(ly1, p==='psa'); set(ly2, p==='fs');
 }
+function viewSetBreak(d){
+  const sets=(d.games||[]).map(g=>`<span class="sb-set">${g.p1}-${g.p2}</span>`).join('');
+  const logo=(SET&&SET.logoUrl)?`<img class="sb-logo" src="${SET.logoUrl}" alt="">`:'';
+  const t=d.timer; let rem=0;
+  if(t&&t.endsAt) rem=Math.max(0,Math.round((t.endsAt-Date.now())/1000));
+  else if(t&&typeof t.sec==='number') rem=Math.max(0,t.sec);
+  const mm=Math.floor(rem/60), ss=String(rem%60).padStart(2,'0');
+  return `<div class="sbwrap"><div class="sbframe">
+    ${logo}
+    <div class="sb-players">${escS(d.p1raw)} <span class="sb-vs">vs</span> ${escS(d.p2raw)}</div>
+    ${sets?`<div class="sb-sets">${sets}</div>`:''}
+    <div class="sb-timer"><span>SATZPAUSE</span><b>${mm}:${ss}</b></div>
+  </div></div>`;
+}
 function renderPsaLayers(d){
   const stage=document.getElementById('stage');
   let ly1=document.getElementById('lyPsa'), ly2=document.getElementById('lyFs');
   const fresh=(!ly1||!ly2);
   if(fresh){
-    stage.innerHTML = `<div id="lyFs" class="psafade">${viewFull(d)}</div><div id="lyPsa" class="psafade">${viewPsa(d)}</div>`;
+    stage.innerHTML = `<div id="lyFs" class="psafade">${viewSetBreak(d)}</div><div id="lyPsa" class="psafade">${viewPsa(d)}</div>`;
   } else {
-    ly1.innerHTML=viewPsa(d); ly2.innerHTML=viewFull(d);
+    ly1.innerHTML=viewPsa(d); ly2.innerHTML=viewSetBreak(d);
   }
   requestAnimationFrame(adjustPsa);
   psaPhaseApply(fresh);
@@ -591,7 +616,7 @@ Auth.guard('view').then(()=>{
   load();
 });
 setInterval(()=>{ if(VIEW==='fullscore') render(); },30000); // Uhr aktualisieren
-setInterval(()=>{ const d=liveState(); if(d && d.mstatus==='between' && VIEW!=='psaline') render(); }, 1000); // Satzpause: 15s letzten Stand, dann 0:0
+setInterval(()=>{ const d=liveState(); if(d && d.mstatus==='between') render(); }, 1000); // Satzpause: Countdown im Block / 15s-Halt
 setInterval(()=>{ if(VIEW==='psaline') psaPhaseApply(false); }, 300); // PSA-Line: Pausen-Fade (PSA <-> Fullscore, 3000ms)
 setInterval(()=>{ const s=MATCH&&MATCH.state; if((s&&s.status==='finished') || !MATCH) render(); },1000); // Match-Over-Übergang & Vorschau
 setInterval(()=>{ if(VIEW!=='scoreboard') return; const d=liveState();
