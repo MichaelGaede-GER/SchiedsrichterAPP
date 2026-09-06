@@ -52,6 +52,8 @@
   .psaline{display:flex;align-items:stretch;gap:14px;width:min(1760px,96vw)}
   /* PSA-Broadcast-Leiste (nach Vorlage: weiße Pille + Satzboxen darunter) */
   .psawrap{position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;max-width:96vw}
+  .psafade{position:absolute;inset:0;opacity:0;transition:opacity 3000ms ease;pointer-events:none}
+  .psafade.on{opacity:1}
   .psaball{white-space:nowrap;max-width:96vw;font-weight:900;letter-spacing:.06em;font-size:17px;padding:4px 15px;border-radius:9px;color:#111;box-shadow:0 5px 18px rgba(0,0,0,.4)}
   .psaball.set{background:#ffd23f}
   .psaball.match{background:#ff4b4b;color:#fff}
@@ -276,12 +278,11 @@ function render(){
     paintTimer(); return;
   }
   document.title='Court '+COURT+' – '+VIEW;
-  if(VIEW==='psaline') stage.innerHTML=viewPsa(d);
+  if(VIEW==='psaline'){ renderPsaLayers(d); paintTimer(); return; }
   else if(VIEW==='fullscore') stage.innerHTML=viewFull(d);
   else if(VIEW==='modern') stage.innerHTML=viewModern(d);
   else stage.innerHTML=viewScore(d);
   paintTimer();
-  if(VIEW==='psaline') requestAnimationFrame(adjustPsa);
 }
 
 // ---- Match-Over / Vorschau (Courtview) ----  (kein „Undo" auf der Courtview!)
@@ -483,6 +484,35 @@ function adjustPsa(){
   const w=Math.ceil(Math.max(n1.getBoundingClientRect().width, n2.getBoundingClientRect().width));
   n1.style.width=w+'px'; n2.style.width=w+'px';
 }
+// PSA-Line Pausen-Ablauf: Satzpause -> Fullscore einblenden; 15s vor Timer-Ende ausblenden; nach Timer-Ende PSA-Line zurück
+function psaPhase(d){
+  if(!d) return 'psa';
+  if(d.mstatus==='between'){
+    const t=d.timer; let rem=9999;
+    if(t&&t.endsAt) rem=(t.endsAt-Date.now())/1000;
+    else if(t&&typeof t.sec==='number') rem=t.sec;
+    return rem>15 ? 'fs' : 'none';
+  }
+  return 'psa';   // Spiel/Aufwärmen -> PSA-Line
+}
+function psaPhaseApply(immediate){
+  const ly1=document.getElementById('lyPsa'), ly2=document.getElementById('lyFs'); if(!ly1||!ly2) return;
+  const p=psaPhase(liveState());
+  const set=(el,on)=>{ if(immediate) el.style.transition='none'; el.classList.toggle('on',on); if(immediate){ void el.offsetWidth; el.style.transition=''; } };
+  set(ly1, p==='psa'); set(ly2, p==='fs');
+}
+function renderPsaLayers(d){
+  const stage=document.getElementById('stage');
+  let ly1=document.getElementById('lyPsa'), ly2=document.getElementById('lyFs');
+  const fresh=(!ly1||!ly2);
+  if(fresh){
+    stage.innerHTML = `<div id="lyFs" class="psafade">${viewFull(d)}</div><div id="lyPsa" class="psafade">${viewPsa(d)}</div>`;
+  } else {
+    ly1.innerHTML=viewPsa(d); ly2.innerHTML=viewFull(d);
+  }
+  requestAnimationFrame(adjustPsa);
+  psaPhaseApply(fresh);
+}
 
 function txtOn(hex){ try{ const c=String(hex).replace('#',''); const r=parseInt(c.substr(0,2),16),g=parseInt(c.substr(2,2),16),b=parseInt(c.substr(4,2),16); if([r,g,b].some(isNaN)) return '#fff'; return (0.299*r+0.587*g+0.114*b)/255>0.6?'#111':'#fff'; }catch(e){ return '#fff'; } }
 function viewScore(d){
@@ -514,12 +544,12 @@ function viewFull(d){
     <div class="rowline"><div class="frow">
       ${flagDiv(d.c1,'flagcell flagimg','',d.r1)}
       <div class="name"><span class="t">${d.p1} <span class="nat">[${nat(d.c1)}]</span></span>${d.server===1?'<span class="dot"></span>':''}</div>
-      <div class="cur">${d.pts1}</div></div>${setCells(cols1)}
+      <div class="cur">${d.mstatus==='playing'?d.pts1:0}</div></div>${setCells(cols1)}
     </div>
     <div class="rowline"><div class="frow">
       ${flagDiv(d.c2,'flagcell flagimg','',d.r2)}
       <div class="name"><span class="t">${d.p2} <span class="nat">[${nat(d.c2)}]</span></span>${d.server===2?'<span class="dot"></span>':''}</div>
-      <div class="cur">${d.pts2}</div></div>${setCells(cols2)}
+      <div class="cur">${d.mstatus==='playing'?d.pts2:0}</div></div>${setCells(cols2)}
     </div>
   </div>`;
 }
@@ -531,11 +561,11 @@ function viewModern(d){
     ${flagDiv(d.c1,'flagtop flagimg','',d.r1)}
     <div class="mrow">
       <div class="name skew"><span class="t">${d.p1}${d.server===1?' •':''}</span></div>
-      <div class="cur skew"><span>${d.pts1}</span></div>${cells(cols1)}
+      <div class="cur skew"><span>${d.mstatus==='playing'?d.pts1:0}</span></div>${cells(cols1)}
     </div>
     <div class="mrow">
       <div class="name skew"><span class="t">${d.p2}${d.server===2?' •':''}</span></div>
-      <div class="cur skew"><span>${d.pts2}</span></div>${cells(cols2)}
+      <div class="cur skew"><span>${d.mstatus==='playing'?d.pts2:0}</span></div>${cells(cols2)}
     </div>
     ${flagDiv(d.c2,'flagbot flagimg','',d.r2)}
   </div>`;
@@ -561,7 +591,8 @@ Auth.guard('view').then(()=>{
   load();
 });
 setInterval(()=>{ if(VIEW==='fullscore') render(); },30000); // Uhr aktualisieren
-setInterval(()=>{ const d=liveState(); if(d && d.mstatus==='between') render(); }, 1000); // Satzpause: 15s letzten Stand, dann 0:0
+setInterval(()=>{ const d=liveState(); if(d && d.mstatus==='between' && VIEW!=='psaline') render(); }, 1000); // Satzpause: 15s letzten Stand, dann 0:0
+setInterval(()=>{ if(VIEW==='psaline') psaPhaseApply(false); }, 300); // PSA-Line: Pausen-Fade (PSA <-> Fullscore, 3000ms)
 setInterval(()=>{ const s=MATCH&&MATCH.state; if((s&&s.status==='finished') || !MATCH) render(); },1000); // Match-Over-Übergang & Vorschau
 setInterval(()=>{ if(VIEW!=='scoreboard') return; const d=liveState();
   const dec=d&&d.decisions&&d.decisions.length?d.decisions[d.decisions.length-1]:null;
