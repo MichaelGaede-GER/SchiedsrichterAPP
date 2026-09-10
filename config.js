@@ -6,6 +6,9 @@
 // =====================================================================
 
 window.CONFIG = {
+  // ---- App-Version (bei jedem Deploy hochzählen) ------------------
+  APP_VERSION: '43',
+
   // ---- Supabase ---------------------------------------------------
   SUPABASE_URL: 'https://mfgxrnvwrirvjjanigul.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mZ3hybnZ3cmlydmpqYW5pZ3VsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0ODgyOTIsImV4cCI6MjEwMjA2NDI5Mn0.rWaYXT4Ve_QEmZMCO8pHWQgG_HUeBqs5eLVewKJUA-8',
@@ -35,3 +38,20 @@ window.CONFIG = {
   REST_SECONDS: 90,
   QUEUE_PREVIEW: 4,
 };
+
+// ---- Versions-Anzeige (erscheint auf jeder Seite; Quelle: APP_VERSION oben) ----
+(function(){
+  function show(){
+    try{
+      if(window.__NO_APPVER) return;                 // Seiten mit eigenem Versions-Badge (court/tablet)
+      if(document.getElementById('__appver')) return;
+      var d=document.createElement('div'); d.id='__appver';
+      d.textContent='v'+((window.CONFIG&&window.CONFIG.APP_VERSION)||'?');
+      d.style.cssText='position:fixed;right:7px;bottom:5px;font:600 11px system-ui,Arial,sans-serif;'
+        +'color:rgba(150,165,185,.85);background:rgba(0,0,0,.28);padding:1px 7px;border-radius:6px;'
+        +'z-index:99999;pointer-events:none;letter-spacing:.03em';
+      (document.body||document.documentElement).appendChild(d);
+    }catch(e){}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',show); else show();
+})();
