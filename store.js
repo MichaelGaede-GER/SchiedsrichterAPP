@@ -78,8 +78,18 @@ const Store = (() => {
       if (error) throw error; return data || [];
     },
     async createTournament(name) {
+      let uid=null;
+      try{ const { data:{ user } } = await sb.auth.getUser(); uid = user && user.id; }catch(e){}
+      if(!uid){ const e=new Error('Für das Erstellen eines Turniers ist eine Anmeldung erforderlich.'); e.friendly=true; throw e; }
+      // owner-Spalte (created_by) wird serverseitig per DEFAULT auth.uid() gesetzt (siehe tournaments-rls.sql)
       const { data, error } = await sb.from('tournaments').insert({ name }).select().single();
-      if (error) throw error; return data;
+      if (error){
+        if(/row-level security|violates|permission|not authorized/i.test(error.message||'')){
+          const e=new Error('Keine Berechtigung zum Erstellen von Turnieren. Bitte melde dich an oder lass dir die Rechte freigeben (RLS-Migration ausführen).'); e.friendly=true; throw e;
+        }
+        throw error;
+      }
+      return data;
     },
     async renameTournament(id, name) {
       const { error } = await sb.from('tournaments').update({ name }).eq('id', id);
@@ -467,9 +477,10 @@ const Store = (() => {
 
     // nächstes geplantes Spiel eines Courts (nach Uhrzeit, im aktiven Turnier)
     async nextScheduledForCourt(courtNo) {
+      const nn=v=>{ const s=String(v==null?'':v).replace(/^#+/,'').match(/\d+/); return s?parseInt(s[0],10):999999; };
       const all = await this.listMatches();
       return all.filter(m => m.status === 'scheduled' && m.court_no === courtNo)
-        .sort((a, b) => (a.sort_ts || 0) - (b.sort_ts || 0))[0] || null;
+        .sort((a, b) => (a.sort_ts || 0) - (b.sort_ts || 0) || nn(a.match_no)-nn(b.match_no))[0] || null;
     },
 
     async assignToCourt(matchId, courtId, bestOf) {
@@ -678,7 +689,8 @@ function shortTime(raw) {
   const m = String(raw).match(/(\d{1,2}:\d{2})\s*$/);
   return m ? m[1] : String(raw);
 }
-function hasScore(v) { return v != null && String(v).trim().length > 0; }
+function hasScore(v) { const s=String(v==null?'':v).trim(); if(!s) return false;
+  return /\d+\s*[-:]\s*\d+/.test(s) || /\b(w\.?\s?o\.?|walkover|retired|ret\.?|aufg|disq)\b/i.test(s); }
 function importKey(event, nr, round, t1, t2) {
   return [event, nr, round, t1, t2].map(x => String(x == null ? '' : x).trim()).join('|');
 }

@@ -872,7 +872,7 @@ function renderSched(){
   let rows=MATCHES.filter(m=>!m.court_id && m.status==='scheduled');
   if(cf) rows=rows.filter(m=>String(m.court_no)===cf);
   if(q) rows=rows.filter(m=>(`${m.player1_name} ${m.player2_name} ${m.event||m.draw||''}`).toLowerCase().includes(q));
-  rows.sort((a,b)=> tpNum(a)-tpNum(b) || (a.sort_ts||0)-(b.sort_ts||0));   // nach Spielnummer (#Nr), dann Zeit
+  rows.sort((a,b)=> natCmp(a.match_no,b.match_no) || (a.sort_ts||0)-(b.sort_ts||0));   // natürlich nach #Nr, dann Zeit
   document.getElementById('schedCount').textContent=rows.length;
 
   if(!rows.length){
@@ -1066,16 +1066,27 @@ async function confirmR(id, force){
   await Store.confirmResult(id);
   await rankingWriteBack(m);
   const s=await Store.getSettings();
+  const leadMin = (s.autoAssignLeadMin!=null ? Number(s.autoAssignLeadMin) : 10);
   if((s.autoAssign||force) && court){
     const next=await Store.nextScheduledForCourt(court);
     if(next && matchHasMissing(next)){
       toast(`Bestätigt · nächstes Spiel für Court ${court} hat fehlende Spieler – nicht nachgerückt`);
+    } else if(next && !autoEligible(next, leadMin)){
+      const at=new Date(next.sort_ts - leadMin*60000);
+      const hh=String(at.getHours()).padStart(2,'0'), mi=String(at.getMinutes()).padStart(2,'0');
+      toast(`Bestätigt · nächstes Spiel Court ${court} erst ab ${hh}:${mi} automatisch (Vorlauf ${leadMin} Min.)`);
     } else if(next){
       try{ await Store.assignToCourt(next.id,court,Number(next.best_of)||3);
         toast(`Bestätigt · nächstes Spiel auf Court ${court} nachgerückt`); }
       catch(e){ toast('Bestätigt · '+e.message); }
     } else toast(`Bestätigt · kein weiteres Spiel für Court ${court}`);
   } else toast('Ergebnis bestätigt');
+}
+// Vorlaufzeit: Spiel erst ab (angesetzte Zeit - leadMin) automatisch zulassen; ohne Zeit -> jederzeit
+function autoEligible(m, leadMin){
+  if(!m) return false;
+  if(m.sort_ts==null) return true;
+  return Date.now() >= (m.sort_ts - (leadMin||0)*60000);
 }
 // Option 2: Ergebnisse nach N Sekunden automatisch bestätigen (übersteuerbar)
 function holdAuto(id){ autoOverride.add(id); try{ renderCourts(); }catch(e){} }
@@ -1285,7 +1296,7 @@ function processSheet(aoa){
   recs.forEach(x=>{ const k=x.court_no==null?'?':x.court_no; (byCourt[k]=byCourt[k]||[]).push(x); });
   Object.keys(byCourt).forEach(k=>{
     const list=byCourt[k];
-    list.sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0) || (Number(a.nr)||0)-(Number(b.nr)||0));
+    list.sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0) || natCmp(a.nr,b.nr));
     for(let i=0;i<list.length;i++){
       if(i===0){ list[i].referee=''; continue; }
       const p=list[i-1];
@@ -1368,9 +1379,11 @@ fileInput.addEventListener('change', async e=>{
         referee:r.referee||null, import_key:(sk||importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw)),
         status:'scheduled', state:null, result:null, winner:null, score_text:null });
     }
-    if(toInsert.length) await Store.insertMany(toInsert);
+    let failed=0;
+    if(toInsert.length){ try{ await Store.insertMany(toInsert); }catch(e){ failed=toInsert.length; console.error('Batch-Insert fehlgeschlagen:',e); } }
     const locNote = defVenue ? (' · Location: '+((TVENUES_IDX.find(v=>v.venue_id===defVenue)||{}).name||'')) : '';
-    toast(`${toInsert.length} neu · ${upd} aktualisiert · ${played} gespielt übersprungen · ${dup} unverändert`);
+    const neu=toInsert.length-failed;
+    toast(`${recs.length} Zeilen gelesen · ${neu} neu · ${upd} aktualisiert · ${played} gespielt übersprungen · ${dup} unverändert${failed?(' · '+failed+' fehlgeschlagen'):''}`);
   }catch(err){ console.error(err); toast('Import-Fehler: '+err.message); }
 });
 
@@ -1379,6 +1392,20 @@ async function clearAll(){ if(confirm('Wirklich ALLE Spiele löschen?')){ await 
 // ================= TP-EINGABEHILFE =================
 const tpDlg=document.getElementById('tpDlg');
 function tpNum(m){ const s=String(m.match_no||'').match(/\d+/); return s?parseInt(s[0],10):999999; }
+// Natürliche Sortierung für Match-Nummern: 1<2<10, Q1<Q2<Q10, A1 vor Q1 usw.
+function natCmp(a,b){
+  const ax=String(a==null?'':a).replace(/^#+/,'').trim(), bx=String(b==null?'':b).replace(/^#+/,'').trim();
+  const has=ax!==''||bx!==''; if(!has) return 0;
+  if(ax==='') return 1; if(bx==='') return -1;   // ohne Nr ans Ende
+  const ar=ax.match(/(\d+|\D+)/g)||[], br=bx.match(/(\d+|\D+)/g)||[];
+  const n=Math.max(ar.length,br.length);
+  for(let i=0;i<n;i++){ const x=ar[i]!=null?ar[i]:'', y=br[i]!=null?br[i]:'';
+    const xn=/^\d+$/.test(x), yn=/^\d+$/.test(y);
+    if(xn&&yn){ const d=parseInt(x,10)-parseInt(y,10); if(d) return d; }
+    else { const d=String(x).localeCompare(String(y),'de',{sensitivity:'base'}); if(d) return d; }
+  }
+  return 0;
+}
 function tpConfirmed(){
   let rows=MATCHES.filter(m=>m.status==='confirmed');
   if(document.getElementById('tpOnlyOpen') && document.getElementById('tpOnlyOpen').checked) rows=rows.filter(m=>!m.transferred);

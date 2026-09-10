@@ -232,6 +232,11 @@
       startet dann den Timer. Inaktiv: Nach dem Matchball zeigt der Court „Das nächste Spiel
       wird von der Turnierleitung gestartet“.
     </div>
+    <div class="row" style="margin:10px 0 0;align-items:center;gap:8px">
+      <span class="hint">Spiel frühestens</span>
+      <input id="autoAssignLeadMin" type="number" min="0" step="1" value="10" style="width:80px">
+      <span class="hint">Minuten vor angesetzter Uhrzeit automatisch auf den Court ziehen (0 = erst ab der Uhrzeit; Spiele ohne Uhrzeit jederzeit)</span>
+    </div>
 
     <hr style="border:0;border-top:1px solid var(--line,#2a3444);margin:16px 0">
 
@@ -907,6 +912,7 @@ async function loadSettings(){
   $('tournamentName').value=S.tournamentName||'';
   $('courts').value=(S.courts||[]).join(',');
   $('autoAssign').checked=!!S.autoAssign;
+  $('autoAssignLeadMin').value=(S.autoAssignLeadMin!=null?S.autoAssignLeadMin:10);
   $('autoConfirm').checked=!!S.autoConfirm;
   $('physioEnabled').checked=!!S.physioEnabled;
   $('autoConfirmSecs').value=(S.autoConfirmSecs!=null?S.autoConfirmSecs:20);
@@ -938,6 +944,7 @@ async function saveAll(){
   const patch={
     tournamentName:$('tournamentName').value.trim(),
     courts, autoAssign:$('autoAssign').checked,
+    autoAssignLeadMin:Math.max(0, parseInt($('autoAssignLeadMin').value,10)||0),
     autoConfirm:$('autoConfirm').checked,
     physioEnabled:$('physioEnabled').checked,
     autoConfirmSecs:Math.max(5,Math.min(120, parseInt($('autoConfirmSecs').value,10)||20)),
