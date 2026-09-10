@@ -31,6 +31,11 @@ const Store = (() => {
         .update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
       if (error) throw error;
     },
+    async setAllBestOf(bestOf, tid) {
+      let q = sb.from('matches').update({ best_of: bestOf, updated_at: new Date().toISOString() }).eq('status', 'scheduled');
+      q = tid ? q.eq('tournament_id', tid) : q.is('tournament_id', null);
+      const { error } = await q; if (error) throw error;
+    },
     async insertMatch(match) {
       const { data, error } = await sb.from('matches').insert(match).select().single();
       if (error) throw error; return data;
@@ -189,6 +194,12 @@ const Store = (() => {
     async updateMatch(id, patch) {
       const rows = readLS(); const i = rows.findIndex(m => m.id === id);
       if (i >= 0) { rows[i] = { ...rows[i], ...patch }; writeLS(rows); }
+    },
+    async setAllBestOf(bestOf, tid) {
+      const rows = readLS(); let n = 0;
+      rows.forEach(m => { const sameT = tid ? m.tournament_id === tid : !m.tournament_id;
+        if (m.status === 'scheduled' && sameT) { m.best_of = bestOf; n++; } });
+      if (n) writeLS(rows);
     },
     async insertMatch(match) {
       const rows = readLS(); const row = { id: uuid(), created_at: new Date().toISOString(), ...match };
@@ -365,6 +376,7 @@ const Store = (() => {
         return row; })); },
     async deleteAll() { await ensureActive(); return backend.deleteMatchesOfTournament(ACTIVE || null); },
     async deleteMatch(id) { return backend.deleteMatch(id); },
+    async setAllBestOf(bestOf) { await ensureActive(); return backend.setAllBestOf(bestOf, ACTIVE || null); },
     subscribeAll: (...a) => backend.subscribeAll(...a),
     subscribeCourt: (courtId, cb) => backend.subscribeAll(cb),
     subscribeSettings: (...a) => backend.subscribeSettings(...a),

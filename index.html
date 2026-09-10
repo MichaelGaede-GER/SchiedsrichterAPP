@@ -277,6 +277,11 @@
       <label class="manage-only" id="autoCourtWrap" style="display:none;align-items:center;gap:6px;color:var(--muted);font-size:13px">
         <input type="checkbox" id="autoCourt"> Courts autom. verteilen</label>
       <button class="btn-ghost btn-sm manage-only" onclick="openAdd()">+ Spiel</button>
+      <select class="btn-ghost btn-sm manage-only" id="bulkBestOf" onchange="bulkBestOf(this.value)" title="Gewinnsätze für alle geplanten Spiele" style="cursor:pointer">
+        <option value="">Alle Spiele: Gewinnsätze…</option>
+        <option value="3">Best of 3 · 2 Gewinnsätze</option>
+        <option value="5">Best of 5 · 3 Gewinnsätze</option>
+      </select>
       <button class="btn-ghost btn-sm manage-only" onclick="openRecover()" title="Spiel mit letztem Spielstand erneut an ein Tablet senden">🔁 Wiederherstellen</button>
       <button class="btn-ghost btn-sm manage-only" onclick="clearAll()">Alles löschen</button>
       <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
@@ -1388,6 +1393,16 @@ fileInput.addEventListener('change', async e=>{
 });
 
 async function clearAll(){ if(confirm('Wirklich ALLE Spiele löschen?')){ await Store.deleteAll(); toast('Gelöscht'); } }
+async function bulkBestOf(v){
+  const sel=document.getElementById('bulkBestOf'); const n=parseInt(v,10);
+  if(!n){ return; }
+  const label = n===3 ? 'Best of 3 (2 Gewinnsätze)' : 'Best of 5 (3 Gewinnsätze)';
+  const cnt = MATCHES.filter(m=>m.status==='scheduled').length;
+  if(!confirm(`Alle ${cnt} geplanten Spiele auf ${label} stellen?\n\nLaufende und beendete Spiele bleiben unverändert.`)){ if(sel) sel.value=''; return; }
+  try{ await Store.setAllBestOf(n); toast(`Alle geplanten Spiele: ${label}`); load(); }
+  catch(e){ toast('Fehler: '+e.message); }
+  if(sel) sel.value='';
+}
 
 // ================= TP-EINGABEHILFE =================
 const tpDlg=document.getElementById('tpDlg');
