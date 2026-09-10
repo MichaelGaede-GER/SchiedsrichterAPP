@@ -1072,11 +1072,12 @@ async function confirmR(id, force){
   await rankingWriteBack(m);
   const s=await Store.getSettings();
   const leadMin = (s.autoAssignLeadMin!=null ? Number(s.autoAssignLeadMin) : 10);
+  const immediate = !!s.autoAssignImmediate;
   if((s.autoAssign||force) && court){
     const next=await Store.nextScheduledForCourt(court);
     if(next && matchHasMissing(next)){
       toast(`Bestätigt · nächstes Spiel für Court ${court} hat fehlende Spieler – nicht nachgerückt`);
-    } else if(next && !autoEligible(next, leadMin)){
+    } else if(next && !autoEligible(next, leadMin, immediate)){
       const at=new Date(next.sort_ts - leadMin*60000);
       const hh=String(at.getHours()).padStart(2,'0'), mi=String(at.getMinutes()).padStart(2,'0');
       toast(`Bestätigt · nächstes Spiel Court ${court} erst ab ${hh}:${mi} automatisch (Vorlauf ${leadMin} Min.)`);
@@ -1087,9 +1088,10 @@ async function confirmR(id, force){
     } else toast(`Bestätigt · kein weiteres Spiel für Court ${court}`);
   } else toast('Ergebnis bestätigt');
 }
-// Vorlaufzeit: Spiel erst ab (angesetzte Zeit - leadMin) automatisch zulassen; ohne Zeit -> jederzeit
-function autoEligible(m, leadMin){
+// Vorlaufzeit: Spiel erst ab (angesetzte Zeit - leadMin) automatisch zulassen; „Sofort" oder ohne Zeit -> jederzeit
+function autoEligible(m, leadMin, immediate){
   if(!m) return false;
+  if(immediate) return true;
   if(m.sort_ts==null) return true;
   return Date.now() >= (m.sort_ts - (leadMin||0)*60000);
 }

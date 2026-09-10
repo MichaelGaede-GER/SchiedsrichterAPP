@@ -238,10 +238,17 @@
       <input id="autoConfirmSecs" type="number" min="5" max="120" value="20" style="width:80px">
       <span class="hint">Sekunden</span>
     </div>
-    <div class="row" id="rowLead" style="margin:10px 0 0;align-items:center;gap:8px">
-      <span class="hint">Nächstes Spiel frühestens</span>
-      <input id="autoAssignLeadMin" type="number" min="0" step="1" value="10" style="width:80px">
-      <span class="hint">Minuten vor der angesetzten Uhrzeit (0 = erst ab der Uhrzeit; Spiele ohne Uhrzeit jederzeit)</span>
+    <div id="rowLead" style="margin:12px 0 0">
+      <div class="hint" style="margin-bottom:6px">Nächstes Spiel frühestens auf den Court legen:</div>
+      <label class="row" style="gap:8px;align-items:center;margin:5px 0;cursor:pointer">
+        <input type="radio" name="autoTiming" value="immediate"> <span>Sofort, sobald der Court frei ist</span>
+      </label>
+      <label class="row" style="gap:8px;align-items:center;margin:5px 0;cursor:pointer">
+        <input type="radio" name="autoTiming" value="lead">
+        <input id="autoAssignLeadMin" type="number" min="0" step="1" value="10" style="width:72px">
+        <span>Minuten vor der angesetzten Uhrzeit</span>
+      </label>
+      <div class="hint" style="margin-top:4px">0 = erst ab der angesetzten Uhrzeit. Spiele ohne angesetzte Uhrzeit können jederzeit nachrücken.</div>
     </div>
 
     <div class="hint" style="margin-top:12px">
@@ -441,6 +448,10 @@
 <script src="auth.js"></script>
 <script>
 const $=id=>document.getElementById(id);
+function applyTiming(){
+  const imm = (document.querySelector('input[name="autoTiming"]:checked')||{}).value==='immediate';
+  const inp=$('autoAssignLeadMin'); if(inp) inp.disabled = imm;
+}
 function applyAutoMode(){
   const m=$('autoMode').value;
   const hints={ off:'Nach dem Matchball zeigt der Court: „Das nächste Spiel wird von der Turnierleitung gestartet.“',
@@ -448,9 +459,13 @@ function applyAutoMode(){
     confirm:'Nach Eingang eines Ergebnisses wartet das System die Prüfzeit. Ohne Eingriff wird automatisch bestätigt, das Match abgeschlossen und das nächste Spiel auf den Court gelegt.' };
   const h=$('autoModeHint'); if(h) h.textContent=hints[m]||'';
   const secs=$('rowSecs'); if(secs) secs.style.display=(m==='confirm')?'flex':'none';   // Prüfzeit nur bei confirm
-  const lead=$('rowLead'); if(lead) lead.style.display=(m==='off')?'none':'flex';        // Vorlaufzeit bei assign/confirm
+  const lead=$('rowLead'); if(lead) lead.style.display=(m==='off')?'none':'block';        // Timing bei assign/confirm
+  applyTiming();
 }
-document.addEventListener('change', e=>{ if(e.target && e.target.id==='autoMode') applyAutoMode(); });
+document.addEventListener('change', e=>{ if(!e.target) return;
+  if(e.target.id==='autoMode') applyAutoMode();
+  if(e.target.name==='autoTiming') applyTiming();
+});
 let S={};
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400);}
 
@@ -919,6 +934,8 @@ async function loadSettings(){
   $('autoAssign').checked=!!S.autoAssign;
   $('autoAssignLeadMin').value=(S.autoAssignLeadMin!=null?S.autoAssignLeadMin:10);
   $('autoConfirm').checked=!!S.autoConfirm;
+  const immediate = !!S.autoAssignImmediate;
+  const tr=document.querySelector(`input[name="autoTiming"][value="${immediate?'immediate':'lead'}"]`); if(tr) tr.checked=true;
   const mode = S.autoMode ? S.autoMode : (S.autoConfirm ? 'confirm' : (S.autoAssign ? 'assign' : 'off'));
   $('autoMode').value = mode; applyAutoMode();
   $('physioEnabled').checked=!!S.physioEnabled;
@@ -954,6 +971,7 @@ async function saveAll(){
     courts,
     autoMode:_mode,
     autoAssign:(_mode!=='off'),
+    autoAssignImmediate:((document.querySelector('input[name="autoTiming"]:checked')||{}).value==='immediate'),
     autoAssignLeadMin:Math.max(0, parseInt($('autoAssignLeadMin').value,10)||0),
     autoConfirm:(_mode==='confirm'),
     physioEnabled:$('physioEnabled').checked,
