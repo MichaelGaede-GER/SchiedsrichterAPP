@@ -220,44 +220,39 @@
     </div>
   </div>
 
-  <h2>Ablauf</h2>
+  <h2>Automatischer Court-Ablauf</h2>
   <div class="card">
-    <label class="switch">
-      <input type="checkbox" id="autoAssign"><span class="track"></span>
-      <span>Spiele automatisch auf den Court nachrücken</span>
-    </label>
-    <div class="hint" style="margin-top:8px">
-      Aktiv: Wird ein Ergebnis bestätigt und zurückgeholt, erscheint automatisch das
-      nächste geplante Spiel dieses Courts auf dem Schiedsrichter-Tablet – der Schiedsrichter
-      startet dann den Timer. Inaktiv: Nach dem Matchball zeigt der Court „Das nächste Spiel
-      wird von der Turnierleitung gestartet“.
+    <div class="hint">Bestimmt, wie ein beendetes Spiel abgeschlossen und das nächste Spiel auf den Court gelegt wird.</div>
+    <div class="row" style="margin:12px 0 4px;align-items:center;gap:10px">
+      <span class="hint" style="min-width:56px">Modus</span>
+      <select id="autoMode" style="padding:9px 12px;border-radius:9px;background:#0f1724;color:#fff;border:1px solid #2a3444;font-size:15px;min-width:320px">
+        <option value="off">Aus – Turnierleitung startet</option>
+        <option value="assign">Nach Bestätigung automatisch nachrücken</option>
+        <option value="confirm">Ergebnis automatisch bestätigen und nachrücken</option>
+      </select>
     </div>
-    <div class="row" style="margin:10px 0 0;align-items:center;gap:8px">
-      <span class="hint">Spiel frühestens</span>
-      <input id="autoAssignLeadMin" type="number" min="0" step="1" value="10" style="width:80px">
-      <span class="hint">Minuten vor angesetzter Uhrzeit automatisch auf den Court ziehen (0 = erst ab der Uhrzeit; Spiele ohne Uhrzeit jederzeit)</span>
-    </div>
+    <div class="hint" id="autoModeHint" style="margin:0 0 8px"></div>
 
-    <hr style="border:0;border-top:1px solid var(--line,#2a3444);margin:16px 0">
-
-    <label class="switch">
-      <input type="checkbox" id="autoConfirm"><span class="track"></span>
-      <span>Ergebnisse automatisch bestätigen und nachrücken</span>
-    </label>
-    <div class="row" style="margin:8px 0 0;align-items:center;gap:8px">
-      <span class="hint">Automatisch bestätigen nach</span>
+    <div class="row" id="rowSecs" style="margin:10px 0 0;align-items:center;gap:8px">
+      <span class="hint">Ergebnis automatisch bestätigen nach</span>
       <input id="autoConfirmSecs" type="number" min="5" max="120" value="20" style="width:80px">
       <span class="hint">Sekunden</span>
     </div>
-    <div class="hint" style="margin-top:8px">
-      Aktiv (Option 2): Kommt ein Ergebnis vom Schiedsrichter, wartet das System die eingestellte
-      Zeit (Standard 20 s). Reagiert die Turnierleitung nicht, wird das Ergebnis automatisch
-      bestätigt, das Match abgeschlossen und das nächste Spiel auf den Court gelegt. Die
-      Turnierleitung kann die automatische Bestätigung jederzeit übersteuern („Anhalten“) oder
-      sofort selbst bestätigen. Sind bei den nächsten Spielen Spieler noch nicht importiert
-      (z. B. „Sieger/Verlierer …“, „Winner/Loser“, „Quali“), pausiert die Automatik und es
-      erscheint eine deutliche Warnung.
+    <div class="row" id="rowLead" style="margin:10px 0 0;align-items:center;gap:8px">
+      <span class="hint">Nächstes Spiel frühestens</span>
+      <input id="autoAssignLeadMin" type="number" min="0" step="1" value="10" style="width:80px">
+      <span class="hint">Minuten vor der angesetzten Uhrzeit (0 = erst ab der Uhrzeit; Spiele ohne Uhrzeit jederzeit)</span>
     </div>
+
+    <div class="hint" style="margin-top:12px">
+      Unabhängig vom Modus: Die Turnierleitung kann die Automatik jederzeit mit „Anhalten“ stoppen,
+      Ergebnisse sofort selbst bestätigen und Spiele manuell auf einen Court legen. Enthält das nächste
+      Spiel noch Platzhalter („Sieger/Verlierer“, „Winner/Loser“, „Quali“), pausiert die Automatik mit
+      Warnung. Ist ein Spiel wegen seiner Uhrzeit noch nicht freigegeben, erscheint z. B.
+      „Automatische Court-Zuweisung ab 14:50 Uhr möglich“.
+    </div>
+    <!-- Kompatibilität: verstecktes Legacy-Feld -->
+    <input type="checkbox" id="autoAssign" style="display:none"><input type="checkbox" id="autoConfirm" style="display:none">
   </div>
 
   <h2>🚑 Physio</h2>
@@ -446,6 +441,16 @@
 <script src="auth.js"></script>
 <script>
 const $=id=>document.getElementById(id);
+function applyAutoMode(){
+  const m=$('autoMode').value;
+  const hints={ off:'Nach dem Matchball zeigt der Court: „Das nächste Spiel wird von der Turnierleitung gestartet.“',
+    assign:'Sobald die Turnierleitung das Ergebnis bestätigt, wird das nächste geplante Spiel automatisch auf den Court gelegt. Der Schiedsrichter startet den Timer.',
+    confirm:'Nach Eingang eines Ergebnisses wartet das System die Prüfzeit. Ohne Eingriff wird automatisch bestätigt, das Match abgeschlossen und das nächste Spiel auf den Court gelegt.' };
+  const h=$('autoModeHint'); if(h) h.textContent=hints[m]||'';
+  const secs=$('rowSecs'); if(secs) secs.style.display=(m==='confirm')?'flex':'none';   // Prüfzeit nur bei confirm
+  const lead=$('rowLead'); if(lead) lead.style.display=(m==='off')?'none':'flex';        // Vorlaufzeit bei assign/confirm
+}
+document.addEventListener('change', e=>{ if(e.target && e.target.id==='autoMode') applyAutoMode(); });
 let S={};
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400);}
 
@@ -914,6 +919,8 @@ async function loadSettings(){
   $('autoAssign').checked=!!S.autoAssign;
   $('autoAssignLeadMin').value=(S.autoAssignLeadMin!=null?S.autoAssignLeadMin:10);
   $('autoConfirm').checked=!!S.autoConfirm;
+  const mode = S.autoMode ? S.autoMode : (S.autoConfirm ? 'confirm' : (S.autoAssign ? 'assign' : 'off'));
+  $('autoMode').value = mode; applyAutoMode();
   $('physioEnabled').checked=!!S.physioEnabled;
   $('autoConfirmSecs').value=(S.autoConfirmSecs!=null?S.autoConfirmSecs:20);
   $('warmupP1').value=S.warmupP1!=null?S.warmupP1:120;
@@ -941,11 +948,14 @@ async function loadSettings(){
 
 async function saveAll(){
   const courts=($('courts').value||'').split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
+  const _mode=$('autoMode').value;
   const patch={
     tournamentName:$('tournamentName').value.trim(),
-    courts, autoAssign:$('autoAssign').checked,
+    courts,
+    autoMode:_mode,
+    autoAssign:(_mode!=='off'),
     autoAssignLeadMin:Math.max(0, parseInt($('autoAssignLeadMin').value,10)||0),
-    autoConfirm:$('autoConfirm').checked,
+    autoConfirm:(_mode==='confirm'),
     physioEnabled:$('physioEnabled').checked,
     autoConfirmSecs:Math.max(5,Math.min(120, parseInt($('autoConfirmSecs').value,10)||20)),
     warmupP1:parseInt($('warmupP1').value,10)||0,
