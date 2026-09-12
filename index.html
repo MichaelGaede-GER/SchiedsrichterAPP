@@ -435,7 +435,7 @@ function sd(seed){ const t=(typeof seedText==='function')?seedText(seed):''; ret
 let HLABELS=['Halbfinale','Finale'];
 function hlBadge(m){ return (m&&m.highlight)?` <span class="hlb">★ ${String(m.highlight).replace(/</g,'&lt;')}</span>`:''; }
 const ALARM_MS=60000;   // 1 Minute bis zum roten Alarm
-let FLOW_AUTOASSIGN=false, FLOW_AUTOCONFIRM=false, AUTO_SECS=20;
+let FLOW_AUTOASSIGN=false, FLOW_AUTOCONFIRM=false, AUTO_SECS=20, AUTO_LEAD=10, AUTO_IMMEDIATE=false;
 let MISSING_ACTIVE=false; const autoOverride=new Set(), autoBusy=new Set(), awaitingSince=new Map();
 function finAtOf(m){
   const s=m&&m.state||{};
@@ -701,6 +701,26 @@ function refreshAlarms(){
   checkAutoConfirm();
   checkPhysioAlarm();
   checkBatteryAlarm();
+  autoAssignSweep();
+}
+// Freie Courts automatisch mit inzwischen freigegebenen Spielen belegen (Vorlaufzeit) – auch ohne Ergebnis-Bestätigung
+const _sweepBusy=new Set();
+async function autoAssignSweep(){
+  if(!FLOW_AUTOASSIGN || MISSING_ACTIVE) return;           // Modus aus oder wegen Platzhaltern pausiert
+  const liveCourts=new Set(MATCHES.filter(m=>m.status==='live' && m.court_id!=null).map(m=>Number(m.court_id)));
+  const byCourt={};
+  MATCHES.filter(m=>m.status==='scheduled' && m.court_no!=null).forEach(m=>{ (byCourt[m.court_no]=byCourt[m.court_no]||[]).push(m); });
+  for(const key in byCourt){
+    const cn=Number(key);
+    if(liveCourts.has(cn) || _sweepBusy.has(cn)) continue;  // Court belegt oder gerade in Bearbeitung
+    const next=byCourt[key].sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0) || natCmp(a.match_no,b.match_no))[0];
+    if(!next || matchHasMissing(next)) continue;            // kein Spiel oder Platzhalter -> überspringen
+    if(!autoEligible(next, AUTO_LEAD, AUTO_IMMEDIATE)) continue;   // Uhrzeit-/Vorlaufprüfung
+    _sweepBusy.add(cn);
+    try{ await Store.assignToCourt(next.id, cn, Number(next.best_of)||3); toast(`Court ${cn}: „${next.player1_name} vs ${next.player2_name}“ automatisch aufgelegt`); }
+    catch(e){ console.error('Auto-Assign:',e); }
+    finally{ setTimeout(()=>_sweepBusy.delete(cn), 5000); }
+  }
 }
 setInterval(refreshAlarms, 3000);
 function tickInjury(){
@@ -776,6 +796,8 @@ async function loadCourtLayout(){
     FLOW_AUTOASSIGN = !!st.autoAssign;
     FLOW_AUTOCONFIRM = !!st.autoConfirm;
     AUTO_SECS = (st.autoConfirmSecs!=null) ? st.autoConfirmSecs : 20;
+    AUTO_LEAD = (st.autoAssignLeadMin!=null) ? Number(st.autoAssignLeadMin) : 10;
+    AUTO_IMMEDIATE = !!st.autoAssignImmediate;
     const tid = Store.activeTournament && Store.activeTournament();
     if(!tid){ COURT_LAYOUT=null; TVENUES_IDX=[]; return; }
     let tv=[], tc=[];
