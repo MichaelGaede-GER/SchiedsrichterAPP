@@ -66,8 +66,8 @@
   @keyframes srvpulse{0%,100%{box-shadow:0 0 0 4px rgba(255,210,63,.35)}50%{box-shadow:0 0 0 12px rgba(255,210,63,.8)}}
   .panel.left .serve{left:16px}.panel.right .serve{right:16px}
   .pshirt{position:absolute;bottom:12px;cursor:pointer;z-index:4;line-height:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55))}
-  .ebtn{position:absolute;bottom:14px;width:clamp(48px,7.5vh,66px);height:clamp(48px,7.5vh,66px);border-radius:50%;
-    background:#fff;color:#0b0b0b;font-weight:900;font-size:clamp(22px,3.6vh,30px);border:none;cursor:pointer;z-index:5;
+  .ebtn{position:absolute;bottom:14px;width:clamp(70px,12vh,92px);height:clamp(70px,12vh,92px);border-radius:50%;
+    background:#fff;color:#0b0b0b;font-weight:900;font-size:clamp(20px,3.1vh,28px);border:none;cursor:pointer;z-index:5;letter-spacing:.5px;
     display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.55)}
   .ebtn:active{background:#e2e2e2}
   .panel.left .ebtn{left:clamp(78px,13vh,108px)} .panel.right .ebtn{right:clamp(78px,13vh,108px)}
@@ -723,7 +723,7 @@ function render(){
   const gb1=s.status==='playing'?(s.matchBall(1)?'match':(s.gameBall(1)?'game':'')):'';
   const gb2=s.status==='playing'?(s.matchBall(2)?'match':(s.gameBall(2)?'game':'')):'';
   const sideLabel=d=>d==='R'?'Rechts':'Links';
-  const decLetter=(typeof I18N!=='undefined' && I18N.get && I18N.get()==='en')?'D':'E';
+  const decLetter='LET';
   app.innerHTML=`
   <div class="wrap">
     <div class="top">
@@ -735,7 +735,7 @@ function render(){
     </div>
     <div class="names">
       <div class="p1"><div class="namepill" id="pill1" onclick="event.stopPropagation()">${flagImg(c1,r1)}<span class="txt">${p1}${match.player1_seed?` <span class="seedc">[${match.player1_seed}]</span>`:''}</span></div>${conductBadges(1)}</div>
-      <div class="center-top"><button class="rbtn" onclick="show('ovLet')">LET</button></div>
+      <div class="center-top"></div>
       <div class="p2"><div class="namepill" id="pill2" onclick="event.stopPropagation()"><span class="txt">${p2}${match.player2_seed?` <span class="seedc">[${match.player2_seed}]</span>`:''}</span>${flagImg(c2,r2)}</div>${conductBadges(2)}</div>
     </div>
     <div class="board">
@@ -744,7 +744,7 @@ function render(){
         ${gb1?`<div class="gameball ${gb1==='match'?'gb-match':'gb-game'}">${gb1==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p1}</div>
         <div class="pshirt" onclick="event.stopPropagation();pickShirt(1)" title="Shirt-Farbe Spieler 1">${shirtSVG(M.shirt1)}</div>
-        <button class="ebtn" onclick="event.stopPropagation();openDecide(1)" title="Entscheidung">${decLetter}</button>
+        <button class="ebtn" onclick="event.stopPropagation();openDecide(1)" title="LET / Entscheidung">${decLetter}</button>
       </div>
       <div class="mid">
         <button class="midbtn mid-undo" onclick="undo()">↶</button><div class="mid-label">Undo</div>
@@ -755,7 +755,7 @@ function render(){
         ${gb2?`<div class="gameball ${gb2==='match'?'gb-match':'gb-game'}">${gb2==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p2}</div>
         <div class="pshirt" onclick="event.stopPropagation();pickShirt(2)" title="Shirt-Farbe Spieler 2">${shirtSVG(M.shirt2)}</div>
-        <button class="ebtn" onclick="event.stopPropagation();openDecide(2)" title="Entscheidung">${decLetter}</button>
+        <button class="ebtn" onclick="event.stopPropagation();openDecide(2)" title="LET / Entscheidung">${decLetter}</button>
       </div>
     </div>
     <div class="foot">
