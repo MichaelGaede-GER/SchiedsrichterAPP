@@ -205,6 +205,9 @@
       <button id="warmP1" class="choice blue" onclick="startPlay(1)">Spieler 1</button>
       <button id="warmP2" class="choice red" onclick="startPlay(2)">Spieler 2</button>
     </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn btn-gray" onclick="warmBackToStart()">↩ Zurück</button>
+    </div>
   </div>
   <div id="warmInfo" class="warminfo" style="display:none"></div>
 </div></div>
@@ -1062,6 +1065,9 @@ function showRest(){
 
 function afterChange(){
   render();
+  if(M.status==='warmup'){          // z.B. nach Undo des Matchstarts -> zurück zur Aufwärm-Startseite (Aufschlagwahl)
+    warmBackToStart(); show('ovWarmup');
+  }
   if(M.status==='between'){
     const last=M.games[M.games.length-1];
     setText('restInfo', `Satz ${M.games.length} beendet: ${last.p1}-${last.p2}. `
@@ -1202,6 +1208,12 @@ function showWarmup(){
   document.getElementById('warmPhaseLabel').classList.remove('big');
   primeWarmPhase();            // Phase 1 bereit (pausiert) – Schiri startet
   show('ovWarmup');
+}
+function warmBackToStart(){
+  const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='flex';
+  const qr=document.getElementById('warmServeRow'); if(qr) qr.style.display='none';
+  const b=document.getElementById('btnStartWarm'); if(b) b.style.display='';
+  const lbl=document.getElementById('warmPhaseLabel'); if(lbl){ lbl.classList.remove('big'); setText('warmPhaseLabel','Aufwärmen'); }
 }
 function warmServeView(){
   // Aufschlagwahl anzeigen – Timer/Steuerung/Logo/Info bleiben sichtbar (wie vorher)
