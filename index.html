@@ -130,6 +130,10 @@
   .autoin{display:inline-block;margin-left:8px;font-size:11px;font-weight:800;color:#8fd0ff;
     background:#0e2138;border:1px solid #274a6e;border-radius:999px;padding:1px 9px;white-space:nowrap;vertical-align:middle}
   .autoin.ready{color:#7bd88f;background:#0e2a1a;border-color:#1f6b46}
+  .impflag{display:inline-block;margin-left:8px;font-size:11px;font-weight:800;border-radius:999px;padding:1px 9px;vertical-align:middle}
+  .impflag.fnew{background:#14351f;color:#7bd88f;border:1px solid #1f6b46}
+  .impflag.fupd{background:#3a2c0e;color:#ffd27a;border:1px solid #7a5a1e}
+  .impflag.fsame{background:#1a2230;color:#9fb3cc;border:1px solid #2a3444}
   .teams{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
   .team{display:flex;align-items:center;gap:6px;font-weight:600;font-size:14px}
   .team .fl{font-size:16px}
@@ -148,6 +152,8 @@
   .court.setbreak{border-color:#3f7bd6}
   .badge.break-badge{background:#0e2340;color:#8fd0ff;border:1px solid #3f7bd6;font-weight:900;letter-spacing:.4px}
   .brktimer{font-size:24px;font-weight:900;color:#8fd0ff;font-variant-numeric:tabular-nums;letter-spacing:1px}
+  .badge.warm-badge{background:#14351f;color:#7bd88f;border:1px solid #1f6b46;font-weight:900;letter-spacing:.4px}
+  .crefline{font-size:12px;color:#9fb3cc;margin:2px 0 0}.crefline b{color:#c7d3e2;font-weight:700}
   .batb,.durb{font-size:13px;font-weight:800;margin-left:8px;font-variant-numeric:tabular-nums}
   .durb{color:#cfe0ff}
   .physioalert{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:8px 12px;border-radius:10px;
@@ -308,6 +314,9 @@
     <div class="field"><label>Event</label><input id="f_draw" value="Ju11"></div>
     <div class="field"><label>Runde</label><input id="f_round" value="RR1"></div>
   </div>
+  <div class="grid2">
+    <div class="field"><label>Spiel-Nr</label><input id="f_matchno" placeholder="z.B. #12"></div>
+    <div class="field"></div>
   <div class="grid2">
     <div class="field"><label>Spieler 1</label><input id="f_p1" placeholder="Vorname Nachname"></div>
     <div class="field"><label>Land 1 (z.B. de, ENG, Spanien)</label><input id="f_c1" value="de"></div>
@@ -838,6 +847,8 @@ function courtCard(cid, venueId, fn){
     const finAt = fin ? finAtOf(live) : 0;
     const inj = fin ? null : injuryInfo(s);
     const brk = (!fin && !inj) ? breakInfo(s) : null;
+    const warm = (!fin && !inj && !brk && s.status==='warmup' && s.timer && s.timer.running) ? s.timer : null;
+    const warmEnds = warm ? (warm.endsAt || (Date.now()+(warm.sec||0)*1000)) : 0;
     if(fin){ div.classList.add('awaiting'); div.dataset.finAt=finAt||''; if(finAt && (Date.now()-finAt)>ALARM_MS) div.classList.add('alarm'); }
     if(inj){ div.classList.add('injurypause'); }
     if(brk){ div.classList.add('setbreak'); }
@@ -846,15 +857,18 @@ function courtCard(cid, venueId, fn){
     const badge = fin ? `<span class="badge awaiting-badge">⏳ Wartet auf Bestätigung</span>`
                  : inj ? `<span class="badge injury-badge">🔴 VERLETZUNGSPAUSE</span>`
                  : brk ? `<span class="badge break-badge">⏸ SATZPAUSE</span>`
+                 : warm ? `<span class="badge warm-badge">🏓 AUFWÄRMEN</span>`
                        : `<span class="badge playing">Läuft</span>`;
     const injSpan = inj ? (inj.mode==='up'
         ? `<span class="injtimer" data-since="${inj.since}">00:00</span>`
         : `<span class="injtimer" data-endsat="${inj.endsAt||0}">${fmtMMSS(inj.sec||0)}</span>`) : '';
     const brkEnds = brk ? breakEndsAt(live.id, brk) : 0;
     const brkSpan = brk ? `<span class="brktimer" data-endsat="${brkEnds}">${fmtMMSS(Math.max(0,Math.ceil((brkEnds-Date.now())/1000)))}</span>` : '';
+    const warmSpan = warm ? `<span class="brktimer" data-endsat="${warmEnds}">${fmtMMSS(Math.max(0,Math.ceil((warmEnds-Date.now())/1000)))}</span>` : '';
     const metaLeft = fin ? `Ergebnis ${live.result||M_result(s)||''}`
                    : inj ? injSpan
                    : brk ? brkSpan
+                   : warm ? warmSpan
                          : `Satz ${g1}–${g2} · Bo${live.best_of}`;
     div.innerHTML=`<div class="cnum">COURT ${cid}${tag}${hlBadge(live)}${batBadge(s.battery)}${durBadge(s)}</div>
       <div class="live">
@@ -863,6 +877,7 @@ function courtCard(cid, venueId, fn){
         ${(s.message)?`<div class="msgpending">✉ Nachricht gesendet – wartet auf Bestätigung</div>`:''}
         <div class="row p1"><span class="nm">${flagImg(live.player1_country,live.player1_region)} ${live.player1_name}${sd(live.player1_seed)}</span><span class="sc">${p1}</span></div>
         <div class="row p2"><span class="nm">${flagImg(live.player2_country,live.player2_region)} ${live.player2_name}${sd(live.player2_seed)}</span><span class="sc">${p2}</span></div>
+        ${live.referee?`<div class="crefline"><b>Schiri:</b> ${live.referee}</div>`:''}
         <div class="meta"><span>${metaLeft}</span>${badge}</div>
         ${(!inj && setScoresText(s)) ? `<div class="setscores">${setScoresText(s)}</div>` : ''}
         ${fin?autoConfirmLine(live, finAt):''}
@@ -919,6 +934,16 @@ function updateSchedTimers(){
   });
 }
 setInterval(updateSchedTimers, 1000);
+let IMPORT_FLAGS={};
+function fkey(ev,rd,nr){ const n=String(nr==null?'':nr).replace(/^#+/,'').trim(); if(!n) return null;
+  const N=s=>String(s==null?'':s).toLowerCase().replace(/\s+/g,' ').trim(); return N(ev)+'|'+N(rd)+'|'+n; }
+function importFlagBadge(m){
+  const fl = IMPORT_FLAGS[fkey(m.event,m.round,m.match_no)] || (m.import_key?IMPORT_FLAGS[m.import_key]:null);
+  if(fl==='new') return '<span class="impflag fnew">🆕 neu</span>';
+  if(fl==='upd') return '<span class="impflag fupd">✏️ aktualisiert</span>';
+  if(fl==='same') return '<span class="impflag fsame">✓ unverändert</span>';
+  return '';
+}
 function renderSched(){
   const el=document.getElementById('sched');
   const q=(document.getElementById('search').value||'').toLowerCase().trim();
@@ -950,7 +975,7 @@ function renderSched(){
       <div class="ct">${m.court_label||(m.court_no?('C'+m.court_no):'—')}</div>
       <div class="ev">
         <div class="evtop">
-          <span>${m.event||m.draw||''} <span class="sub">${m.round||''} ${m.match_no?('· '+m.match_no):''}</span>${hlBadge(m)}${eligBadge(m)}</span>
+          <span>${m.event||m.draw||''} <span class="sub">${m.round||''} ${m.match_no?('· '+m.match_no):''}</span>${hlBadge(m)}${eligBadge(m)}${importFlagBadge(m)}</span>
           ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
             `<span style="display:inline-flex;gap:6px">
                <button class="editbtn hlbtn ${m.highlight?'on':''}" title="Als Highlight markieren" onclick="event.stopPropagation();openHighlight('${m.id}')">★</button>
@@ -1270,7 +1295,7 @@ async function removeHighlight(){ if(!hlMatchId) return; await Store.updateMatch
 function openAdd(){
   editingMatchId=null;
   document.getElementById('matchDlgTitle').textContent='Spiel hinzufügen';
-  setF('f_draw','Ju11'); setF('f_round','RR1'); setF('f_p1',''); setF('f_c1','de');
+  setF('f_draw','Ju11'); setF('f_round','RR1'); setF('f_matchno',''); setF('f_p1',''); setF('f_c1','de');
   setF('f_p2',''); setF('f_c2','de'); setF('f_r1',''); setF('f_r2','');
   setF('f_seed1',''); setF('f_seed2','');
   setF('f_court',''); setF('f_bo','3'); setF('f_time',''); setF('f_ref','');
@@ -1282,7 +1307,7 @@ function openEditMatch(id){
   const m=MATCHES.find(x=>x.id===id); if(!m) return;
   editingMatchId=id;
   document.getElementById('matchDlgTitle').textContent='Spiel bearbeiten';
-  setF('f_draw',m.event||m.draw||''); setF('f_round',m.round||'');
+  setF('f_draw',m.event||m.draw||''); setF('f_round',m.round||''); setF('f_matchno',m.match_no||'');
   setF('f_p1',m.player1_name||''); setF('f_c1',m.player1_country||'');
   setF('f_p2',m.player2_name||''); setF('f_c2',m.player2_country||'');
   setF('f_r1',m.player1_region||''); setF('f_r2',m.player2_region||'');
@@ -1301,6 +1326,7 @@ async function saveMatch(){
   const ending=g('f_ending')||null;
   const patch={
     event:g('f_draw'), draw:g('f_draw'), round:g('f_round'),
+    match_no: (g('f_matchno') ? ('#'+String(g('f_matchno')).replace(/^#+/,'')) : ''),
     player1_name:g('f_p1'), player1_country:countryToISO(g('f_c1'))||g('f_c1').toLowerCase()||null,
     player2_name:g('f_p2'), player2_country:countryToISO(g('f_c2'))||g('f_c2').toLowerCase()||null,
     player1_region:g('f_r1')||null, player2_region:g('f_r2')||null,
@@ -1380,11 +1406,14 @@ fileInput.addEventListener('change', async e=>{
     const nrOf=nr=>String(nr==null?'':nr).replace(/^#+/,'').trim();
     function stableKey(ev,rd,nr){ const n=nrOf(nr); if(!n) return null; return norm(ev)+'|'+norm(rd)+'|'+n; }
     function evNrKey(ev,nr){ const n=nrOf(nr); if(!n) return null; return norm(ev)+'|'+n; }
-    const byStable={}, byEvNr={};
+    const byStable={}, byEvNr={}, dupDelete=[];
     MATCHES.forEach(m=>{
-      const sk=stableKey(m.event, m.round, m.match_no); if(sk && !byStable[sk]) byStable[sk]=m;
+      const sk=stableKey(m.event, m.round, m.match_no);
+      if(sk){ if(!byStable[sk]) byStable[sk]=m;
+        else if(m.status==='scheduled' && byStable[sk].status==='scheduled') dupDelete.push(m.id); }  // Duplikat (gleiche #Nr) -> entfernen
       const ek=evNrKey(m.event, m.match_no); if(ek && !(ek in byEvNr)) byEvNr[ek]=m;  // Fallback: Rundenbezeichnung kann abweichen
     });
+    IMPORT_FLAGS={};
     const existing=new Set(MATCHES.map(m=>m.import_key).filter(Boolean));   // Fallback für Zeilen ohne Match-Nr
     const defVenue=defLocId();
     const autoCourt=!!(document.getElementById('autoCourt') && document.getElementById('autoCourt').checked);
@@ -1410,11 +1439,12 @@ fileInput.addEventListener('change', async e=>{
           if(r.round!=null && (ex.round||'')!==r.round) patch.round=r.round;
           if(r.referee!=null && (ex.referee||'')!==r.referee) patch.referee=r.referee;
           if(r.time!=null && (ex.scheduled_time||'')!==r.time){ patch.scheduled_time=r.time; if(r.sort_ts!=null) patch.sort_ts=r.sort_ts; }
-          if(Object.keys(patch).length){ try{ await Store.updateMatch(ex.id, patch); upd++; }catch(e){ console.error(e); } }
-          else dup++;
+          if(Object.keys(patch).length){ try{ await Store.updateMatch(ex.id, patch); upd++; if(fkey(ex.event,ex.round,ex.match_no)) IMPORT_FLAGS[fkey(ex.event,ex.round,ex.match_no)]='upd'; }catch(e){ console.error(e); } }
+          else { dup++; if(fkey(ex.event,ex.round,ex.match_no)) IMPORT_FLAGS[fkey(ex.event,ex.round,ex.match_no)]='same'; }
         } else dup++;   // laufend/beendet -> nicht überschreiben
         continue;
       }
+      if(sk) IMPORT_FLAGS[sk]='new'; else IMPORT_FLAGS[importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw)]='new';
       if(!sk){                                    // keine Match-Nr -> alte namensbasierte Dedupe
         const key=importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw);
         if(existing.has(key)){ dup++; continue; }
@@ -1438,13 +1468,14 @@ fileInput.addEventListener('change', async e=>{
     }
     let failed=0;
     if(toInsert.length){ try{ await Store.insertMany(toInsert); }catch(e){ failed=toInsert.length; console.error('Batch-Insert fehlgeschlagen:',e); } }
-    const locNote = defVenue ? (' · Location: '+((TVENUES_IDX.find(v=>v.venue_id===defVenue)||{}).name||'')) : '';
+    let removed=0;
+    for(const id of dupDelete){ try{ await Store.deleteMatch(id); removed++; }catch(e){ console.error(e); } }
     const neu=toInsert.length-failed;
-    toast(`${recs.length} Zeilen gelesen · ${neu} neu · ${upd} aktualisiert · ${played} gespielt übersprungen · ${dup} unverändert${failed?(' · '+failed+' fehlgeschlagen'):''}`);
+    toast(`${recs.length} Zeilen gelesen · ${neu} neu · ${upd} aktualisiert · ${played} gespielt übersprungen · ${dup} unverändert${removed?(' · '+removed+' Duplikate entfernt'):''}${failed?(' · '+failed+' fehlgeschlagen'):''}`);
   }catch(err){ console.error(err); toast('Import-Fehler: '+err.message); }
 });
 
-async function clearAll(){ if(confirm('Wirklich ALLE Spiele löschen?')){ await Store.deleteAll(); toast('Gelöscht'); } }
+async function clearAll(){ if(confirm('Wirklich ALLE Spiele löschen?')){ IMPORT_FLAGS={}; await Store.deleteAll(); toast('Gelöscht'); } }
 async function bulkBestOf(v){
   const sel=document.getElementById('bulkBestOf'); const n=parseInt(v,10);
   if(!n){ return; }
