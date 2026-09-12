@@ -127,6 +127,9 @@
   .m .ct{font-weight:800;color:#cfe0ff;font-size:13px}
   .m .ev{font-size:12px}
   .m .ev .sub{color:var(--muted);font-size:11px}
+  .autoin{display:inline-block;margin-left:8px;font-size:11px;font-weight:800;color:#8fd0ff;
+    background:#0e2138;border:1px solid #274a6e;border-radius:999px;padding:1px 9px;white-space:nowrap;vertical-align:middle}
+  .autoin.ready{color:#7bd88f;background:#0e2a1a;border-color:#1f6b46}
   .teams{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
   .team{display:flex;align-items:center;gap:6px;font-weight:600;font-size:14px}
   .team .fl{font-size:16px}
@@ -892,6 +895,30 @@ function renderCourts(){
   try{ refreshAlarms(); }catch(e){}
 }
 
+// Countdown, ab wann ein Spiel gemäß Vorlaufzeit auf den Court kann
+function eligAtOf(m){
+  if(AUTO_IMMEDIATE || !m || m.sort_ts==null) return null;
+  return m.sort_ts - (AUTO_LEAD||0)*60000;
+}
+function eligBadge(m){
+  const at=eligAtOf(m);
+  if(at==null || at<=Date.now()) return '';
+  return `<span class="autoin" data-eligat="${at}"></span>`;
+}
+function updateSchedTimers(){
+  const now=Date.now();
+  document.querySelectorAll('.autoin[data-eligat]').forEach(el=>{
+    const at=Number(el.getAttribute('data-eligat'))||0;
+    let rem=Math.round((at-now)/1000);
+    if(rem<=0){ el.textContent='▶ jetzt auf den Court'; el.classList.add('ready'); return; }
+    const d=new Date(at), hh=String(d.getHours()).padStart(2,'0'), mi=String(d.getMinutes()).padStart(2,'0');
+    let t;
+    if(rem>=3600){ const h=Math.floor(rem/3600), m2=Math.floor((rem%3600)/60); t=h+':'+String(m2).padStart(2,'0')+' h'; }
+    else { t=Math.floor(rem/60)+':'+String(rem%60).padStart(2,'0'); }
+    el.textContent=`🕐 Court in ${t} · ab ${hh}:${mi}`;
+  });
+}
+setInterval(updateSchedTimers, 1000);
 function renderSched(){
   const el=document.getElementById('sched');
   const q=(document.getElementById('search').value||'').toLowerCase().trim();
@@ -923,7 +950,7 @@ function renderSched(){
       <div class="ct">${m.court_label||(m.court_no?('C'+m.court_no):'—')}</div>
       <div class="ev">
         <div class="evtop">
-          <span>${m.event||m.draw||''} <span class="sub">${m.round||''} ${m.match_no?('· '+m.match_no):''}</span>${hlBadge(m)}</span>
+          <span>${m.event||m.draw||''} <span class="sub">${m.round||''} ${m.match_no?('· '+m.match_no):''}</span>${hlBadge(m)}${eligBadge(m)}</span>
           ${(typeof Auth!=='undefined' && !Auth.can('manage')) ? '' :
             `<span style="display:inline-flex;gap:6px">
                <button class="editbtn hlbtn ${m.highlight?'on':''}" title="Als Highlight markieren" onclick="event.stopPropagation();openHighlight('${m.id}')">★</button>
@@ -951,6 +978,7 @@ function renderSched(){
     row.querySelector('.ev').addEventListener('click',()=>toggleSel(m.id));
     el.appendChild(row);
   });
+  updateSchedTimers();
 }
 
 let mainTab='sched';
