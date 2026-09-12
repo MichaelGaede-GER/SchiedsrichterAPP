@@ -49,7 +49,7 @@
   .p1 .namepill{background:var(--pill);color:#06172e;justify-content:flex-start}
   .p2 .namepill{background:var(--pill);color:#06172e;justify-content:flex-end}
   .center-top{display:flex;flex-direction:column;align-items:center;gap:6px}
-  .rbtn{width:64px;height:64px;border-radius:50%;background:#e9edf3;color:#111;border:none;font-weight:900;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+  .rbtn{width:86px;height:86px;border-radius:50%;background:#e9edf3;color:#111;border:none;font-weight:900;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 
   .board{flex:1 1 auto;display:grid;grid-template-columns:1fr auto 1fr;gap:12px;padding:0 14px 8px;min-height:0}
   .panel{position:relative;border-radius:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden}
@@ -57,9 +57,13 @@
   .panel.right{border:5px solid var(--red);background:#0b0b0b}
   .panel:active{filter:brightness(1.25)}
   .score{font-weight:800;font-size:clamp(90px,26vh,240px);line-height:1;font-variant-numeric:tabular-nums}
-  .serve{position:absolute;top:14px;width:clamp(46px,7vh,72px);height:clamp(46px,7vh,72px);border-radius:50%;
-    background:#e9edf3;color:#0b0b0b;display:flex;align-items:center;justify-content:center;
-    font-weight:900;font-size:clamp(24px,4vh,40px);line-height:1;box-shadow:0 0 0 4px rgba(255,255,255,.15);cursor:pointer}
+  .serve{position:absolute;top:14px;width:clamp(60px,10vh,104px);height:clamp(60px,10vh,104px);border-radius:50%;
+    background:#e9edf3;color:#0b0b0b;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-weight:900;font-size:clamp(32px,5.6vh,56px);line-height:1;box-shadow:0 0 0 4px rgba(255,255,255,.15);cursor:pointer}
+  .serve .srvltr{line-height:1}
+  .serve .srvarrow{font-size:.42em;color:#c47b00;line-height:1;margin-bottom:1px}
+  .serve.srvchg{background:#ffd23f;animation:srvpulse 1s ease-in-out infinite}
+  @keyframes srvpulse{0%,100%{box-shadow:0 0 0 4px rgba(255,210,63,.35)}50%{box-shadow:0 0 0 12px rgba(255,210,63,.8)}}
   .panel.left .serve{left:16px}.panel.right .serve{right:16px}
   .pshirt{position:absolute;bottom:12px;cursor:pointer;z-index:4;line-height:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55))}
   .ebtn{position:absolute;bottom:14px;width:clamp(48px,7.5vh,66px);height:clamp(48px,7.5vh,66px);border-radius:50%;
@@ -421,27 +425,28 @@ class SquashMatch {
     this.p1=cfg.p1; this.p2=cfg.p2; this.reset(); this.shirt1=cfg.shirt1||null; this.shirt2=cfg.shirt2||null; }
   reset(){ this.games=[]; this.g={p1:0,p2:0}; this.server=null; this.side='R';
     this.status='warmup'; this.matchWinner=null; this._nextServer=null; this.history=[];
-    this.conduct={p1:[],p2:[]}; this.ending=null; this.decisions=[]; this.rallies=[]; }
+    this.conduct={p1:[],p2:[]}; this.ending=null; this.decisions=[]; this.rallies=[]; this.serveStart={p1:'R',p2:'R'}; }
   gamesNeeded(){ return Math.floor(this.bestOf/2)+1; }
   gamesWon(p){ return this.games.filter(x=>x.winner===p).length; }
   _snap(){ this.history.push(JSON.stringify({games:this.games,g:this.g,server:this.server,
     side:this.side,status:this.status,matchWinner:this.matchWinner,_nextServer:this._nextServer,
-    conduct:this.conduct,ending:this.ending,rallies:this.rallies}));
+    conduct:this.conduct,ending:this.ending,rallies:this.rallies,serveStart:this.serveStart}));
     if(this.history.length>60) this.history.shift(); }
   undo(){ if(!this.history.length) return false; const s=JSON.parse(this.history.pop());
     this.games=s.games; this.g=s.g; this.server=s.server; this.side=s.side; this.status=s.status;
     this.matchWinner=s.matchWinner; this._nextServer=s._nextServer; this.rallies=s.rallies||[];
+    this.serveStart=s.serveStart||{p1:'R',p2:'R'};
     this.conduct=s.conduct||{p1:[],p2:[]}; this.ending=s.ending||null; return true; }
-  startMatch(server){ this._snap(); this.server=server; this.side='R'; this.status='playing'; }
+  startMatch(server){ this._snap(); this.server=server; this.side=(this.serveStart&&this.serveStart['p'+server])||'R'; this.status='playing'; }
   _awardPoint(winner){ this.rallies.push(winner);                       // Punkt-für-Punkt-Log
     if(this.server===winner){ this.g['p'+winner]++; this.side=this.side==='R'?'L':'R'; }
-    else { this.g['p'+winner]++; this.server=winner; this.side='R'; } }
+    else { this.g['p'+winner]++; this.server=winner; this.side=(this.serveStart&&this.serveStart['p'+winner])||'R'; } }
   point(winner){ if(this.status!=='playing') return; this._snap(); this._awardPoint(winner); this._checkGame(); }
   _checkGame(){ const a=this.g.p1,b=this.g.p2,N=this.pointsToWin;
     if((a>=N||b>=N)&&Math.abs(a-b)>=2){ const w=a>b?1:2; this.games.push({p1:a,p2:b,winner:w,pts:this.rallies.slice()});
       if(this.gamesWon(w)>=this.gamesNeeded()){ this.status='finished'; this.matchWinner=w; }
       else { this.status='between'; this._nextServer=w; } } }
-  startNextGame(){ this._snap(); this.g={p1:0,p2:0}; this.server=this._nextServer; this.side='R'; this.status='playing'; this.rallies=[]; }
+  startNextGame(){ this._snap(); this.g={p1:0,p2:0}; this.server=this._nextServer; this.side=(this.serveStart&&this.serveStart['p'+this.server])||'R'; this.status='playing'; this.rallies=[]; }
   gameBall(p){ const me=this.g['p'+p],opp=this.g['p'+(p===1?2:1)]; return (me+1>=this.pointsToWin)&&(me+1-opp>=2); }
   matchBall(p){ return this.gameBall(p)&&this.gamesWon(p)===this.gamesNeeded()-1; }
 
@@ -468,17 +473,18 @@ class SquashMatch {
     gamesWon1:this.gamesWon(1), gamesWon2:this.gamesWon(2),
     cur:{p1:this.g.p1,p2:this.g.p2,server:this.server,side:this.side},
     matchWinner:this.matchWinner, _nextServer:this._nextServer, history:this.history,
-    conduct:this.conduct, ending:this.ending, shirt1:this.shirt1, shirt2:this.shirt2, decisions:this.decisions, rallies:this.rallies }; }
+    conduct:this.conduct, ending:this.ending, shirt1:this.shirt1, shirt2:this.shirt2, decisions:this.decisions, rallies:this.rallies, serveStart:this.serveStart }; }
   hydrate(s){ if(!s) return; this.status=s.status; this.bestOf=s.bestOf; this.games=s.games||[];
     this.g={p1:s.cur.p1,p2:s.cur.p2}; this.server=s.cur.server; this.side=s.cur.side;
     this.matchWinner=s.matchWinner; this._nextServer=s._nextServer; this.history=s.history||[];
     this.conduct=s.conduct||{p1:[],p2:[]}; this.ending=s.ending||null;
-    this.decisions=s.decisions||[]; this.rallies=s.rallies||[];
+    this.decisions=s.decisions||[]; this.rallies=s.rallies||[]; this.serveStart=s.serveStart||{p1:'R',p2:'R'};
     this.shirt1=s.shirt1||null; this.shirt2=s.shirt2||null; }
 }
 
 // ============ ZUSTAND ============
 let ALLMATCHES=[]; let match=null; let M=null; let syncing=false; let SETTINGS=null; let refConfirmed=false; let showSetScores=false;
+let _lastSrv=null, _srvChgAt=0, _srvChgTO=null;   // Aufschlagwechsel-Anzeige
 function hide(id){ document.getElementById(id).classList.remove('show'); }
 function show(id){ document.getElementById(id).classList.add('show'); }
 function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
@@ -705,6 +711,12 @@ function render(){
   const p1=match.player1_name,p2=match.player2_name,c1=match.player1_country,c2=match.player2_country;
   const r1=match.player1_region,r2=match.player2_region;
   const s=M, serving1=s.server===1, serving2=s.server===2;
+  const srv=s.server;
+  if(srv && _lastSrv && srv!==_lastSrv) _srvChgAt=Date.now();   // Aufschlagwechsel erkannt
+  if(srv) _lastSrv=srv;
+  const srvChg = s.status==='playing' && _srvChgAt && (Date.now()-_srvChgAt<4000);
+  clearTimeout(_srvChgTO); if(srvChg) _srvChgTO=setTimeout(()=>{ if(match&&M) render(); },4100);
+  const serveBox = side => `<div class="serve${srvChg?' srvchg':''}" onclick="event.stopPropagation();toggleServeSide()" title="Aufschlagseite wechseln (R/L)">${srvChg?'<span class="srvarrow">⇄</span>':''}<span class="srvltr">${side}</span></div>`;
   const gb1=s.status==='playing'?(s.matchBall(1)?'match':(s.gameBall(1)?'game':'')):'';
   const gb2=s.status==='playing'?(s.matchBall(2)?'match':(s.gameBall(2)?'game':'')):'';
   const sideLabel=d=>d==='R'?'Rechts':'Links';
@@ -725,7 +737,7 @@ function render(){
     </div>
     <div class="board">
       <div class="panel left" onclick="point(1)">
-        ${serving1?`<div class="serve" onclick="event.stopPropagation();toggleServeSide()" title="Aufschlagseite wechseln (R/L)">${s.side}</div>`:''}
+        ${serving1?serveBox(s.side):''}
         ${gb1?`<div class="gameball ${gb1==='match'?'gb-match':'gb-game'}">${gb1==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p1}</div>
         <div class="pshirt" onclick="event.stopPropagation();pickShirt(1)" title="Shirt-Farbe Spieler 1">${shirtSVG(M.shirt1)}</div>
@@ -736,7 +748,7 @@ function render(){
         <button class="midbtn mid-timer" onclick="show('ovTimer')">⏱</button>
       </div>
       <div class="panel right" onclick="point(2)">
-        ${serving2?`<div class="serve" onclick="event.stopPropagation();toggleServeSide()" title="Aufschlagseite wechseln (R/L)">${s.side}</div>`:''}
+        ${serving2?serveBox(s.side):''}
         ${gb2?`<div class="gameball ${gb2==='match'?'gb-match':'gb-game'}">${gb2==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p2}</div>
         <div class="pshirt" onclick="event.stopPropagation();pickShirt(2)" title="Shirt-Farbe Spieler 2">${shirtSVG(M.shirt2)}</div>
@@ -824,7 +836,9 @@ function renderIdle(app){
 
 // ============ AKTIONEN ============
 function point(who){ if(finishLocked) return; if(!M||M.status!=='playing') return; M.point(who); afterChange(); }
-function toggleServeSide(){ if(!M||M.status!=='playing') return; M.side=(M.side==='R')?'L':'R'; render(); sync(); }
+function toggleServeSide(){ if(!M||M.status!=='playing') return; M.side=(M.side==='R')?'L':'R';
+  if(M.serveStart && M.server) M.serveStart['p'+M.server]=M.side;   // Startseite für diesen Spieler merken (fängt er immer links an -> künftig gleich L)
+  render(); sync(); }
 
 // ---- Shirt-Farben ----
 const SHIRT_COLORS=['#e23b3b','#2f6bff','#22c55e','#eab308','#f97316','#a855f7','#ec4899','#06b6d4','#0e1116','#f1f5f9','#64748b','#7c3f1d'];
