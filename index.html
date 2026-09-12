@@ -713,8 +713,13 @@ function refreshAlarms(){
 }
 // Freie Courts automatisch mit inzwischen freigegebenen Spielen belegen (Vorlaufzeit) – auch ohne Ergebnis-Bestätigung
 const _sweepBusy=new Set();
+const _autoHold=new Map();        // matchId -> bis-Zeitpunkt (nach „Vom Court nehmen" nicht sofort wieder auflegen)
+const AUTO_HOLD_MS=60000;         // 60 Sekunden Sperre
 async function autoAssignSweep(){
   if(!FLOW_AUTOASSIGN || MISSING_ACTIVE) return;           // Modus aus oder wegen Platzhaltern pausiert
+  const dlg=document.getElementById('addDlg'); if(dlg && dlg.open) return;   // Bearbeiten-Dialog offen -> Automatik pausiert
+  const now=Date.now();
+  for(const [id,t] of _autoHold){ if(t<=now) _autoHold.delete(id); }         // abgelaufene Sperren aufräumen
   const liveCourts=new Set(MATCHES.filter(m=>m.status==='live' && m.court_id!=null).map(m=>Number(m.court_id)));
   const byCourt={};
   MATCHES.filter(m=>m.status==='scheduled' && m.court_no!=null).forEach(m=>{ (byCourt[m.court_no]=byCourt[m.court_no]||[]).push(m); });
@@ -723,6 +728,7 @@ async function autoAssignSweep(){
     if(liveCourts.has(cn) || _sweepBusy.has(cn)) continue;  // Court belegt oder gerade in Bearbeitung
     const next=byCourt[key].sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0) || natCmp(a.match_no,b.match_no))[0];
     if(!next || matchHasMissing(next)) continue;            // kein Spiel oder Platzhalter -> überspringen
+    if(_autoHold.has(next.id)) continue;                    // gerade entnommen -> vorübergehend nicht wieder auflegen
     if(!autoEligible(next, AUTO_LEAD, AUTO_IMMEDIATE)) continue;   // Uhrzeit-/Vorlaufprüfung
     _sweepBusy.add(cn);
     try{ await Store.assignToCourt(next.id, cn, Number(next.best_of)||3); toast(`Court ${cn}: „${next.player1_name} vs ${next.player2_name}“ automatisch aufgelegt`); }
@@ -1135,7 +1141,8 @@ async function unassign(id){
   const m=MATCHES.find(x=>x.id===id);
   const nm=m?`${m.player1_name} vs ${m.player2_name}`:'dieses Spiel';
   if(!confirm('Spiel wirklich vom Court nehmen?\n\n'+nm+'\n\nDer aktuelle Spielstand bleibt erhalten und das Spiel geht zurück in die Ansetzungen.')) return;
-  await Store.unassign(id); toast('Zurück in die Ansetzungen');
+  _autoHold.set(id, Date.now()+AUTO_HOLD_MS);           // nicht sofort automatisch wieder auflegen
+  await Store.unassign(id); toast('Zurück in die Ansetzungen (Auto-Auflage 60s pausiert)');
 }
 async function confirmR(id, force){
   const m=MATCHES.find(x=>x.id===id); const court=m?m.court_id:null;
