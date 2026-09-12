@@ -191,8 +191,9 @@
   <div class="row" id="warmCtrlRow">
     <button class="btn btn-gray" onclick="Timer.reset('warmup')">Reset</button>
   </div>
-  <div id="warmStartRow" class="row" style="margin-top:22px">
-    <button class="btn btn-green" style="min-width:260px;font-size:21px" onclick="askServer()">▶ Start Match</button>
+  <div id="warmStartRow" class="row" style="margin-top:22px;gap:12px;flex-wrap:wrap;justify-content:center">
+    <button id="btnStartWarm" class="btn btn-green" style="min-width:230px;font-size:20px" onclick="startWarm()">▶ Aufwärmen starten</button>
+    <button class="btn btn-blue" style="min-width:200px;font-size:20px" onclick="askServer()">Wer schlägt auf?</button>
   </div>
   <div id="warmServeRow" style="display:none;margin-top:22px">
     <p style="margin:0 0 10px;font-weight:800">Wer hat Aufschlag?</p>
@@ -340,7 +341,7 @@
   <h2>Timer</h2>
   <div id="tMenuClock" class="timerbig">–</div>
   <div class="row">
-    <button class="btn btn-blue" onclick="Timer.start((SETTINGS&&SETTINGS.warmupP1!=null)?SETTINGS.warmupP1:120,'Aufwärmen',null,{announce:true})">Aufwärmen</button>
+    <button class="btn btn-blue" onclick="Timer.start(warmTotal(),'Aufwärmen',null,{announce:true})">Aufwärmen</button>
     <button class="btn btn-blue" onclick="Timer.start((SETTINGS&&SETTINGS.restSeconds!=null)?SETTINGS.restSeconds:120,'Satzpause',null,{announce:true,msg15:'15 Sekunden – Spieler bitte auf den Court!'})">Satzpause</button>
     <button class="btn btn-gray" onclick="Timer.start(90,'Timeout')">Timeout 90s</button>
   </div>
@@ -562,14 +563,16 @@ function showDoneOverlay(){
 }
 
 // ============ TIMER ============
-const Timer={ sec:0,running:false,label:'',_iv:null,onEnd:null,_announce:false,_msg15:'',
+const Timer={ sec:0,running:false,label:'',_iv:null,onEnd:null,onTick:null,_announce:false,_msg15:'',
   fmt(s){ s=Math.max(0,s); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); },
   start(sec,label,onEnd,opts){ this.sec=sec; this.label=label||''; this.running=true; this.onEnd=onEnd||null;
+    this.onTick=(opts&&opts.onTick)||null;
     this._announce=!!(opts&&opts.announce); this._msg15=(opts&&opts.msg15)||'noch 15 Sekunden';
     this._run(); this._paint(); pushTimer(); },
-  prime(sec,label){ clearInterval(this._iv); this.sec=sec; this.label=label||''; this.running=false; this.onEnd=null;
+  prime(sec,label){ clearInterval(this._iv); this.sec=sec; this.label=label||''; this.running=false; this.onEnd=null; this.onTick=null;
     this._announce=false; this._msg15=''; this._paint(); pushTimer(); },
   _run(){ clearInterval(this._iv); this._iv=setInterval(()=>{ if(this.running){ this.sec--;
+    if(this.onTick) this.onTick(this.sec);
     if(this._announce){
       if(this.sec===60){ toast('noch 60 Sekunden', 6000); beep(880,.22); }
       else if(this.sec===30){ toast('noch 30 Sekunden', 6000); beep(880,.22); }
@@ -1096,13 +1099,10 @@ function applyFrom(record, state, isNew){
   } else { render(); }
 }
 let warmPhase=0;
-function warmPhaseList(){
-  const g=(k,d)=>{ const v=(SETTINGS&&SETTINGS[k]!=null)?SETTINGS[k]:d; return v; };
-  return [
-    {sec:g('warmupP1',120), label:'Aufwärmen – Phase 1'},
-    {sec:g('warmupP2',120), label:'Aufwärmen – Phase 2'},
-    {sec:g('warmupFinal',60), label:'1 MINUTE – MATCH START'},
-  ].filter(p=>p.sec>0);
+function warmTotal(){
+  if(SETTINGS && SETTINGS.warmupTotal!=null) return SETTINGS.warmupTotal;
+  const s=((SETTINGS&&SETTINGS.warmupP1)||0)+((SETTINGS&&SETTINGS.warmupP2)||0)+((SETTINGS&&SETTINGS.warmupFinal)||0);
+  return s>0?s:300;   // Standard 5 Minuten
 }
 function bigBanner(text,ms){
   const b=document.getElementById('bigBanner'), t=document.getElementById('bigBannerText');
@@ -1110,6 +1110,25 @@ function bigBanner(text,ms){
   clearTimeout(b._h); if(ms){ b._h=setTimeout(()=>{ b.style.display='none'; }, ms); }
 }
 function hideBigBanner(){ const b=document.getElementById('bigBanner'); if(b) b.style.display='none'; }
+let _warmBanners={side:false,last:false}, _warmBannerH=null;
+function warmBanner(text){
+  const lbl=document.getElementById('warmPhaseLabel'); if(!lbl) return;
+  setText('warmPhaseLabel', text); lbl.classList.add('big');        // groß, Timer (warmClock) läuft darunter weiter sichtbar
+  try{ beep(880,.35); }catch(e){}
+  clearTimeout(_warmBannerH);
+  _warmBannerH=setTimeout(()=>{ setText('warmPhaseLabel','Aufwärmen'); lbl.classList.remove('big'); }, 15000);
+}
+function warmTick(sec){
+  const total=warmTotal();
+  const sideAt=Math.round((total+60)/2);          // z.B. 5:00 -> 3:00; Phase 1 = Phase 2
+  if(!_warmBanners.side && sec<=sideAt && sec>60){ _warmBanners.side=true; warmBanner('Seitenwechsel'); }
+  if(!_warmBanners.last && sec<=60 && sec>0){ _warmBanners.last=true; warmBanner('Letzte Minute vor Spielbeginn'); }
+}
+function onWarmDone(){
+  clearTimeout(_warmBannerH);
+  const lbl=document.getElementById('warmPhaseLabel'); setText('warmPhaseLabel','Wer schlägt auf?'); lbl.classList.add('big');
+  warmServeView();
+}
 function showWarmup(){
   warmPhase=0;
   ['warmClock','warmCtrlRow'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display=''; });  // ggf. aus Aufschlag-Modus zurück
@@ -1152,44 +1171,21 @@ function askServer(){
   warmServeView();
 }
 function primeWarmPhase(){
-  const phases=warmPhaseList();
-  const lbl=document.getElementById('warmPhaseLabel'); lbl.classList.remove('big');
-  if(!phases.length || warmPhase>=phases.length){ setText('warmPhaseLabel','Bereit – wer schlägt zuerst auf?'); Timer.prime(0,''); return; }
-  const p=phases[warmPhase];
-  setText('warmPhaseLabel', p.label);
-  Timer.prime(p.sec, p.label);
-  Timer.onEnd=onWarmPhaseEnd; Timer._announce=true;
-  Timer._msg15=(warmPhase===phases.length-1)?'15 Sekunden – Spieler bitte auf den Court!':'noch 15 Sekunden';
+  _warmBanners={side:false,last:false}; clearTimeout(_warmBannerH);
+  const lbl=document.getElementById('warmPhaseLabel'); if(lbl) lbl.classList.remove('big');
+  setText('warmPhaseLabel','Aufwärmen');
+  Timer.prime(warmTotal(),'Aufwärmen');
+  Timer.onEnd=onWarmDone; Timer.onTick=warmTick; Timer._announce=true; Timer._msg15='15 Sekunden – Spieler bitte auf den Court!';
+  const b=document.getElementById('btnStartWarm'); if(b) b.textContent='▶ Aufwärmen starten';
 }
-function startWarmPhase(idx){
-  const phases=warmPhaseList(); if(idx>=phases.length) return;
-  warmPhase=idx; const p=phases[idx];
-  document.getElementById('warmPhaseLabel').classList.remove('big');
-  setText('warmPhaseLabel', p.label);
-  const isFinal=(idx===phases.length-1);
-  if(isFinal && idx>0){ bigBanner('Aufwärmen beendet – 1 Minute bis Matchbeginn', 3000); setTimeout(hideBigBanner, 3000); }
-  Timer.start(p.sec, p.label, onWarmPhaseEnd,
-    {announce:true, msg15: isFinal?'15 Sekunden – Spieler bitte auf den Court!':'noch 15 Sekunden'});
+function startWarm(){
+  if(Timer.sec<=0) primeWarmPhase();
+  Timer.onEnd=onWarmDone; Timer.onTick=warmTick; Timer._announce=true; Timer._msg15='15 Sekunden – Spieler bitte auf den Court!';
+  Timer.toggle();
+  const b=document.getElementById('btnStartWarm'); if(b) b.textContent=Timer.running?'⏸ Pause':'▶ Weiter';
 }
-function onWarmPhaseEnd(){
-  const phases=warmPhaseList();
-  const isLast=(warmPhase>=phases.length-1);
-  if(isLast){
-    // Endphase vorbei -> großer Aufschlag-Prompt, kompakt (Buttons immer sichtbar)
-    const lbl=document.getElementById('warmPhaseLabel');
-    setText('warmPhaseLabel','Wer schlägt auf?'); lbl.classList.add('big');
-    warmServeView();
-    return;
-  }
-  const wasFirst=(warmPhase===0);
-  const next=warmPhase+1;
-  if(wasFirst){
-    // 3 Sekunden großer Seitenwechsel-Hinweis, dann Phase 2 automatisch
-    bigBanner('Seitenwechsel', 3000);
-    setTimeout(()=>{ hideBigBanner(); startWarmPhase(next); }, 3000);
-  } else {
-    startWarmPhase(next);      // letzte Phase automatisch starten
-  }
+function askServer(){
+  warmServeView();   // Aufschlagwahl jederzeit möglich – Match startet mit startPlay()
 }
 function hideAll(){ ['ovWarmup','ovLet','ovDecide','ovTimer','ovRest','ovConfirm','ovDone','ovPenalty','ovInjury','ovShirt'].forEach(hide); }
 

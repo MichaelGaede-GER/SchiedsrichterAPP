@@ -275,16 +275,8 @@
   <div class="card">
     <div class="grid2">
       <div class="field">
-        <label>Aufwärmen Phase 1 (Sekunden)</label>
-        <input type="number" id="warmupP1" min="0" step="5" placeholder="120">
-      </div>
-      <div class="field">
-        <label>Aufwärmen Phase 2 – nach Seitenwechsel (Sekunden)</label>
-        <input type="number" id="warmupP2" min="0" step="5" placeholder="120">
-      </div>
-      <div class="field">
-        <label>Letzte Minute vor Spielbeginn (Sekunden)</label>
-        <input type="number" id="warmupFinal" min="0" step="5" placeholder="60">
+        <label>Gesamte Aufwärmzeit (Minuten)</label>
+        <input type="number" id="warmupTotalMin" min="1" step="0.5" placeholder="5">
       </div>
       <div class="field">
         <label>Pause zwischen den Sätzen (Sekunden)</label>
@@ -295,8 +287,9 @@
         <input type="number" id="missingCheckCount" min="0" step="1" placeholder="20">
       </div>
     </div>
-    <div class="hint">Aufwärmen läuft in zwei Phasen (je Standard 2 Min., dazwischen Seitenwechsel),
-      danach die letzte Minute. Bei 60/30/15 Sekunden Restzeit kommen Ansage und Warnton.</div>
+    <div class="hint">Der Aufwärm‑Timer läuft durchgehend herunter: bei der Hälfte kommt groß „Seitenwechsel“ (15 s),
+      bei 1:00 „Letzte Minute vor Spielbeginn“ (15 s) – der Gesamt‑Timer zählt dabei weiter. Nach Ablauf erscheint
+      die Aufschlagwahl, die jederzeit auch über „Wer schlägt auf?“ erreichbar ist. Bei 60/30/15 Sekunden Restzeit kommen Ansage und Warnton.</div>
   </div>
 
   <h2>Courts</h2>
@@ -940,9 +933,7 @@ async function loadSettings(){
   $('autoMode').value = mode; applyAutoMode();
   $('physioEnabled').checked=!!S.physioEnabled;
   $('autoConfirmSecs').value=(S.autoConfirmSecs!=null?S.autoConfirmSecs:20);
-  $('warmupP1').value=S.warmupP1!=null?S.warmupP1:120;
-  $('warmupP2').value=S.warmupP2!=null?S.warmupP2:120;
-  $('warmupFinal').value=S.warmupFinal!=null?S.warmupFinal:60;
+  $('warmupTotalMin').value = ((S.warmupTotal!=null?S.warmupTotal:300)/60);
   $('restSeconds').value=S.restSeconds!=null?S.restSeconds:120;
   $('missingCheckCount').value=S.missingCheckCount!=null?S.missingCheckCount:20;
   $('liveRotate').value=S.liveRotate!=null?S.liveRotate:12;
@@ -976,9 +967,7 @@ async function saveAll(){
     autoConfirm:(_mode==='confirm'),
     physioEnabled:$('physioEnabled').checked,
     autoConfirmSecs:Math.max(5,Math.min(120, parseInt($('autoConfirmSecs').value,10)||20)),
-    warmupP1:parseInt($('warmupP1').value,10)||0,
-    warmupP2:parseInt($('warmupP2').value,10)||0,
-    warmupFinal:parseInt($('warmupFinal').value,10)||0,
+    warmupTotal:Math.max(60, Math.round((parseFloat($('warmupTotalMin').value)||5)*60)),
     restSeconds:parseInt($('restSeconds').value,10)||0,
     missingCheckCount:(parseInt($('missingCheckCount').value,10)||20),
     liveRotate:parseInt($('liveRotate').value,10)||12,
