@@ -68,7 +68,7 @@
   .ebtn:active{background:#e2e2e2}
   .panel.left .ebtn{left:clamp(78px,13vh,108px)} .panel.right .ebtn{right:clamp(78px,13vh,108px)}
   .panel.left .pshirt{left:14px}.panel.right .pshirt{right:14px}
-  #warmPhaseLabel.big{font-size:clamp(40px,8vh,96px);color:#ffd54a;font-weight:900;letter-spacing:1px}
+  #warmPhaseLabel.big{font-size:clamp(48px,10vh,120px);color:#ffd54a;font-weight:900;letter-spacing:1px}
   .swatch{width:56px;height:56px;border-radius:50%;border:3px solid #ffffff22;cursor:pointer}
   .swatch:active{transform:scale(.92)}
   .gameball{position:absolute;top:12px;font-size:12px;font-weight:900;letter-spacing:1px;padding:4px 10px;border-radius:999px}
@@ -186,7 +186,7 @@
 <div id="ovWarmup" class="overlay"><div id="bigClock" class="bigclock">--:--</div><div class="card">
   <img id="warmLogo" class="brandlogo" style="display:none" alt="">
   <h2 id="warmTitle">Nächstes Spiel auf Court</h2>
-  <div id="warmPhaseLabel" style="opacity:.8;margin:-6px 0 8px;letter-spacing:.5px;font-weight:700">Aufwärmen</div>
+  <div id="warmPhaseLabel" style="font-size:clamp(32px,6vh,68px);font-weight:900;letter-spacing:.5px;margin:-2px 0 10px;color:#ffd54a">Aufwärmen</div>
   <div id="warmClock" class="timerbig">5:00</div>
   <div class="row" id="warmCtrlRow">
     <button class="btn btn-gray" onclick="Timer.reset('warmup')">Reset</button>
@@ -574,9 +574,9 @@ const Timer={ sec:0,running:false,label:'',_iv:null,onEnd:null,onTick:null,_anno
   _run(){ clearInterval(this._iv); this._iv=setInterval(()=>{ if(this.running){ this.sec--;
     if(this.onTick) this.onTick(this.sec);
     if(this._announce){
-      if(this.sec===60){ toast('noch 60 Sekunden', 6000); beep(880,.22); }
-      else if(this.sec===30){ toast('noch 30 Sekunden', 6000); beep(880,.22); }
-      else if(this.sec===15){ toast(this._msg15||'noch 15 Sekunden', 10000); beep(1046,.5); }
+      if(this.sec===60){ toast('noch 60 Sekunden', 6000); beep(880,.22); speak('s60'); }
+      else if(this.sec===30){ toast('noch 30 Sekunden', 6000); beep(880,.22); speak('s30'); }
+      else if(this.sec===15){ toast(this._msg15||'noch 15 Sekunden', 10000); beep(1046,.5); speak('s15'); }
     }
     if(this.sec<=0){ this.sec=0; this.running=false; if(this._announce) beep(660,.5); this._paint(); pushTimer();
       const cb=this.onEnd; this.onEnd=null; if(cb) cb(); return; } this._paint(); } },1000); },
@@ -612,6 +612,36 @@ function beep(freq,dur,type){ freq=freq||880; dur=dur||0.25; type=type||'sine';
   }catch(e){}
 }
 window.addEventListener('pointerdown',()=>{ try{ if(_actx&&_actx.state==='suspended')_actx.resume(); }catch(e){} },{passive:true});
+
+// ===== Sprachausgabe (weibliche Stimme, DE/EN je nach Sprachauswahl) =====
+let _voices=[];
+function _loadVoices(){ try{ _voices=window.speechSynthesis?speechSynthesis.getVoices():[]; }catch(e){} }
+if(window.speechSynthesis){ _loadVoices(); try{ speechSynthesis.onvoiceschanged=_loadVoices; }catch(e){} }
+function pickVoice(lang){
+  if(!_voices||!_voices.length) _loadVoices();
+  const L=lang==='en'?'en':'de';
+  const list=_voices.filter(v=>v.lang && v.lang.toLowerCase().startsWith(L));
+  const femRe=/(female|weiblich|anna|petra|katja|hedda|marlene|vicki|helena|paulina|steffi|google.*deutsch|zira|samantha|susan|jenny|aria|libby|sonia|google us english|female)/i;
+  return list.find(v=>femRe.test(v.name)) || list.find(v=>!/male|männlich|markus|stefan|conrad|daniel|david|george|guy/i.test(v.name)) || list[0] || null;
+}
+const SPEAK_PHRASES={
+  side:{de:'Seitenwechsel', en:'Change sides'},
+  last:{de:'Letzte Minute vor Spielbeginn', en:'Last minute before the match'},
+  s60:{de:'Noch 60 Sekunden', en:'60 seconds'},
+  s30:{de:'Noch 30 Sekunden', en:'30 seconds'},
+  s15:{de:'Noch 15 Sekunden', en:'15 seconds'},
+};
+function speak(key){
+  try{
+    if(!window.speechSynthesis) return;
+    const lang=(typeof I18N!=='undefined' && I18N.get && I18N.get()==='en')?'en':'de';
+    const txt=(SPEAK_PHRASES[key]||{})[lang]; if(!txt) return;
+    const u=new SpeechSynthesisUtterance(txt);
+    u.lang=lang==='en'?'en-US':'de-DE'; u.rate=1; u.pitch=1.08; u.volume=1;
+    const v=pickVoice(lang); if(v) u.voice=v;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }catch(e){}
+}
 
 // Timer-Stand in die Spieldaten schreiben (für Stream-Anzeige)
 function withTimer(st){ if(st) st.timer=Timer.snapshot(); return st; }
@@ -1111,18 +1141,19 @@ function bigBanner(text,ms){
 }
 function hideBigBanner(){ const b=document.getElementById('bigBanner'); if(b) b.style.display='none'; }
 let _warmBanners={side:false,last:false}, _warmBannerH=null;
-function warmBanner(text){
+function warmBanner(text, voiceKey){
   const lbl=document.getElementById('warmPhaseLabel'); if(!lbl) return;
   setText('warmPhaseLabel', text); lbl.classList.add('big');        // groß, Timer (warmClock) läuft darunter weiter sichtbar
   try{ beep(880,.35); }catch(e){}
+  if(voiceKey) speak(voiceKey);
   clearTimeout(_warmBannerH);
   _warmBannerH=setTimeout(()=>{ setText('warmPhaseLabel','Aufwärmen'); lbl.classList.remove('big'); }, 15000);
 }
 function warmTick(sec){
   const total=warmTotal();
   const sideAt=Math.round((total+60)/2);          // z.B. 5:00 -> 3:00; Phase 1 = Phase 2
-  if(!_warmBanners.side && sec<=sideAt && sec>60){ _warmBanners.side=true; warmBanner('Seitenwechsel'); }
-  if(!_warmBanners.last && sec<=60 && sec>0){ _warmBanners.last=true; warmBanner('Letzte Minute vor Spielbeginn'); }
+  if(!_warmBanners.side && sec<=sideAt && sec>60){ _warmBanners.side=true; warmBanner('Seitenwechsel','side'); }
+  if(!_warmBanners.last && sec<=60 && sec>0){ _warmBanners.last=true; warmBanner('Letzte Minute vor Spielbeginn','last'); }
 }
 function onWarmDone(){
   clearTimeout(_warmBannerH);
@@ -1176,13 +1207,13 @@ function primeWarmPhase(){
   setText('warmPhaseLabel','Aufwärmen');
   Timer.prime(warmTotal(),'Aufwärmen');
   Timer.onEnd=onWarmDone; Timer.onTick=warmTick; Timer._announce=true; Timer._msg15='15 Sekunden – Spieler bitte auf den Court!';
-  const b=document.getElementById('btnStartWarm'); if(b) b.textContent='▶ Aufwärmen starten';
+  const b=document.getElementById('btnStartWarm'); if(b){ b.textContent='▶ Aufwärmen starten'; b.style.display=''; }
 }
 function startWarm(){
   if(Timer.sec<=0) primeWarmPhase();
   Timer.onEnd=onWarmDone; Timer.onTick=warmTick; Timer._announce=true; Timer._msg15='15 Sekunden – Spieler bitte auf den Court!';
-  Timer.toggle();
-  const b=document.getElementById('btnStartWarm'); if(b) b.textContent=Timer.running?'⏸ Pause':'▶ Weiter';
+  if(!Timer.running) Timer.toggle();
+  const b=document.getElementById('btnStartWarm'); if(b) b.style.display='none';   // kein Pause – Start-Button verschwindet
 }
 function askServer(){
   warmServeView();   // Aufschlagwahl jederzeit möglich – Match startet mit startPlay()
