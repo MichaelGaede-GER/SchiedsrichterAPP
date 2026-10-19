@@ -216,7 +216,7 @@
   <h2 id="tieTitle">Begegnung auf Court</h2>
   <div id="tieHead" style="font-size:clamp(22px,4vh,40px);font-weight:900;margin:2px 0 4px"></div>
   <div id="tieAgg" style="font-size:clamp(15px,2.4vh,22px);color:#cfe0ff;font-weight:700;margin:0 0 6px"></div>
-  <p style="margin:0 0 6px;color:#9fb3c8;font-size:15px">Einzel antippen, das geschiedst werden soll – danach startet die Aufwärmphase.</p>
+  <p id="tieHint" style="margin:0 0 6px;color:#9fb3c8;font-size:15px">Einzel antippen, das geschiedst werden soll – danach startet die Aufwärmphase.</p>
   <div id="tieList" class="tielist"></div>
 </div></div>
 <div id="bigBanner" style="position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.78);pointer-events:none">
@@ -865,26 +865,29 @@ function renderTieStrip(){
 }
 // Begegnung für diesen Court (per court_ids zugeordnet) mit offenen Einzeln
 function tieForThisCourt(){
-  return (ALLTIES||[]).find(t=>{
-    const rs=ALLMATCHES.filter(m=>m.tie_id===t.id);
-    if(!rs.some(m=>m.status==='scheduled')) return false;           // keine offenen Einzel mehr
-    const byIds=Array.isArray(t.court_ids) && t.court_ids.map(Number).includes(COURT);
-    const byRub=rs.some(m=>Number(m.court_no)===COURT);
-    return byIds || byRub;
-  });
+  // Begegnung ist diesem Court zugeordnet (court_ids) und hat Einzel – egal ob offen oder fertig.
+  // So bleibt die Übersicht nach dem letzten Einzel stehen, bis die Turnierleitung sie vom Court nimmt.
+  return (ALLTIES||[]).find(t=>
+    Array.isArray(t.court_ids) && t.court_ids.map(Number).includes(COURT)
+    && ALLMATCHES.some(m=>m.tie_id===t.id));
 }
-function showTiePicker(){
-  const t=tieForThisCourt(); if(!t){ return false; }
+function showTiePicker(t){
+  t = t || tieForThisCourt(); if(!t){ return false; }
   TIE=t;
   const rubbers=ALLMATCHES.filter(m=>m.tie_id===t.id).sort((a,b)=>(a.tie_pos||0)-(b.tie_pos||0));
   const sc=Store.computeTieScore(rubbers, TEAMPTS||Store.DEFAULT_TEAM_POINTS);
-  setText('tieTitle','Begegnung auf Court '+COURT);
+  const allDone = rubbers.length>0 && !rubbers.some(m=>m.status==='scheduled'||m.status==='live');
+  setText('tieTitle', allDone ? ('Begegnung beendet · Court '+COURT) : ('Begegnung auf Court '+COURT));
   const lg=document.getElementById('tieLogo');
   if(lg){ if(SETTINGS&&SETTINGS.logoUrl){ lg.src=SETTINGS.logoUrl; lg.style.display='block'; } else lg.style.display='none'; }
   document.getElementById('tieHead').innerHTML=
     `${escC(t.team1_name)} <span style="color:#8aa0b8">vs</span> ${escC(t.team2_name)}`;
   document.getElementById('tieAgg').textContent=
     `Einzel ${sc.rubbers[0]}:${sc.rubbers[1]} · Sätze ${sc.games[0]}:${sc.games[1]} · Punkte ${sc.points[0]}:${sc.points[1]}`;
+  const hint=document.getElementById('tieHint');
+  if(hint) hint.textContent = allDone
+    ? 'Begegnung beendet. Die Turnierleitung nimmt die Begegnung vom Court.'
+    : 'Einzel antippen, das geschiedst werden soll – danach startet die Aufwärmphase.';
   renderTieStrip();
   const host=document.getElementById('tieList');
   host.innerHTML=rubbers.map(m=>{
@@ -1254,8 +1257,18 @@ async function loadCourt(){
       applyFrom(OFF.record, OFF.state, !match || match.id!==OFF.matchId); flush(); return;
     }
     match=null; M=null;
-    // Teamturnier Option D: Schiedsrichter zieht das nächste Einzel -> Auswahl zeigen
-    if(TEAM_ON() && teamFlow()==='refpick' && showTiePicker()){ return; }
+    // Teamturnier: Begegnungs-Übersicht zeigen …
+    if(TEAM_ON()){
+      const t=tieForThisCourt();
+      if(t){
+        const rs=ALLMATCHES.filter(m=>m.tie_id===t.id);
+        const open=rs.some(m=>m.status==='scheduled');
+        const anyLive=rs.some(m=>m.status==='live');
+        const allDone=rs.length>0 && !open && !anyLive;
+        // … bei offenen Einzeln nur in Option D (Schiri zieht), ODER wenn die Begegnung komplett ist
+        if( (open && teamFlow()==='refpick') || allDone ){ if(showTiePicker(t)) return; }
+      }
+    }
     hide('ovTie'); render(); return;
   }
 

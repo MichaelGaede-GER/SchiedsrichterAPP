@@ -1273,10 +1273,32 @@ async function teamAdvanceNext(m){
   const open=MATCHES.filter(x=>x.tie_id===m.tie_id && x.status==='scheduled')
     .sort((a,b)=>(a.tie_pos||0)-(b.tie_pos||0));
   const next = open.find(x=>Number(x.court_no)===Number(court)) || open.find(x=>x.court_no==null) || open[0];
-  if(!next){ toast('Ergebnis bestätigt · Begegnung komplett'); return; }
+  if(!next){
+    // Begegnung komplett -> automatisch vom Court nehmen, damit das Tablet frei wird
+    await clearTieCourts(m.tie_id, court);
+    toast('Begegnung beendet · Court '+court+' wieder frei'); return;
+  }
   try{ await Store.assignToCourt(next.id, court, Number(next.best_of)||3);
     toast('Bestätigt · nächstes Einzel S'+(next.tie_pos||'')+' auf Court '+court); }
   catch(e){ toast('Bestätigt · '+(e.message||e)); }
+}
+// Begegnung vom Court nehmen: Court-Zuordnung lösen (Tablet wird frei). Optional nur einen Court.
+async function clearTieCourts(tieId, onlyCourt){
+  const t=TIES.find(x=>x.id===tieId); if(!t) return;
+  let courts = Array.isArray(t.court_ids)?t.court_ids.map(Number):[];
+  if(onlyCourt!=null) courts = courts.filter(c=>Number(c)!==Number(onlyCourt)); else courts=[];
+  // laufende Einzel dieser Begegnung auf dem/den betroffenen Court(s) zurücknehmen
+  const affected = (onlyCourt!=null)?[Number(onlyCourt)]:(Array.isArray(t.court_ids)?t.court_ids.map(Number):[]);
+  for(const mm of MATCHES.filter(x=>x.tie_id===tieId && x.status==='live' && affected.includes(Number(x.court_id)))){
+    try{ await Store.unassign(mm.id); }catch(e){}
+  }
+  try{ await Store.updateTie(tieId,{ court_ids:courts }); }catch(e){}
+}
+async function removeTieFromCourt(id){
+  const t=TIES.find(x=>x.id===id);
+  if(!confirm('Begegnung '+(t?('„'+t.team1_name+' vs '+t.team2_name+'" '):'')+'vom Court nehmen?\n\nDas Court-Tablet wird frei.')) return;
+  try{ await clearTieCourts(id); toast('Begegnung vom Court genommen'); load(); }
+  catch(e){ toast('Fehler: '+(e.message||e)); }
 }
 // Vorlaufzeit: Spiel erst ab (angesetzte Zeit - leadMin) automatisch zulassen; „Sofort" oder ohne Zeit -> jederzeit
 function autoEligible(m, leadMin, immediate){
@@ -1840,7 +1862,11 @@ function renderTeam(){
     const meta=(metaParts.length||finished)
       ? `<div class="tie-meta">${metaParts.join(' · ')}${finished?`${metaParts.length?' · ':''}<b>Begegnung beendet</b> · Tabellenpunkte ${sc.mpts[0]}:${sc.mpts[1]}`:''}</div>` : '';
     const rubHtml=`<div style="padding:2px 4px 8px">${tieTableHtml(t, rubbers, cs, canManage, sc)}</div>`;
+    const onCourt = Array.isArray(t.court_ids) && t.court_ids.length;
+    const takeBtn = (canManage && onCourt)
+      ? `<button class="${finished?'btn-primary':'btn-ghost'} btn-sm" onclick="removeTieFromCourt('${t.id}')">${finished?'✓ Beendet – vom Court nehmen':'Vom Court nehmen'}</button>` : '';
     const acts=canManage?`<div class="tie-acts">
+        ${takeBtn}
         <span style="flex:1"></span>
         <button class="btn-ghost btn-sm" onclick="editTie('${t.id}')">Bearbeiten</button>
         <button class="btn-ghost btn-sm" onclick="delTie('${t.id}')">Löschen</button>
@@ -1928,9 +1954,9 @@ function tieTableHtml(t, rubbers, cs, canManage, sc){
     <tbody>${rows}</tbody>
     <tfoot><tr>
       <td class="sp">Σ</td>
-      <td class="tot">Spiele <b>${sc.rubbers[0]}</b> · Sätze ${sc.games[0]} · Punkte ${sc.points[0]}</td>
+      <td class="tot">Spiele ${sc.rubbers[0]} · Sätze ${sc.games[0]} · Punkte ${sc.points[0]}</td>
       <td></td>
-      <td class="tot p2">Spiele <b>${sc.rubbers[1]}</b> · Sätze ${sc.games[1]} · Punkte ${sc.points[1]}</td>
+      <td class="tot p2">Spiele ${sc.rubbers[1]} · Sätze ${sc.games[1]} · Punkte ${sc.points[1]}</td>
       <td></td>
     </tr></tfoot>
   </table>`;

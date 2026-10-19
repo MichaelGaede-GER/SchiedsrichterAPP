@@ -317,7 +317,82 @@
     '— Kein Turnier (Altdaten) —': '— No tournament (legacy) —',
     '— zuerst verbinden —': '— connect first —',
     'schiedsrichter@verein.de': 'referee@club.com',
-    'Vorname Nachname': 'First name Last name'
+    'Vorname Nachname': 'First name Last name',
+
+    // ===== Teamturnier / Begegnungen =====
+    // Tablet (court.html)
+    '▶ Schiedsen': '▶ Referee',
+    'Einzel antippen, das geschiedst werden soll – danach startet die Aufwärmphase.':
+      'Tap the rubber to referee – the warm-up then starts.',
+    'Begegnung beendet. Die Turnierleitung nimmt die Begegnung vom Court.':
+      'Team match finished. The tournament desk removes it from the court.',
+    '↩ Anderes Einzel wählen': '↩ Choose another rubber',
+    'Gesamt': 'Total',
+    '1. Aufwärmen': '1. Warm-up',
+    '2. Aufwärmen (Seitenwechsel)': '2. Warm-up (switch sides)',
+    '3. Vorbereitung': '3. Preparation',
+    'Letzte Minute – fertig machen zum Spiel': 'Last minute – get ready to play',
+    'Letzte Minute': 'Last minute',
+    'ZEIT – Spielbeginn': 'TIME – match start',
+    'Spielbeginn': 'Match start',
+    'läuft': 'live',
+    // Dashboard (index.html)
+    'Begegnungen': 'Team matches',
+    '+ Begegnung': '+ Team match',
+    'Begegnung hinzufügen': 'Add team match',
+    'Begegnung bearbeiten': 'Edit team match',
+    'Begegnung beendet': 'Team match finished',
+    'Team 1 (Heim)': 'Team 1 (home)',
+    'Team 2 (Gast)': 'Team 2 (away)',
+    'Einzel S1…SN': 'Rubbers S1…SN',
+    'Gruppe / Runde': 'Group / round',
+    'Zeit (Anzeige)': 'Time (display)',
+    'Gewinnsätze': 'Games to win',
+    'Best of 3 · 2 Gewinnsätze': 'Best of 3 · 2 games to win',
+    'Best of 5 · 3 Gewinnsätze': 'Best of 5 · 3 games to win',
+    'Aufstellung –': 'Line-up –',
+    'Spieler Team 1': 'Player team 1',
+    'Spieler Team 2': 'Player team 2',
+    'Einzel': 'Rubbers',
+    'Sätze': 'Games',
+    'Punkte': 'Points',
+    'Vom Court': 'Off court',
+    'Freigeben': 'Release',
+    'beendet': 'finished',
+    'offen': 'open',
+    'Ergebnis offen': 'Result open',
+    'Bearbeiten': 'Edit',
+    '✓ Beendet – vom Court nehmen': '✓ Finished – remove from court',
+    'Noch keine Begegnungen. Über „+ Begegnung" anlegen.': 'No team matches yet. Create via “+ Team match”.',
+    '= Team 1 gegen Team 2 über die Einzel S1…SN. Einzel auf einen Court schieben → es startet dort mit der Aufwärmphase.':
+      '= Team 1 vs Team 2 across the rubbers S1…SN. Push a rubber onto a court → it starts there with the warm-up.',
+    'Der Gesamtstand (Einzel · Sätze · Punkte) zählt nach jedem Punkt mit.':
+      'The overall score (rubbers · games · points) counts after every point.',
+    'Team-Import folgt als Nächstes – bitte einmal eine Team-Export-Excel schicken, dann richte ich das Spaltenmapping passend ein.':
+      'Team import is coming next – please send a team-export Excel once, then the column mapping will be set up.',
+    'Bitte zuerst in den Einstellungen „Teamturnier" aktivieren.': 'Please enable “Team tournament” in the settings first.',
+    // Einstellungen (settings.html)
+    '🏆 Turnierart': '🏆 Tournament type',
+    'Modus für dieses Turnier': 'Mode for this tournament',
+    'Einzelturnier – ein Spieler gegen einen Spieler': 'Singles tournament – one player vs one player',
+    'Teamturnier – Begegnungen mit Einzeln S1…SN': 'Team tournament – team matches with rubbers S1…SN',
+    'Einzel pro Begegnung (S1…SN)': 'Rubbers per team match (S1…SN)',
+    'Wenn ein Einzel gespielt ist…': 'When a rubber has been played…',
+    'A · Aus – Turnierleitung startet das nächste Spiel': 'A · Off – tournament desk starts the next match',
+    'B · Nach Bestätigung automatisch nachrücken': 'B · Advance automatically after confirmation',
+    'C · Ergebnis automatisch bestätigen und nachrücken': 'C · Auto-confirm result and advance',
+    'D · Ergebnis automatisch bestätigen – Schiedsrichter zieht am Tablet das nächste Einzel':
+      'D · Auto-confirm result – referee picks the next rubber on the tablet',
+    'Team-Wertung (Tabellen-/Begegnungspunkte)': 'Team scoring (table / match points)',
+    'Begegnung gewonnen': 'Team match won',
+    'Begegnung unentschieden': 'Team match drawn',
+    'Begegnung verloren': 'Team match lost',
+    'Bonus – Begegnung gewonnen': 'Bonus – team match won',
+    'Bonus – je gewonnenem Einzel': 'Bonus – per rubber won',
+    'Tabellen-Rangfolge': 'Table ranking order',
+    'Gewonnene Einzel → Begegnungspunkte → Satz-Differenz → Punkt-Differenz → Punkte für':
+      'Rubbers won → match points → game difference → point difference → points for',
+    'Einstellungen des Tablets anpassen': 'Adjust tablet settings'
   };
 
   // ---- Regeln für dynamische Strings (mit Zahlen/Namen) ------------------
@@ -342,7 +417,29 @@
     [/^Nächste Spiele auf Court (.+)$/, 'Next matches on court $1'],
     [/^Nächstes Spiel auf Court (.+)$/, 'Next match on court $1'],
     [/^Rolle gespeichert: (.+)$/, 'Role saved: $1'],
-    [/^Dein Konto \((.+)\) hat für diese Ansicht keine Berechtigung\.$/, 'Your account ($1) has no permission for this view.']
+    [/^Dein Konto \((.+)\) hat für diese Ansicht keine Berechtigung\.$/, 'Your account ($1) has no permission for this view.'],
+
+    // ===== Teamturnier / Begegnungen (dynamisch) =====
+    [/^Begegnung auf Court (.+)$/, 'Team match on court $1'],
+    [/^Begegnung beendet · Court (.+) wieder frei$/, 'Team match finished · court $1 free again'],
+    [/^Begegnung beendet · Court (.+)$/, 'Team match finished · court $1'],
+    [/^Einzel (.+) · Sätze (.+) · Punkte (.+)$/, 'Rubbers $1 · Games $2 · Points $3'],
+    [/^Spiele (.+) · Sätze (.+) · Punkte (.+)$/, 'Rubbers $1 · Games $2 · Points $3'],
+    [/^Sätze (.+) · Punkte (.+)$/, 'Games $1 · Points $2'],
+    [/^(.+) rechts\s+·\s+(.+) links$/, '$1 right · $2 left'],
+    [/^(.+) links\s+·\s+(.+) rechts$/, '$1 left · $2 right'],
+    [/^läuft · Court (.+)$/, 'live · court $1'],
+    [/^läuft · C(.+)$/, 'live · C$1'],
+    [/^Einzel S(.*) – Aufwärmphase startet$/, 'Rubber S$1 – warm-up starts'],
+    [/^Einzel auf Court (.+) – Aufwärmphase startet am Tablet$/, 'Rubber onto court $1 – warm-up starts on the tablet'],
+    [/^Einzel auf Court (.+) – Aufwärmphase startet$/, 'Rubber onto court $1 – warm-up starts'],
+    [/^· Tabellenpunkte (.+)$/, '· Table points $1'],
+    [/^Phase (.+) \/ 3$/, 'Phase $1 / 3'],
+    [/^Import: (\d+) Begegnungen angelegt$/, 'Import: $1 team matches created'],
+    [/^(\d+) Begegnungen gefunden\. Jetzt importieren\?$/, '$1 team matches found. Import now?'],
+    [/^Bestätigt · nächstes Einzel S(.+) auf Court (.+)$/, 'Confirmed · next rubber S$1 on court $2'],
+    [/^Ergebnis bestätigt – (.+)$/, 'Result confirmed – $1'],
+    [/^Sätze (.+)$/, 'Games $1']
   ];
 
   function translate(str) {
