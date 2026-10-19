@@ -254,6 +254,21 @@
   .rub .res{font-weight:800;font-variant-numeric:tabular-nums}
   .rub.livex{background:#0d2017}
   .tiesel{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit}
+  /* Mannschaftsspieltabelle */
+  .tietab{width:100%;border-collapse:collapse;font-size:14.5px}
+  .tietab th{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;text-align:left;padding:6px 12px;border-bottom:1px solid var(--line)}
+  .tietab th.c{text-align:center} .tietab th.r{text-align:right}
+  .tietab td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .tietab tr.livex td{background:#0d2017}
+  .tietab .sp{font-weight:800;color:#8fd0ff;width:44px}
+  .tietab .nm{font-weight:600}
+  .tietab .nm.w{color:var(--green);font-weight:800}
+  .tietab td.p2{text-align:right}
+  .tietab .sets{font-variant-numeric:tabular-nums;color:#cbd5e1;text-align:center;white-space:nowrap;letter-spacing:.3px}
+  .tietab .act{text-align:right;white-space:nowrap}
+  .tietab tfoot td{border-top:2px solid #2a3850;border-bottom:none;padding-top:11px;font-weight:800}
+  .tietab tfoot .tot{font-variant-numeric:tabular-nums}
+  @media(max-width:760px){ .tietab{font-size:13px} .tietab th,.tietab td{padding:7px 8px} }
   .tiehead{display:grid;grid-template-columns:36px 1fr 1fr 96px;gap:8px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);padding:4px 2px}
   .tierow{display:grid;grid-template-columns:36px 1fr 1fr 96px;gap:8px;align-items:center;margin-bottom:6px}
   .tierow .pn{font-weight:800;color:#8fd0ff;text-align:center}
@@ -511,6 +526,7 @@ let HLABELS=['Halbfinale','Finale'];
 function hlBadge(m){ return (m&&m.highlight)?` <span class="hlb">★ ${String(m.highlight).replace(/</g,'&lt;')}</span>`:''; }
 const ALARM_MS=60000;   // 1 Minute bis zum roten Alarm
 let FLOW_AUTOASSIGN=false, FLOW_AUTOCONFIRM=false, AUTO_SECS=20, AUTO_LEAD=10, AUTO_IMMEDIATE=false;
+let TEAM_MANUAL_NEXT=true;   // Team-Modus: nächstes Einzel zieht der Schiedsrichter selbst (Automatik aus)
 let MISSING_ACTIVE=false; const autoOverride=new Set(), autoBusy=new Set(), awaitingSince=new Map();
 function finAtOf(m){
   const s=m&&m.state||{};
@@ -789,7 +805,7 @@ async function autoAssignSweep(){
   for(const [id,t] of _autoHold){ if(t<=now) _autoHold.delete(id); }         // abgelaufene Sperren aufräumen
   const liveCourts=new Set(MATCHES.filter(m=>m.status==='live' && m.court_id!=null).map(m=>Number(m.court_id)));
   const byCourt={};
-  MATCHES.filter(m=>m.status==='scheduled' && m.court_no!=null && !(TEAM_MODE && m.tie_id)).forEach(m=>{ (byCourt[m.court_no]=byCourt[m.court_no]||[]).push(m); });
+  MATCHES.filter(m=>m.status==='scheduled' && m.court_no!=null && !(TEAM_MODE && TEAM_MANUAL_NEXT && m.tie_id)).forEach(m=>{ (byCourt[m.court_no]=byCourt[m.court_no]||[]).push(m); });
   for(const key in byCourt){
     const cn=Number(key);
     if(liveCourts.has(cn) || _sweepBusy.has(cn)) continue;  // Court belegt oder gerade in Bearbeitung
@@ -885,6 +901,7 @@ async function loadCourtLayout(){
     AUTO_LEAD = (st.autoAssignLeadMin!=null) ? Number(st.autoAssignLeadMin) : 10;
     AUTO_IMMEDIATE = !!st.autoAssignImmediate;
     TEAM_MODE = (st.tourMode==='team');
+    TEAM_MANUAL_NEXT = (st.teamManualNext!==false);   // Standard an
     TEAM_POINTS = Object.assign({ matchWon:2,matchDraw:1,matchLost:1,bonusMatchWon:1,bonusMatchDraw:0,bonusMatchLost:0,bonusRubberWon:1,bonusRubberDraw:0,bonusRubberLost:0,positions:6 }, st.teamPoints||{});
     const tid = Store.activeTournament && Store.activeTournament();
     if(!tid){ COURT_LAYOUT=null; TVENUES_IDX=[]; return; }
@@ -1222,6 +1239,10 @@ async function confirmR(id, force){
   const m=MATCHES.find(x=>x.id===id); const court=m?m.court_id:null;
   await Store.confirmResult(id);
   await rankingWriteBack(m);
+  // Teamturnier mit „Schiedsrichter zieht selbst": kein automatisches Nachrücken
+  if(TEAM_MODE && TEAM_MANUAL_NEXT && m && m.tie_id){
+    toast('Ergebnis bestätigt – Schiedsrichter zieht das nächste Einzel am Tablet'); return;
+  }
   const s=await Store.getSettings();
   const leadMin = (s.autoAssignLeadMin!=null ? Number(s.autoAssignLeadMin) : 10);
   const immediate = !!s.autoAssignImmediate;
@@ -1256,6 +1277,7 @@ async function checkAutoConfirm(){
   for(const m of MATCHES){
     if(m.status!=='live') continue;
     const s=m.state||{}; if(s.status!=='finished') continue;
+    if(TEAM_MODE && TEAM_MANUAL_NEXT && m.tie_id) continue;   // Begegnungs-Einzel: keine Auto-Bestätigung
     if(autoOverride.has(m.id) || autoBusy.has(m.id)) continue;
     const at=finAtOf(m); if(!at) continue;
     if(now-at >= AUTO_SECS*1000){
@@ -1266,6 +1288,7 @@ async function checkAutoConfirm(){
   }
 }
 function autoConfirmLine(m, at){
+  if(TEAM_MODE && TEAM_MANUAL_NEXT && m && m.tie_id) return '';   // Begegnung: Schiedsrichter zieht selbst
   if(!FLOW_AUTOCONFIRM) return '';
   if(MISSING_ACTIVE) return `<div class="autoline paused">⏸ Automatik pausiert – fehlende Spieler</div>`;
   if(autoOverride.has(m.id)) return `<div class="autoline"><span>⏸ Auto angehalten</span> <button class="btn-ghost btn-xs" onclick="resumeAuto('${m.id}')">Auto fortsetzen</button></div>`;
@@ -1795,7 +1818,7 @@ function renderTeam(){
     const metaParts=[t.group_label, t.scheduled_time, (t.court_ids&&t.court_ids.length?('Courts '+t.court_ids.join(', ')):'')].filter(Boolean).map(escH);
     const meta=(metaParts.length||finished)
       ? `<div class="tie-meta">${metaParts.join(' · ')}${finished?`${metaParts.length?' · ':''}<b>Begegnung beendet</b> · Tabellenpunkte ${sc.mpts[0]}:${sc.mpts[1]}`:''}</div>` : '';
-    const rubHtml=rubbers.map(m=>rubberRow(m,cs,canManage)).join('');
+    const rubHtml=`<div style="padding:2px 4px 8px">${tieTableHtml(t, rubbers, cs, canManage, sc)}</div>`;
     const acts=canManage?`<div class="tie-acts">
         <span style="flex:1"></span>
         <button class="btn-ghost btn-sm" onclick="editTie('${t.id}')">Bearbeiten</button>
@@ -1816,32 +1839,80 @@ function renderTeam(){
     </div>`;
   }).join('');
 }
-function rubberRow(m, cs, canManage){
+// Satzergebnisse eines Einzels (inkl. laufendem Satz)
+function rubberSets(m){
+  const s=m.state;
+  if(s && s.games){
+    const parts=(s.games||[]).map(g=>g.p1+'-'+g.p2);
+    if(s.cur && s.status!=='finished' && ((s.cur.p1||0)||(s.cur.p2||0))) parts.push(s.cur.p1+'-'+s.cur.p2);
+    return parts.join('  ');
+  }
+  return m.score_text ? String(m.score_text) : '';
+}
+function rubberActionCell(m, cs, canManage){
   const tally=Store.rubberTally(m);
-  const w=tally.done?tally.winner:0;
-  const n1=`<b class="${w===1?'wl':''}">${escH(m.player1_name||'—')}</b>`;
-  const n2=`<b class="${w===2?'wl':''}">${escH(m.player2_name||'—')}</b>`;
-  let rt='';
   if(m.status==='live'){
     const fin=(m.state&&m.state.status==='finished');
-    rt=`<span class="res">${tally.g1}:${tally.g2}</span>
-        <span class="badge ${fin?'finished':'playing'}">${fin?'Ergebnis offen':'läuft · Court '+(m.court_id||'?')}</span>
-        ${canManage?`<button class="btn-ghost btn-sm" onclick="unassign('${m.id}')">Vom Court</button>`:''}`;
-  } else if(m.status==='confirmed' || tally.done){
-    rt=`<span class="res">${escH(m.result||(tally.g1+'-'+tally.g2))}</span>
-        <span class="badge finished">beendet</span>
-        ${canManage?`<button class="btn-ghost btn-sm" onclick="releaseRubber('${m.id}')" title="Einzel erneut freigeben (Admin)">Freigeben</button>`:''}`;
-  } else {
-    const opts=cs.map(c=>`<option value="${c}"${String(m.court_no)===String(c)?' selected':''}>Court ${c}</option>`).join('');
-    rt=canManage
-      ? `<select class="tiesel" id="rc_${m.id}">${opts}</select><button class="btn-primary btn-sm" onclick="pushRubber('${m.id}')">▶ auf Court</button>`
-      : '<span class="badge">offen</span>';
+    return `<span class="badge ${fin?'finished':'playing'}">${fin?'Ergebnis offen':'läuft · C'+(m.court_id||'?')}</span>`
+      +(canManage?` <button class="btn-ghost btn-sm" onclick="unassign('${m.id}')">Vom Court</button>`:'');
   }
-  return `<div class="rub${m.status==='live'?' livex':''}">
-    <div class="pos">S${m.tie_pos||''}</div>
-    <div class="pl">${n1} <span style="color:var(--muted)">vs</span> ${n2}</div>
-    <div class="rt">${rt}</div>
-  </div>`;
+  if(m.status==='confirmed' || tally.done){
+    return `<span class="badge finished">beendet</span>`
+      +(canManage?` <button class="btn-ghost btn-sm" onclick="releaseRubber('${m.id}')" title="Einzel erneut freigeben (Admin)">Freigeben</button>`:'');
+  }
+  if(!canManage) return '<span class="badge">offen</span>';
+  const opts='<option value="">— Court —</option>'+cs.map(c=>`<option value="${c}"${String(m.court_no)===String(c)?' selected':''}>Court ${c}</option>`).join('');
+  return `<select class="tiesel" id="rc_${m.id}" onchange="setRubberCourt('${m.id}', this.value)">${opts}</select> <button class="btn-primary btn-sm" onclick="pushRubber('${m.id}')">▶ Court</button>`;
+}
+// Court eines Einzels dauerhaft zuweisen (ohne es schon aufs Tablet zu schieben)
+async function setRubberCourt(id, val){
+  const cn = val ? Number(val) : null;
+  const m=MATCHES.find(x=>x.id===id); if(!m) return;
+  try{
+    await Store.updateMatch(id, { court_no: cn });
+    m.court_no=cn;                               // lokal sofort spiegeln
+    await syncTieCourtIds(m.tie_id);             // Court-Liste der Begegnung aktualisieren
+  }catch(e){ toast('Fehler beim Speichern: '+(e.message||e)); load(); }
+}
+// court_ids einer Begegnung aus den Courts ihrer Einzel neu berechnen
+async function syncTieCourtIds(tieId){
+  if(!tieId) return;
+  const courts=[...new Set(MATCHES.filter(x=>x.tie_id===tieId)
+    .map(x=>x.court_no).filter(v=>v!=null&&v!=='').map(Number))].sort((a,b)=>a-b);
+  try{ await Store.updateTie(tieId, { court_ids: courts }); }catch(e){}
+}
+// Mannschaftsspieltabelle einer Begegnung (aktueller Stand)
+function tieTableHtml(t, rubbers, cs, canManage, sc){
+  const rows=rubbers.map(m=>{
+    const tally=Store.rubberTally(m);
+    const w=tally.done?tally.winner:0;
+    const sets=rubberSets(m);
+    return `<tr class="${m.status==='live'?'livex':''}">
+      <td class="sp">S${m.tie_pos||''}</td>
+      <td class="nm ${w===1?'w':''}">${escH(m.player1_name||'—')}</td>
+      <td class="sets">${escH(sets)||'<span style="color:#55606e">–</span>'}</td>
+      <td class="nm p2 ${w===2?'w':''}">${escH(m.player2_name||'—')}</td>
+      <td class="act">${rubberActionCell(m,cs,canManage)}</td>
+    </tr>`;
+  }).join('');
+  const w=sc.winner;
+  return `<table class="tietab">
+    <thead><tr>
+      <th>#</th>
+      <th class="${w===1?'':''}">${escH(t.team1_name)}</th>
+      <th class="c">Sätze</th>
+      <th class="r">${escH(t.team2_name)}</th>
+      <th class="r"></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr>
+      <td class="sp">Σ</td>
+      <td class="tot">Spiele <b>${sc.rubbers[0]}</b> · Sätze ${sc.games[0]} · Punkte ${sc.points[0]}</td>
+      <td></td>
+      <td class="tot p2">Spiele <b>${sc.rubbers[1]}</b> · Sätze ${sc.games[1]} · Punkte ${sc.points[1]}</td>
+      <td></td>
+    </tr></tfoot>
+  </table>`;
 }
 async function pushRubber(id){
   const sel=document.getElementById('rc_'+id); const cn=sel?Number(sel.value):null;
