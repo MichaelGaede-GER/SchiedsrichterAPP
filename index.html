@@ -1951,9 +1951,82 @@ async function delTie(id){
   if(!confirm('Begegnung '+(t?('„'+t.team1_name+' vs '+t.team2_name+'"'):'')+' mit allen Einzeln löschen?')) return;
   try{ await Store.deleteTie(id); toast('Begegnung gelöscht'); load(); }catch(e){ toast('Fehler: '+e.message); }
 }
-function importTies(file){
+// ---- Team-Export (Squash League Planner / PDF-Layout) einlesen ----
+function tieSplitSeed(s){ s=String(s==null?'':s).trim();
+  const m=s.match(/^(.*?)\s*\[([^\]]+)\]\s*$/); return m?{name:m[1].trim(), seed:m[2].trim()}:{name:s, seed:null}; }
+function tieParseTs(date, hhmm){
+  const m=String(date||'').match(/(\d{2})\.(\d{2})\.(\d{4})/); if(!m) return null;
+  const hm=String(hhmm||'00:00').split(':');
+  return new Date(+m[3], (+m[2])-1, +m[1], parseInt(hm[0],10)||0, parseInt(hm[1],10)||0).getTime();
+}
+function tieParseWorkbook(wb){
+  const out=[];
+  wb.SheetNames.forEach(sn=>{
+    const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false,defval:null});
+    let hdr={group:'',time:'',date:''}, cur=null;
+    const flush=()=>{ if(cur && cur.rows.length){ out.push(cur); } cur=null; };
+    aoa.forEach(row=>{
+      const a=String((row&&row[0])||'').trim();
+      const c=String((row&&row[2])||'').trim();
+      const e=String((row&&row[4])||'').trim();
+      const f=String((row&&row[5])||'').trim();
+      if(a==='Court'){ flush(); hdr={group:c, time:f, date:''}; return; }
+      if(/\d{2}\.\d{2}\.\d{4}/.test(f)) hdr.date=f;
+      if(/^C\s*\d+$/i.test(a) && c && e){
+        flush();
+        const gl=hdr.group||''; const idx=gl.lastIndexOf(' - ');
+        const group=idx>=0?gl.slice(idx+3).trim():gl; const round=idx>=0?gl.slice(0,idx).trim():'';
+        const hhmm=(hdr.time||'').slice(0,5);
+        cur={ court:a, t1raw:c, t2raw:e, group, round,
+          scheduled_time:[hdr.date, hhmm].filter(Boolean).join(' '),
+          sort_ts:tieParseTs(hdr.date, hhmm), rows:[] };
+        return;
+      }
+      const sm=a.match(/^S(\d+)$/i);
+      if(sm && cur){ cur.rows.push({pos:+sm[1], p1:c, p2:e}); }
+    });
+    flush();
+  });
+  return out;
+}
+async function importTies(file){
   const inp=document.getElementById('teamFile'); if(inp) inp.value='';
-  toast('Team-Import folgt als Nächstes – bitte einmal eine Team-Export-Excel schicken, dann richte ich das Spaltenmapping passend ein.');
+  if(!file) return;
+  if(!TEAM_MODE){ toast('Bitte zuerst in den Einstellungen „Teamturnier" aktivieren.'); return; }
+  try{
+    const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+    const parsed=tieParseWorkbook(wb);
+    if(!parsed.length){ toast('Keine Begegnungen in der Datei erkannt.'); return; }
+    const norm=s=>String(s==null?'':s).toLowerCase().replace(/\s+/g,' ').trim();
+    const keyOf=t=>{ const a=tieSplitSeed(t.t1raw).name, b=tieSplitSeed(t.t2raw).name;
+      return [norm(a),norm(b),norm(t.group),norm(t.scheduled_time)].join('|'); };
+    const existing=new Set((TIES||[]).map(x=>x.import_key).filter(Boolean));
+    if(!confirm(parsed.length+' Begegnungen gefunden. Jetzt importieren?')) return;
+    let added=0, skipped=0;
+    for(const t of parsed){
+      const k=keyOf(t);
+      if(existing.has(k)){ skipped++; continue; }
+      existing.add(k);
+      const t1=tieSplitSeed(t.t1raw), t2=tieSplitSeed(t.t2raw);
+      const tie=await Store.insertTie({ team1_name:t1.name, team2_name:t2.name,
+        team1_seed:t1.seed||null, team2_seed:t2.seed||null,
+        group_label:t.group||null, round:t.round||null,
+        scheduled_time:t.scheduled_time||null, sort_ts:t.sort_ts||Date.now(),
+        positions:t.rows.length||6, court_ids:[], status:'scheduled', import_key:k });
+      const rubbers=t.rows.sort((a,b)=>a.pos-b.pos).map(r=>({
+        tie_id:tie.id, tie_pos:r.pos, match_no:'S'+r.pos,
+        player1_name:r.p1||('S'+r.pos+' '+t1.name), player2_name:r.p2||('S'+r.pos+' '+t2.name),
+        player1_country:null, player2_country:null,
+        event:t.group||null, round:t.round||null, scheduled_time:t.scheduled_time||null,
+        sort_ts:(t.sort_ts||Date.now())+r.pos, best_of:3,
+        status:'scheduled', state:null, result:null, winner:null, score_text:null,
+        court_no:null, court_id:null }));
+      await Store.insertMany(rubbers);
+      added++;
+    }
+    toast(`Import: ${added} Begegnungen angelegt${skipped?`, ${skipped} übersprungen (bereits vorhanden)`:''}`);
+    load();
+  }catch(e){ console.error(e); toast('Import-Fehler: '+(e.message||e)); }
 }
 
 Auth.guard('view').then(()=>{
