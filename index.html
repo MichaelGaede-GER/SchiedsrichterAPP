@@ -231,6 +231,33 @@
     border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;display:none;align-items:center;gap:10px}
   .selbar.show{display:flex}
   @media(max-width:760px){ .thead{display:none} .m{grid-template-columns:1fr;gap:6px} }
+  /* ---- Teamturnier / Begegnungen ---- */
+  .tie{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;margin-bottom:14px;overflow:hidden}
+  .tie.live{border-color:#1e5b3d}
+  .tie.done{border-color:#3a4a63;opacity:.95}
+  .tie-hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#0f1724;border-bottom:1px solid var(--line)}
+  .tie-teams{font-size:18px;font-weight:800;flex:1;min-width:220px}
+  .tie-teams .vs{color:var(--muted);font-weight:600;margin:0 8px;font-size:15px}
+  .tie-teams .wteam{color:var(--green)}
+  .tie-score{display:flex;gap:14px;align-items:center}
+  .tie-score .sc{text-align:center;min-width:64px}
+  .tie-score .sc .cap{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+  .tie-score .sc .val{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+  .tie-meta{font-size:12px;color:var(--muted);padding:6px 14px 0}
+  .tie-acts{display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px}
+  .rub{display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--line)}
+  .rub .pos{font-weight:800;color:#8fd0ff}
+  .rub .pl{font-size:14.5px}
+  .rub .pl b{font-weight:700}
+  .rub .pl .wl{color:var(--green)}
+  .rub .rt{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+  .rub .res{font-weight:800;font-variant-numeric:tabular-nums}
+  .rub.livex{background:#0d2017}
+  .tiesel{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit}
+  .tiehead{display:grid;grid-template-columns:36px 1fr 1fr 96px;gap:8px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);padding:4px 2px}
+  .tierow{display:grid;grid-template-columns:36px 1fr 1fr 96px;gap:8px;align-items:center;margin-bottom:6px}
+  .tierow .pn{font-weight:800;color:#8fd0ff;text-align:center}
+  @media(max-width:760px){ .rub{grid-template-columns:1fr} .tie-score{width:100%;justify-content:space-between} .tiehead{display:none} .tierow{grid-template-columns:28px 1fr 1fr} .tierow .tc{grid-column:2/4} }
 </style>
 </head>
 <body>
@@ -267,6 +294,20 @@
     <span class="cbhint">Auf der Court‑Karte „Bestätigen &amp; zurückholen" antippen</span>
   </div>
   <div id="courts" class="courts"></div>
+
+  <div id="teamPanel" style="display:none;margin-top:16px">
+    <div class="maintabs">
+      <button class="mtab active" style="pointer-events:none">Begegnungen <span class="count" id="tieCount">0</span></button>
+      <div style="flex:1"></div>
+      <button class="btn-primary btn-sm manage-only" onclick="openTieDlg()">+ Begegnung</button>
+      <button class="btn-ghost btn-sm manage-only" onclick="document.getElementById('teamFile').click()" title="Begegnungen aus Excel importieren">⬆ Import</button>
+      <input type="file" id="teamFile" accept=".xlsx,.xls" style="display:none" onchange="importTies(this.files[0])">
+    </div>
+    <div id="ties"></div>
+    <p style="font-size:12.5px;color:var(--muted);margin:10px 0 0">
+      Eine <b>Begegnung</b> = Team 1 gegen Team 2 über die Einzel S1…SN. Einzel auf einen Court schieben → es startet dort mit der Aufwärmphase.
+      Der Gesamtstand (Einzel · Sätze · Punkte) zählt nach jedem Punkt mit.</p>
+  </div>
 
   <div class="maintabs">
     <button class="mtab active" data-tab="sched" onclick="setMainTab('sched')">
@@ -357,6 +398,29 @@
   </div>
 </dialog>
 
+<dialog id="tieDlg" style="max-width:820px;width:92vw">
+  <h3 id="tieDlgTitle">Begegnung hinzufügen</h3>
+  <input type="hidden" id="t_id">
+  <div class="grid3">
+    <div class="field"><label>Team 1 (Heim)</label><input id="t_team1" placeholder="z.B. Team from hell" oninput="tieHeads()"></div>
+    <div class="field"><label>Team 2 (Gast)</label><input id="t_team2" placeholder="z.B. Airtight 5" oninput="tieHeads()"></div>
+    <div class="field"><label>Einzel S1…SN</label><input id="t_positions" type="number" min="1" max="12" value="6" onchange="renderTieRows()"></div>
+  </div>
+  <div class="grid3">
+    <div class="field"><label>Gruppe / Runde</label><input id="t_group" placeholder="z.B. Group E"></div>
+    <div class="field"><label>Zeit (Anzeige)</label><input id="t_time" placeholder="z.B. Fr 01.08. 09:00"></div>
+    <div class="field"><label>Gewinnsätze</label>
+      <select id="t_bo"><option value="3">Best of 3 · 2 Gewinnsätze</option><option value="5">Best of 5 · 3 Gewinnsätze</option></select></div>
+  </div>
+  <div style="margin:10px 0 6px;font-weight:700">Aufstellung – <span id="t_h1">Team 1</span> &nbsp;vs&nbsp; <span id="t_h2">Team 2</span></div>
+  <div class="tiehead"><div>#</div><div>Spieler Team 1</div><div>Spieler Team 2</div><div>Court</div></div>
+  <div id="tieRows"></div>
+  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+    <button class="btn-ghost" onclick="tieDlg.close()">Abbrechen</button>
+    <button class="btn-primary" onclick="saveTieFromDlg()">Speichern</button>
+  </div>
+</dialog>
+
 <dialog id="recDlg">
   <h3>🔁 Spiel wiederherstellen</h3>
   <p class="hint" style="margin:2px 0 12px">Sende ein laufendes oder begonnenes Spiel erneut an einen Court/ein Tablet. Der <b>letzte gespeicherte Spielstand bleibt erhalten</b> – das Tablet öffnet das Match am letzten Punkt. Nützlich bei geschlossenem Browser, Neustart, Verbindungsausfall oder Tablet-Tausch.</p>
@@ -424,6 +488,9 @@ const COURTS = window.CONFIG.COURTS || [1,2,3,4,5,6];
 const fileInput = document.getElementById('fileInput');
 let MATCHES = [];
 let selectedMatch = null;
+// ---- Teamturnier ----
+let TEAM_MODE = false, TEAM_POINTS = null, TIES = [];
+function courtNumbers(){ return ((COURTS_FALLBACK&&COURTS_FALLBACK.length)?COURTS_FALLBACK:COURTS).slice().sort((a,b)=>a-b); }
 
 const modeEl = document.getElementById('mode');
 // echte Flaggenbilder (Windows zeigt Emoji-Flaggen nur als Buchstaben)
@@ -722,7 +789,7 @@ async function autoAssignSweep(){
   for(const [id,t] of _autoHold){ if(t<=now) _autoHold.delete(id); }         // abgelaufene Sperren aufräumen
   const liveCourts=new Set(MATCHES.filter(m=>m.status==='live' && m.court_id!=null).map(m=>Number(m.court_id)));
   const byCourt={};
-  MATCHES.filter(m=>m.status==='scheduled' && m.court_no!=null).forEach(m=>{ (byCourt[m.court_no]=byCourt[m.court_no]||[]).push(m); });
+  MATCHES.filter(m=>m.status==='scheduled' && m.court_no!=null && !(TEAM_MODE && m.tie_id)).forEach(m=>{ (byCourt[m.court_no]=byCourt[m.court_no]||[]).push(m); });
   for(const key in byCourt){
     const cn=Number(key);
     if(liveCourts.has(cn) || _sweepBusy.has(cn)) continue;  // Court belegt oder gerade in Bearbeitung
@@ -771,6 +838,7 @@ async function load(){
     await loadCourtLayout();
     fillDefLoc();
     MATCHES = await Store.listMatches();
+    TIES = TEAM_MODE ? await Store.listTies() : [];
     render();
   }catch(err){
     console.error('Laden fehlgeschlagen:', err);
@@ -793,7 +861,11 @@ function fillDefLoc(){
 }
 function defLocId(){ const s=document.getElementById('defLoc'); return (s && s.style.display!=='none' && s.value) ? s.value : null; }
 function venueCourtsFor(venueId){ const v=(COURT_LAYOUT||[]).find(x=>x.venue_id===venueId); return v?v.courts.map(c=>c.no):[]; }
-function render(){ renderCourts(); renderSched(); renderDone(); }
+function render(){
+  const tp=document.getElementById('teamPanel'); if(tp) tp.style.display=TEAM_MODE?'block':'none';
+  renderCourts(); renderSched(); renderDone();
+  if(TEAM_MODE){ try{ renderTeam(); }catch(e){ console.error(e); } }
+}
 
 let COURT_LAYOUT = null;        // [{venue_id,name,courts:[{no,fn}]}] oder null=Fallback
 let TOURNAME = '';              // Turniername für Protokoll-Kopf
@@ -812,6 +884,8 @@ async function loadCourtLayout(){
     AUTO_SECS = (st.autoConfirmSecs!=null) ? st.autoConfirmSecs : 20;
     AUTO_LEAD = (st.autoAssignLeadMin!=null) ? Number(st.autoAssignLeadMin) : 10;
     AUTO_IMMEDIATE = !!st.autoAssignImmediate;
+    TEAM_MODE = (st.tourMode==='team');
+    TEAM_POINTS = Object.assign({ matchWon:2,matchDraw:1,matchLost:1,bonusMatchWon:1,bonusMatchDraw:0,bonusMatchLost:0,bonusRubberWon:1,bonusRubberDraw:0,bonusRubberLost:0,positions:6 }, st.teamPoints||{});
     const tid = Store.activeTournament && Store.activeTournament();
     if(!tid){ COURT_LAYOUT=null; TVENUES_IDX=[]; return; }
     let tv=[], tc=[];
@@ -950,7 +1024,7 @@ function renderSched(){
   const el=document.getElementById('sched');
   const q=(document.getElementById('search').value||'').toLowerCase().trim();
   const cf=document.getElementById('courtFilter').value;
-  let rows=MATCHES.filter(m=>!m.court_id && m.status==='scheduled');
+  let rows=MATCHES.filter(m=>!m.court_id && m.status==='scheduled' && !(TEAM_MODE && m.tie_id));
   if(cf) rows=rows.filter(m=>String(m.court_no)===cf);
   if(q) rows=rows.filter(m=>(`${m.player1_name} ${m.player2_name} ${m.event||m.draw||''}`).toLowerCase().includes(q));
   rows.sort((a,b)=> natCmp(a.match_no,b.match_no) || (a.sort_ts||0)-(b.sort_ts||0));   // natürlich nach #Nr, dann Zeit
@@ -1039,7 +1113,7 @@ function resultRowHtml(m,isSent){
     </div>`;
 }
 function renderDone(){
-  const confirmed=MATCHES.filter(m=>m.status==='confirmed');
+  const confirmed=MATCHES.filter(m=>m.status==='confirmed' && !(TEAM_MODE && m.tie_id));
   const done=confirmed.filter(m=>!m.transferred);
   const sent=confirmed.filter(m=>m.transferred);
   document.getElementById('doneCount').textContent=done.length;
@@ -1702,8 +1776,189 @@ async function onTourPick(v){
   load(); initRankingSync();
 }
 
+// ===================== TEAMTURNIER: BEGEGNUNGEN =====================
+function renderTeam(){
+  const host=document.getElementById('ties'); if(!host) return;
+  const ties=TIES.slice().sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0) || String(a.team1_name||'').localeCompare(String(b.team1_name||'')));
+  const cEl=document.getElementById('tieCount'); if(cEl) cEl.textContent=ties.length;
+  if(!ties.length){ host.innerHTML='<div class="card"><div class="emptyrow">Noch keine Begegnungen. Über „+ Begegnung" anlegen.</div></div>'; return; }
+  const canManage=(typeof Auth==='undefined')||Auth.can('manage');
+  const cs=courtNumbers();
+  host.innerHTML=ties.map(t=>{
+    const rubbers=MATCHES.filter(m=>m.tie_id===t.id).sort((a,b)=>(a.tie_pos||0)-(b.tie_pos||0));
+    const sc=Store.computeTieScore(rubbers, TEAM_POINTS);
+    const w=sc.winner, finished=(sc.total>0 && sc.done===sc.total);
+    const liveCount=rubbers.filter(m=>m.status==='live').length;
+    const t1=`<span class="${w===1?'wteam':''}">${escH(t.team1_name)}</span>`;
+    const t2=`<span class="${w===2?'wteam':''}">${escH(t.team2_name)}</span>`;
+    const cls='tie'+(finished?' done':'')+(liveCount?' live':'');
+    const metaParts=[t.group_label, t.scheduled_time, (t.court_ids&&t.court_ids.length?('Courts '+t.court_ids.join(', ')):'')].filter(Boolean).map(escH);
+    const meta=(metaParts.length||finished)
+      ? `<div class="tie-meta">${metaParts.join(' · ')}${finished?`${metaParts.length?' · ':''}<b>Begegnung beendet</b> · Tabellenpunkte ${sc.mpts[0]}:${sc.mpts[1]}`:''}</div>` : '';
+    const rubHtml=rubbers.map(m=>rubberRow(m,cs,canManage)).join('');
+    const acts=canManage?`<div class="tie-acts">
+        <span style="flex:1"></span>
+        <button class="btn-ghost btn-sm" onclick="editTie('${t.id}')">Bearbeiten</button>
+        <button class="btn-ghost btn-sm" onclick="delTie('${t.id}')">Löschen</button>
+      </div>`:'';
+    return `<div class="${cls}">
+      <div class="tie-hd">
+        <div class="tie-teams">${t1}<span class="vs">vs</span>${t2}</div>
+        <div class="tie-score">
+          <div class="sc"><div class="cap">Einzel</div><div class="val">${sc.rubbers[0]}:${sc.rubbers[1]}</div></div>
+          <div class="sc"><div class="cap">Sätze</div><div class="val">${sc.games[0]}:${sc.games[1]}</div></div>
+          <div class="sc"><div class="cap">Punkte</div><div class="val">${sc.points[0]}:${sc.points[1]}</div></div>
+        </div>
+      </div>
+      ${meta}
+      ${rubHtml}
+      ${acts}
+    </div>`;
+  }).join('');
+}
+function rubberRow(m, cs, canManage){
+  const tally=Store.rubberTally(m);
+  const w=tally.done?tally.winner:0;
+  const n1=`<b class="${w===1?'wl':''}">${escH(m.player1_name||'—')}</b>`;
+  const n2=`<b class="${w===2?'wl':''}">${escH(m.player2_name||'—')}</b>`;
+  let rt='';
+  if(m.status==='live'){
+    const fin=(m.state&&m.state.status==='finished');
+    rt=`<span class="res">${tally.g1}:${tally.g2}</span>
+        <span class="badge ${fin?'finished':'playing'}">${fin?'Ergebnis offen':'läuft · Court '+(m.court_id||'?')}</span>
+        ${canManage?`<button class="btn-ghost btn-sm" onclick="unassign('${m.id}')">Vom Court</button>`:''}`;
+  } else if(m.status==='confirmed' || tally.done){
+    rt=`<span class="res">${escH(m.result||(tally.g1+'-'+tally.g2))}</span>
+        <span class="badge finished">beendet</span>
+        ${canManage?`<button class="btn-ghost btn-sm" onclick="releaseRubber('${m.id}')" title="Einzel erneut freigeben (Admin)">Freigeben</button>`:''}`;
+  } else {
+    const opts=cs.map(c=>`<option value="${c}"${String(m.court_no)===String(c)?' selected':''}>Court ${c}</option>`).join('');
+    rt=canManage
+      ? `<select class="tiesel" id="rc_${m.id}">${opts}</select><button class="btn-primary btn-sm" onclick="pushRubber('${m.id}')">▶ auf Court</button>`
+      : '<span class="badge">offen</span>';
+  }
+  return `<div class="rub${m.status==='live'?' livex':''}">
+    <div class="pos">S${m.tie_pos||''}</div>
+    <div class="pl">${n1} <span style="color:var(--muted)">vs</span> ${n2}</div>
+    <div class="rt">${rt}</div>
+  </div>`;
+}
+async function pushRubber(id){
+  const sel=document.getElementById('rc_'+id); const cn=sel?Number(sel.value):null;
+  const m=MATCHES.find(x=>x.id===id); if(!m||!cn) return;
+  try{ await Store.assignToCourt(id, cn, Number(m.best_of)||3);
+    toast('Einzel auf Court '+cn+' – Aufwärmphase startet am Tablet'); load(); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
+async function releaseRubber(id){
+  if(!confirm('Dieses Einzel erneut zum Schiedsen freigeben?\n\nDer bisherige Spielstand dieses Einzels wird dabei verworfen.')) return;
+  try{ await Store.releaseRubber(id); toast('Einzel wieder freigegeben'); load(); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
+function tieHeads(){
+  const a=document.getElementById('t_team1').value||'Team 1';
+  const b=document.getElementById('t_team2').value||'Team 2';
+  document.getElementById('t_h1').textContent=a; document.getElementById('t_h2').textContent=b;
+}
+function renderTieRows(){
+  const n=Math.max(1,Math.min(12, parseInt(document.getElementById('t_positions').value,10)||6));
+  const host=document.getElementById('tieRows'); const cs=courtNumbers();
+  const cOpts='<option value="">—</option>'+cs.map(c=>`<option value="${c}">Court ${c}</option>`).join('');
+  const prev={}; host.querySelectorAll('[data-pos]').forEach(inp=>{ prev[inp.dataset.k+inp.dataset.pos]=inp.value; });
+  let html='';
+  for(let i=1;i<=n;i++){
+    html+=`<div class="tierow">
+      <div class="pn">S${i}</div>
+      <input class="tiesel tc" data-k="p1" data-pos="${i}" placeholder="Spieler Team 1" value="${escH(prev['p1'+i]||'')}">
+      <input class="tiesel tc" data-k="p2" data-pos="${i}" placeholder="Spieler Team 2" value="${escH(prev['p2'+i]||'')}">
+      <select class="tiesel" data-k="crt" data-pos="${i}">${cOpts}</select>
+    </div>`;
+  }
+  host.innerHTML=html;
+  host.querySelectorAll('select[data-k="crt"]').forEach(s=>{ const v=prev['crt'+s.dataset.pos]; if(v) s.value=v; });
+}
+function openTieDlg(t){
+  document.getElementById('tieDlgTitle').textContent=t?'Begegnung bearbeiten':'Begegnung hinzufügen';
+  document.getElementById('t_id').value=t?t.id:'';
+  document.getElementById('t_team1').value=t?(t.team1_name||''):'';
+  document.getElementById('t_team2').value=t?(t.team2_name||''):'';
+  document.getElementById('t_group').value=t?(t.group_label||''):'';
+  document.getElementById('t_time').value=t?(t.scheduled_time||''):'';
+  document.getElementById('t_positions').value=t?(t.positions||6):((TEAM_POINTS&&TEAM_POINTS.positions)||6);
+  document.getElementById('t_bo').value='3';
+  tieHeads(); renderTieRows();
+  if(t){
+    const rubbers=MATCHES.filter(m=>m.tie_id===t.id).sort((a,b)=>(a.tie_pos||0)-(b.tie_pos||0));
+    if(rubbers[0]&&rubbers[0].best_of) document.getElementById('t_bo').value=String(rubbers[0].best_of);
+    rubbers.forEach(m=>{ const i=m.tie_pos;
+      const e1=document.querySelector(`[data-k="p1"][data-pos="${i}"]`); if(e1) e1.value=m.player1_name||'';
+      const e2=document.querySelector(`[data-k="p2"][data-pos="${i}"]`); if(e2) e2.value=m.player2_name||'';
+      const ec=document.querySelector(`[data-k="crt"][data-pos="${i}"]`); if(ec&&m.court_no) ec.value=String(m.court_no);
+    });
+  }
+  document.getElementById('tieDlg').showModal();
+}
+function editTie(id){ const t=TIES.find(x=>x.id===id); if(t) openTieDlg(t); }
+function tieRubberRow(tieId,r,team1,team2,group,time,bo){
+  return { tie_id:tieId, tie_pos:r.pos, match_no:'S'+r.pos,
+    player1_name:r.p1||('S'+r.pos+' '+team1), player2_name:r.p2||('S'+r.pos+' '+team2),
+    player1_country:null, player2_country:null,
+    event:group||null, round:null, scheduled_time:time||null, sort_ts:Date.now()+r.pos,
+    best_of:bo, status:'scheduled', state:null, result:null, winner:null, score_text:null,
+    court_no:r.court||null, court_id:null };
+}
+async function saveTieFromDlg(){
+  const id=document.getElementById('t_id').value||'';
+  const team1=document.getElementById('t_team1').value.trim();
+  const team2=document.getElementById('t_team2').value.trim();
+  if(!team1||!team2){ toast('Bitte beide Team-Namen angeben'); return; }
+  const positions=Math.max(1,Math.min(12, parseInt(document.getElementById('t_positions').value,10)||6));
+  const group=document.getElementById('t_group').value.trim();
+  const time=document.getElementById('t_time').value.trim();
+  const bo=parseInt(document.getElementById('t_bo').value,10)||3;
+  const rows=[];
+  for(let i=1;i<=positions;i++){
+    const p1=(document.querySelector(`[data-k="p1"][data-pos="${i}"]`)||{}).value||'';
+    const p2=(document.querySelector(`[data-k="p2"][data-pos="${i}"]`)||{}).value||'';
+    const crt=(document.querySelector(`[data-k="crt"][data-pos="${i}"]`)||{}).value||'';
+    rows.push({pos:i, p1:p1.trim(), p2:p2.trim(), court:crt?Number(crt):null});
+  }
+  const courtIds=[...new Set(rows.map(r=>r.court).filter(Boolean))];
+  try{
+    if(id){
+      await Store.updateTie(id,{ team1_name:team1, team2_name:team2, group_label:group||null,
+        scheduled_time:time||null, positions, court_ids:courtIds });
+      const existing=MATCHES.filter(m=>m.tie_id===id);
+      for(const r of rows){
+        const ex=existing.find(m=>m.tie_pos===r.pos);
+        if(ex){ await Store.updateMatch(ex.id,{ player1_name:r.p1||ex.player1_name,
+          player2_name:r.p2||ex.player2_name, best_of:bo, court_no:r.court||null, event:group||ex.event, match_no:'S'+r.pos }); }
+        else { await Store.insertMatch(tieRubberRow(id,r,team1,team2,group,time,bo)); }
+      }
+      for(const m of existing){ if((m.tie_pos||0)>positions){ await Store.deleteMatch(m.id); } }
+      toast('Begegnung aktualisiert');
+    } else {
+      const tie=await Store.insertTie({ team1_name:team1, team2_name:team2, group_label:group||null, round:null,
+        scheduled_time:time||null, sort_ts:Date.now(), positions, court_ids:courtIds, status:'scheduled' });
+      await Store.insertMany(rows.map(r=>tieRubberRow(tie.id,r,team1,team2,group,time,bo)));
+      toast('Begegnung angelegt');
+    }
+    document.getElementById('tieDlg').close(); load();
+  }catch(e){ toast('Fehler: '+e.message); }
+}
+async function delTie(id){
+  const t=TIES.find(x=>x.id===id);
+  if(!confirm('Begegnung '+(t?('„'+t.team1_name+' vs '+t.team2_name+'"'):'')+' mit allen Einzeln löschen?')) return;
+  try{ await Store.deleteTie(id); toast('Begegnung gelöscht'); load(); }catch(e){ toast('Fehler: '+e.message); }
+}
+function importTies(file){
+  const inp=document.getElementById('teamFile'); if(inp) inp.value='';
+  toast('Team-Import folgt als Nächstes – bitte einmal eine Team-Export-Excel schicken, dann richte ich das Spaltenmapping passend ein.');
+}
+
 Auth.guard('view').then(()=>{
   Store.subscribeAll(load);
+  Store.subscribeTies(load);
   Store.subscribeSettings(onSettingsChanged);
   Store.subscribeTournaments(()=>{ fillTourPick(); onSettingsChanged(); });
   fillTourPick();
