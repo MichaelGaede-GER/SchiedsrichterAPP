@@ -41,6 +41,9 @@
   .preview{margin-top:8px;display:flex;gap:12px;align-items:center}
   .preview img{max-height:60px;max-width:180px;border-radius:8px;border:1px solid var(--line);background:#0008}
   .courts-links{display:grid;gap:10px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  @media(max-width:640px){.grid2,.grid3{grid-template-columns:1fr}}
   .clink{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
   .clink h4{margin:0 0 8px;font-size:14px}
   .lrow{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13px}
@@ -137,6 +140,35 @@
     </div>
     <div class="row" style="justify-content:space-between">
       <span id="mode" class="mode">…</span>
+    </div>
+  </div>
+
+  <h2>🏆 Turnierart</h2>
+  <div class="card">
+    <div class="field">
+      <label>Modus für dieses Turnier</label>
+      <select id="tourMode" onchange="applyTourMode()" style="padding:9px 12px;border-radius:9px;background:#0f1724;color:#fff;border:1px solid #2a3444;font-size:15px;min-width:340px">
+        <option value="single">Einzelturnier – ein Spieler gegen einen Spieler</option>
+        <option value="team">Teamturnier – Begegnungen mit Einzeln S1…SN</option>
+      </select>
+    </div>
+    <div class="hint" id="tourModeHint" style="margin-top:4px"></div>
+
+    <div id="teamCfg" style="display:none;margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+      <div class="field" style="max-width:260px">
+        <label>Einzel pro Begegnung (S1…SN)</label>
+        <input type="number" id="teamPositions" min="1" max="12" step="1" value="6">
+      </div>
+      <h3 style="margin:10px 0 6px;font-size:16px">Team-Wertung (Tabellen-/Begegnungspunkte)</h3>
+      <div class="hint" style="margin:0 0 12px">Entspricht „Team Points" im League-Planner. Die Grundwerte sind wie abgebildet voreingestellt. Der Live-Begegnungsstand (gewonnene Einzel · Sätze · Punkte) wird immer gezählt; diese Werte bestimmen nur die Gruppentabelle.</div>
+      <div class="grid3">
+        <div class="field"><label>Begegnung gewonnen</label><input type="number" id="tpMatchWon" step="1" value="2"></div>
+        <div class="field"><label>Begegnung unentschieden</label><input type="number" id="tpMatchDraw" step="1" value="1"></div>
+        <div class="field"><label>Begegnung verloren</label><input type="number" id="tpMatchLost" step="1" value="1"></div>
+        <div class="field"><label>Bonus – Begegnung gewonnen</label><input type="number" id="tpBonusMatchWon" step="1" value="1"></div>
+        <div class="field"><label>Bonus – je gewonnenem Einzel</label><input type="number" id="tpBonusRubberWon" step="1" value="1"></div>
+        <div class="field"><label>Tabellen-Rangfolge</label><div class="hint" style="margin-top:0">Gewonnene Einzel → Begegnungspunkte → Satz-Differenz → Punkt-Differenz → Punkte für</div></div>
+      </div>
     </div>
   </div>
 
@@ -455,8 +487,17 @@ function applyAutoMode(){
   const lead=$('rowLead'); if(lead) lead.style.display=(m==='off')?'none':'block';        // Timing bei assign/confirm
   applyTiming();
 }
+function applyTourMode(){
+  const m=$('tourMode').value;
+  const team=(m==='team');
+  const cfg=$('teamCfg'); if(cfg) cfg.style.display=team?'block':'none';
+  const h=$('tourModeHint'); if(h) h.textContent = team
+    ? 'Teamturnier: Im Dashboard legst du Begegnungen (Team 1 gegen Team 2) mit den Einzeln S1…SN an und schiebst sie auf die Courts. Das Schiedsrichter-Tablet zeigt die Begegnung, der Schiri wählt das Einzel und pfeift es wie gewohnt.'
+    : 'Einzelturnier: klassische 1-gegen-1-Spiele (unveränderter Ablauf).';
+}
 document.addEventListener('change', e=>{ if(!e.target) return;
   if(e.target.id==='autoMode') applyAutoMode();
+  if(e.target.id==='tourMode') applyTourMode();
   if(e.target.name==='autoTiming') applyTiming();
 });
 let S={};
@@ -932,6 +973,13 @@ async function loadSettings(){
   const mode = S.autoMode ? S.autoMode : (S.autoConfirm ? 'confirm' : (S.autoAssign ? 'assign' : 'off'));
   $('autoMode').value = mode; applyAutoMode();
   $('physioEnabled').checked=!!S.physioEnabled;
+  // Turnierart + Team-Wertung
+  $('tourMode').value = (S.tourMode==='team'?'team':'single');
+  const TP = Object.assign({ matchWon:2,matchDraw:1,matchLost:1,bonusMatchWon:1,bonusRubberWon:1,positions:6 }, S.teamPoints||{});
+  $('teamPositions').value = (TP.positions!=null?TP.positions:6);
+  $('tpMatchWon').value=TP.matchWon; $('tpMatchDraw').value=TP.matchDraw; $('tpMatchLost').value=TP.matchLost;
+  $('tpBonusMatchWon').value=TP.bonusMatchWon; $('tpBonusRubberWon').value=TP.bonusRubberWon;
+  applyTourMode();
   $('autoConfirmSecs').value=(S.autoConfirmSecs!=null?S.autoConfirmSecs:20);
   $('warmupTotalMin').value = ((S.warmupTotal!=null?S.warmupTotal:300)/60);
   $('restSeconds').value=S.restSeconds!=null?S.restSeconds:120;
@@ -966,6 +1014,18 @@ async function saveAll(){
     autoAssignLeadMin:Math.max(0, parseInt($('autoAssignLeadMin').value,10)||0),
     autoConfirm:(_mode==='confirm'),
     physioEnabled:$('physioEnabled').checked,
+    tourMode:($('tourMode').value==='team'?'team':'single'),
+    teamPoints:{
+      scoring:'ppm',
+      positions:Math.max(1,Math.min(12, parseInt($('teamPositions').value,10)||6)),
+      matchWon:parseInt($('tpMatchWon').value,10)||0,
+      matchDraw:parseInt($('tpMatchDraw').value,10)||0,
+      matchLost:parseInt($('tpMatchLost').value,10)||0,
+      bonusMatchWon:parseInt($('tpBonusMatchWon').value,10)||0,
+      bonusMatchDraw:0, bonusMatchLost:0,
+      bonusRubberWon:parseInt($('tpBonusRubberWon').value,10)||0,
+      bonusRubberDraw:0, bonusRubberLost:0,
+    },
     autoConfirmSecs:Math.max(5,Math.min(120, parseInt($('autoConfirmSecs').value,10)||20)),
     warmupTotal:Math.max(60, Math.round((parseFloat($('warmupTotalMin').value)||5)*60)),
     restSeconds:parseInt($('restSeconds').value,10)||0,

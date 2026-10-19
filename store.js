@@ -54,6 +54,45 @@ const Store = (() => {
             () => callback()).subscribe();
       return () => sb.removeChannel(ch);
     },
+
+    // ---- Begegnungen (Teamturnier) ----
+    async listTies() {
+      const { data, error } = await sb.from('ties').select('*');
+      if (error) throw error;
+      return (data || []).slice().sort((a, b) => (a.sort_ts || 0) - (b.sort_ts || 0));
+    },
+    async getTie(id) {
+      const { data, error } = await sb.from('ties').select('*').eq('id', id).single();
+      if (error) throw error; return data;
+    },
+    async insertTie(tie) {
+      const { data, error } = await sb.from('ties').insert(tie).select().single();
+      if (error) throw error; return data;
+    },
+    async updateTie(id, patch) {
+      const { error } = await sb.from('ties')
+        .update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+    },
+    async deleteTie(id) {
+      // zugehörige Einzel mitlöschen, dann die Begegnung
+      await sb.from('matches').delete().eq('tie_id', id);
+      const { error } = await sb.from('ties').delete().eq('id', id);
+      if (error) throw error;
+    },
+    async matchesByTie(tieId) {
+      const { data, error } = await sb.from('matches').select('*').eq('tie_id', tieId);
+      if (error) throw error;
+      return (data || []).slice().sort((a, b) => (a.tie_pos || 0) - (b.tie_pos || 0));
+    },
+    subscribeTies(callback) {
+      const ch = sb.channel('ties-all')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'ties' }, () => callback())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => callback())
+        .subscribe();
+      return () => sb.removeChannel(ch);
+    },
+
     async getSettingsRaw() {
       const { data, error } = await sb.from('app_settings').select('data').eq('id', 'app').maybeSingle();
       if (error) throw error; return (data && data.data) || {};
@@ -218,6 +257,40 @@ const Store = (() => {
       window.addEventListener('storage', onStorage);
       return () => { if (bc) bc.removeEventListener('message', onMsg); window.removeEventListener('storage', onStorage); };
     },
+
+    // ---- Begegnungen (Teamturnier) ----
+    async listTies() { try { return JSON.parse(localStorage.getItem('squash_ties') || '[]'); }
+      catch { return []; } },
+    async getTie(id) { return (await this.listTies()).find(t => t.id === id) || null; },
+    async insertTie(tie) {
+      const rows = await this.listTies();
+      const row = { id: uuid(), created_at: new Date().toISOString(), ...tie };
+      rows.push(row); localStorage.setItem('squash_ties', JSON.stringify(rows));
+      if (bc) bc.postMessage({ t: 'ties' }); return row;
+    },
+    async updateTie(id, patch) {
+      const rows = await this.listTies(); const i = rows.findIndex(t => t.id === id);
+      if (i >= 0) { rows[i] = { ...rows[i], ...patch }; localStorage.setItem('squash_ties', JSON.stringify(rows));
+        if (bc) bc.postMessage({ t: 'ties' }); }
+    },
+    async deleteTie(id) {
+      const rows = (await this.listTies()).filter(t => t.id !== id);
+      localStorage.setItem('squash_ties', JSON.stringify(rows));
+      const ms = readLS().filter(m => m.tie_id !== id); writeLS(ms);
+      if (bc) bc.postMessage({ t: 'ties' });
+    },
+    async matchesByTie(tieId) {
+      return readLS().filter(m => m.tie_id === tieId)
+        .sort((a, b) => (a.tie_pos || 0) - (b.tie_pos || 0));
+    },
+    subscribeTies(callback) {
+      const onMsg = e => { if (e.data && (e.data.t === 'ties' || e.data.t === 'changed')) callback(); };
+      const onStorage = e => { if (e.key === 'squash_ties' || e.key === KEY) callback(); };
+      if (bc) bc.addEventListener('message', onMsg);
+      window.addEventListener('storage', onStorage);
+      return () => { if (bc) bc.removeEventListener('message', onMsg); window.removeEventListener('storage', onStorage); };
+    },
+
     async getSettingsRaw() { try { return JSON.parse(localStorage.getItem('squash_settings') || '{}'); } catch { return {}; } },
     async saveSettingsRaw(obj) {
       localStorage.setItem('squash_settings', JSON.stringify(obj));
@@ -326,6 +399,70 @@ const Store = (() => {
   const backend = useSupabase ? SupabaseStore : LocalStore;
   if (useSupabase) initSupabase();
 
+  // =============== TEAMTURNIER: Wertung (Spiele · Sätze · Punkte) ===============
+  // Standard-Team-Points (entspricht dem League-Planner-Screen):
+  const DEFAULT_TEAM_POINTS = {
+    scoring: 'ppm',                                   // Points Per Match
+    matchWon: 2, matchDraw: 1, matchLost: 1,          // Points Per Match
+    bonusMatchWon: 1, bonusMatchDraw: 0, bonusMatchLost: 0,
+    bonusRubberWon: 1, bonusRubberDraw: 0, bonusRubberLost: 0,
+    positions: 6,
+  };
+
+  // Ein einzelnes Einzel (match-Zeile) auswerten -> {g1,g2,p1,p2,done,winner,started}
+  function rubberTally(m) {
+    const t = { g1: 0, g2: 0, p1: 0, p2: 0, done: false, winner: 0, started: false };
+    const s = m && m.state;
+    if (s && s.games) {
+      t.started = (s.status && s.status !== 'warmup') || (s.games.length > 0) || (s.cur && (s.cur.p1 || s.cur.p2));
+      (s.games || []).forEach(g => { t.p1 += g.p1 || 0; t.p2 += g.p2 || 0;
+        if (g.winner === 1) t.g1++; else if (g.winner === 2) t.g2++; });
+      if (s.cur) { t.p1 += s.cur.p1 || 0; t.p2 += s.cur.p2 || 0; }
+      if (s.status === 'finished') { t.done = true; t.winner = s.matchWinner || 0; }
+    } else if (m && m.score_text) {                   // aus Import/Backup ohne Live-State
+      String(m.score_text).trim().split(/\s+/).forEach(seg => {
+        const mm = seg.match(/^(\d+)-(\d+)$/); if (!mm) return;
+        const a = +mm[1], b = +mm[2]; t.p1 += a; t.p2 += b;
+        if (a > b) t.g1++; else if (b > a) t.g2++; t.started = true;
+      });
+      if (m.winner) { t.done = true; t.winner = m.winner; }
+      else if (t.g1 || t.g2) { t.done = true; t.winner = t.g1 > t.g2 ? 1 : (t.g2 > t.g1 ? 2 : 0); }
+    }
+    if (m && m.status === 'confirmed') { t.done = true; if (!t.winner && m.winner) t.winner = m.winner; }
+    return t;
+  }
+
+  // Gesamtstand einer Begegnung aus ihren Einzeln
+  function computeTieScore(rubbers, cfg) {
+    cfg = Object.assign({}, DEFAULT_TEAM_POINTS, cfg || {});
+    const sc = { rubbers: [0, 0], games: [0, 0], points: [0, 0], mpts: [0, 0],
+                 winner: 0, done: 0, total: (rubbers || []).length, inProgress: false };
+    (rubbers || []).forEach(m => {
+      const t = rubberTally(m);
+      sc.games[0] += t.g1; sc.games[1] += t.g2;
+      sc.points[0] += t.p1; sc.points[1] += t.p2;
+      if (t.done) { sc.done++;
+        if (t.winner === 1) sc.rubbers[0]++; else if (t.winner === 2) sc.rubbers[1]++; }
+      else if (t.started) sc.inProgress = true;
+    });
+    const need = Math.floor(sc.total / 2) + 1;
+    if (sc.total > 0) {
+      if (sc.rubbers[0] >= need) sc.winner = 1;
+      else if (sc.rubbers[1] >= need) sc.winner = 2;
+      else if (sc.done === sc.total) sc.winner = sc.rubbers[0] > sc.rubbers[1] ? 1 : (sc.rubbers[1] > sc.rubbers[0] ? 2 : 0);
+    }
+    // Begegnungs-/Tabellenpunkte erst, wenn alle Einzel fertig sind
+    if (sc.total > 0 && sc.done === sc.total) {
+      const mp = (res) => res === 'won' ? cfg.matchWon : res === 'draw' ? cfg.matchDraw : cfg.matchLost;
+      const bm = (res) => res === 'won' ? cfg.bonusMatchWon : res === 'draw' ? cfg.bonusMatchDraw : cfg.bonusMatchLost;
+      const res0 = sc.rubbers[0] > sc.rubbers[1] ? 'won' : (sc.rubbers[0] < sc.rubbers[1] ? 'lost' : 'draw');
+      const res1 = sc.rubbers[1] > sc.rubbers[0] ? 'won' : (sc.rubbers[1] < sc.rubbers[0] ? 'lost' : 'draw');
+      sc.mpts[0] = mp(res0) + bm(res0) + sc.rubbers[0] * cfg.bonusRubberWon;
+      sc.mpts[1] = mp(res1) + bm(res1) + sc.rubbers[1] * cfg.bonusRubberWon;
+    }
+    return sc;
+  }
+
   let ACTIVE; // undefined = noch nicht geladen, null = kein aktives Turnier, sonst id
   const ACTIVE_KEY = 'squash_active_tournament';
   async function ensureActive() {
@@ -381,6 +518,33 @@ const Store = (() => {
     subscribeCourt: (courtId, cb) => backend.subscribeAll(cb),
     subscribeSettings: (...a) => backend.subscribeSettings(...a),
     subscribeTournaments: (...a) => backend.subscribeTournaments(...a),
+
+    // ---- Begegnungen (Teamturnier) ----
+    async listTies() {
+      await ensureActive();
+      const all = await backend.listTies();
+      return ACTIVE ? all.filter(t => t.tournament_id === ACTIVE)
+                    : all.filter(t => !t.tournament_id);
+    },
+    getTie: (...a) => backend.getTie(...a),
+    async insertTie(tie) {
+      await ensureActive();
+      const row = Object.assign({}, tie);
+      if (row.tournament_id === undefined) row.tournament_id = ACTIVE || null;
+      return backend.insertTie(row);
+    },
+    updateTie: (...a) => backend.updateTie(...a),
+    deleteTie: (...a) => backend.deleteTie(...a),
+    matchesByTie: (...a) => backend.matchesByTie(...a),
+    subscribeTies: (...a) => backend.subscribeTies(...a),
+    // Einzel wieder freigeben (Admin): zurück auf "scheduled", Court frei
+    async releaseRubber(id) { return backend.updateMatch(id, { status: 'scheduled', court_id: null }); },
+    // reine Helfer (auch für court.html / index.html)
+    computeTieScore: (rubbers, cfg) => computeTieScore(rubbers, cfg),
+    rubberTally: (m) => rubberTally(m),
+    DEFAULT_TEAM_POINTS,
+    async teamPoints() { const s = await this.getSettings(); return Object.assign({}, DEFAULT_TEAM_POINTS, s.teamPoints || {}); },
+    async getMode() { const s = await this.getSettings(); return s.tourMode === 'team' ? 'team' : 'single'; },
 
     // ---- Turniere ----
     listTournaments: (...a) => backend.listTournaments(...a),
@@ -456,6 +620,8 @@ const Store = (() => {
         sponsors: [],       // Sponsor-Logos (URLs/DataURLs) für die Live-Leiste
         highlightLabels: ['Halbfinale','Finale'],  // Presets für Highlight-Markierung
         activeTournament: null,
+        tourMode: 'single',                 // 'single' = Einzelturnier | 'team' = Teamturnier
+        teamPoints: DEFAULT_TEAM_POINTS,    // Team-Wertung (Begegnungs-/Tabellenpunkte)
       };
     },
     async getSettings() {
