@@ -112,6 +112,7 @@
     background:#121a27;border:1px solid #233047;border-radius:12px;padding:12px 14px;margin-bottom:10px;
     width:100%;text-align:left;font:inherit;color:#eaf2fb}
   button.tieitem{cursor:pointer;-webkit-appearance:none;appearance:none}
+  button.tieitem *{pointer-events:none}   /* Touch landet immer auf dem Button, nicht auf Kind-Elementen */
   button.tieitem.open:hover,button.tieitem.open:active{border-color:#3b82f6;background:#15202f}
   .tieitem.done{opacity:.75}
   .tieitem.done{opacity:.75}
