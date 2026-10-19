@@ -526,7 +526,9 @@ let HLABELS=['Halbfinale','Finale'];
 function hlBadge(m){ return (m&&m.highlight)?` <span class="hlb">★ ${String(m.highlight).replace(/</g,'&lt;')}</span>`:''; }
 const ALARM_MS=60000;   // 1 Minute bis zum roten Alarm
 let FLOW_AUTOASSIGN=false, FLOW_AUTOCONFIRM=false, AUTO_SECS=20, AUTO_LEAD=10, AUTO_IMMEDIATE=false;
-let TEAM_MANUAL_NEXT=true;   // Team-Modus: nächstes Einzel zieht der Schiedsrichter selbst (Automatik aus)
+let TEAM_FLOW='refpick';     // Team-Ablauf nach einem Einzel: leader|assign|confirm|refpick (A|B|C|D)
+function teamAutoConfirm(){ return TEAM_FLOW==='confirm' || TEAM_FLOW==='refpick'; }   // C, D
+function teamAutoAdvance(){ return TEAM_FLOW==='assign'  || TEAM_FLOW==='confirm'; }    // B, C
 let MISSING_ACTIVE=false; const autoOverride=new Set(), autoBusy=new Set(), awaitingSince=new Map();
 function finAtOf(m){
   const s=m&&m.state||{};
@@ -805,7 +807,7 @@ async function autoAssignSweep(){
   for(const [id,t] of _autoHold){ if(t<=now) _autoHold.delete(id); }         // abgelaufene Sperren aufräumen
   const liveCourts=new Set(MATCHES.filter(m=>m.status==='live' && m.court_id!=null).map(m=>Number(m.court_id)));
   const byCourt={};
-  MATCHES.filter(m=>m.status==='scheduled' && m.court_no!=null && !(TEAM_MODE && TEAM_MANUAL_NEXT && m.tie_id)).forEach(m=>{ (byCourt[m.court_no]=byCourt[m.court_no]||[]).push(m); });
+  MATCHES.filter(m=>m.status==='scheduled' && m.court_no!=null && !(TEAM_MODE && m.tie_id)).forEach(m=>{ (byCourt[m.court_no]=byCourt[m.court_no]||[]).push(m); });
   for(const key in byCourt){
     const cn=Number(key);
     if(liveCourts.has(cn) || _sweepBusy.has(cn)) continue;  // Court belegt oder gerade in Bearbeitung
@@ -901,7 +903,8 @@ async function loadCourtLayout(){
     AUTO_LEAD = (st.autoAssignLeadMin!=null) ? Number(st.autoAssignLeadMin) : 10;
     AUTO_IMMEDIATE = !!st.autoAssignImmediate;
     TEAM_MODE = (st.tourMode==='team');
-    TEAM_MANUAL_NEXT = (st.teamManualNext!==false);   // Standard an
+    TEAM_FLOW = st.teamFlow || (st.teamManualNext===false ? 'confirm' : 'refpick');
+    if(!['leader','assign','confirm','refpick'].includes(TEAM_FLOW)) TEAM_FLOW='refpick';
     TEAM_POINTS = Object.assign({ matchWon:2,matchDraw:1,matchLost:1,bonusMatchWon:1,bonusMatchDraw:0,bonusMatchLost:0,bonusRubberWon:1,bonusRubberDraw:0,bonusRubberLost:0,positions:6 }, st.teamPoints||{});
     const tid = Store.activeTournament && Store.activeTournament();
     if(!tid){ COURT_LAYOUT=null; TVENUES_IDX=[]; return; }
@@ -1239,9 +1242,12 @@ async function confirmR(id, force){
   const m=MATCHES.find(x=>x.id===id); const court=m?m.court_id:null;
   await Store.confirmResult(id);
   await rankingWriteBack(m);
-  // Teamturnier mit „Schiedsrichter zieht selbst": kein automatisches Nachrücken
-  if(TEAM_MODE && TEAM_MANUAL_NEXT && m && m.tie_id){
-    toast('Ergebnis bestätigt – Schiedsrichter zieht das nächste Einzel am Tablet'); return;
+  // Teamturnier: Ablauf nach Begegnungs-Einzel richtet sich nach TEAM_FLOW (A–D)
+  if(TEAM_MODE && m && m.tie_id){
+    if(teamAutoAdvance()){ await teamAdvanceNext(m); }        // B, C: nächstes Einzel nachrücken
+    else if(TEAM_FLOW==='refpick'){ toast('Ergebnis bestätigt – Schiedsrichter zieht das nächste Einzel am Tablet'); }
+    else { toast('Ergebnis bestätigt – Turnierleitung legt das nächste Einzel auf'); }  // A
+    return;
   }
   const s=await Store.getSettings();
   const leadMin = (s.autoAssignLeadMin!=null ? Number(s.autoAssignLeadMin) : 10);
@@ -1261,6 +1267,17 @@ async function confirmR(id, force){
     } else toast(`Bestätigt · kein weiteres Spiel für Court ${court}`);
   } else toast('Ergebnis bestätigt');
 }
+// Teamturnier: nächstes offenes Einzel derselben Begegnung auf den frei gewordenen Court legen
+async function teamAdvanceNext(m){
+  const court=m.court_id;
+  const open=MATCHES.filter(x=>x.tie_id===m.tie_id && x.status==='scheduled')
+    .sort((a,b)=>(a.tie_pos||0)-(b.tie_pos||0));
+  const next = open.find(x=>Number(x.court_no)===Number(court)) || open.find(x=>x.court_no==null) || open[0];
+  if(!next){ toast('Ergebnis bestätigt · Begegnung komplett'); return; }
+  try{ await Store.assignToCourt(next.id, court, Number(next.best_of)||3);
+    toast('Bestätigt · nächstes Einzel S'+(next.tie_pos||'')+' auf Court '+court); }
+  catch(e){ toast('Bestätigt · '+(e.message||e)); }
+}
 // Vorlaufzeit: Spiel erst ab (angesetzte Zeit - leadMin) automatisch zulassen; „Sofort" oder ohne Zeit -> jederzeit
 function autoEligible(m, leadMin, immediate){
   if(!m) return false;
@@ -1272,12 +1289,15 @@ function autoEligible(m, leadMin, immediate){
 function holdAuto(id){ autoOverride.add(id); try{ renderCourts(); }catch(e){} }
 function resumeAuto(id){ autoOverride.delete(id); try{ renderCourts(); }catch(e){} }
 async function checkAutoConfirm(){
-  if(!FLOW_AUTOCONFIRM || MISSING_ACTIVE) return;      // aus oder wegen fehlender Spieler pausiert
+  if(MISSING_ACTIVE) return;                           // wegen fehlender Spieler pausiert
+  const teamAuto = TEAM_MODE && teamAutoConfirm();     // Team C/D: auch ohne globalen Auto-Confirm
+  if(!FLOW_AUTOCONFIRM && !teamAuto) return;
   const now=Date.now();
   for(const m of MATCHES){
     if(m.status!=='live') continue;
     const s=m.state||{}; if(s.status!=='finished') continue;
-    if(TEAM_MODE && TEAM_MANUAL_NEXT && m.tie_id) continue;   // Begegnungs-Einzel: keine Auto-Bestätigung
+    if(TEAM_MODE && m.tie_id){ if(!teamAuto) continue; }      // Begegnungs-Einzel nur bei C/D auto-bestätigen
+    else if(!FLOW_AUTOCONFIRM) continue;                       // Einzelspiele nur bei globalem Auto-Confirm
     if(autoOverride.has(m.id) || autoBusy.has(m.id)) continue;
     const at=finAtOf(m); if(!at) continue;
     if(now-at >= AUTO_SECS*1000){
@@ -1288,8 +1308,9 @@ async function checkAutoConfirm(){
   }
 }
 function autoConfirmLine(m, at){
-  if(TEAM_MODE && TEAM_MANUAL_NEXT && m && m.tie_id) return '';   // Begegnung: Schiedsrichter zieht selbst
-  if(!FLOW_AUTOCONFIRM) return '';
+  const teamAuto = TEAM_MODE && m && m.tie_id && teamAutoConfirm();   // C/D
+  if(TEAM_MODE && m && m.tie_id && !teamAuto) return '';              // A/B: keine Auto-Bestätigung
+  if(!teamAuto && !FLOW_AUTOCONFIRM) return '';
   if(MISSING_ACTIVE) return `<div class="autoline paused">⏸ Automatik pausiert – fehlende Spieler</div>`;
   if(autoOverride.has(m.id)) return `<div class="autoline"><span>⏸ Auto angehalten</span> <button class="btn-ghost btn-xs" onclick="resumeAuto('${m.id}')">Auto fortsetzen</button></div>`;
   const rem=Math.max(0, AUTO_SECS - Math.floor((Date.now()-(at||0))/1000));

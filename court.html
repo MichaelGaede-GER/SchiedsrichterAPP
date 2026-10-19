@@ -532,6 +532,7 @@ class SquashMatch {
 let ALLMATCHES=[]; let match=null; let M=null; let syncing=false; let SETTINGS=null; let refConfirmed=false; let showSetScores=false;
 let ALLTIES=[]; let TIE=null; let TEAMPTS=null;   // Teamturnier: Begegnungen
 function TEAM_ON(){ return !!(SETTINGS && SETTINGS.tourMode==='team'); }
+function teamFlow(){ return (SETTINGS && SETTINGS.teamFlow) || ((SETTINGS&&SETTINGS.teamManualNext===false)?'confirm':'refpick'); }
 let _lastSrv=null, _srvChgAt=0, _srvChgTO=null;   // Aufschlagwechsel-Anzeige
 function hide(id){ document.getElementById(id).classList.remove('show'); }
 function show(id){ document.getElementById(id).classList.add('show'); }
@@ -1234,8 +1235,8 @@ async function loadCourt(){
       applyFrom(OFF.record, OFF.state, !match || match.id!==OFF.matchId); flush(); return;
     }
     match=null; M=null;
-    // Teamturnier: Ist diesem Court eine Begegnung zugeordnet? -> Einzel-Auswahl zeigen
-    if(TEAM_ON() && showTiePicker()){ return; }
+    // Teamturnier Option D: Schiedsrichter zieht das nächste Einzel -> Auswahl zeigen
+    if(TEAM_ON() && teamFlow()==='refpick' && showTiePicker()){ return; }
     hide('ovTie'); render(); return;
   }
 

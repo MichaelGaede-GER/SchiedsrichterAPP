@@ -159,11 +159,16 @@
         <label>Einzel pro Begegnung (S1…SN)</label>
         <input type="number" id="teamPositions" min="1" max="12" step="1" value="6">
       </div>
-      <label class="switch" style="margin:4px 0 2px">
-        <input type="checkbox" id="teamManualNext"><span class="track"></span>
-        <span>Nächstes Einzel vom Schiedsrichter ziehen lassen (Automatik aus)</span>
-      </label>
-      <div class="hint" style="margin:4px 0 14px">Aktiv: Ist ein Einzel fertig und bestätigt, rückt <b>kein</b> Spiel automatisch nach. Stattdessen erscheint am Court‑Tablet wieder die Begegnungs‑Auswahl und der Schiedsrichter zieht das nächste – nur die noch nicht gespielten Einzel sind wählbar. Deaktiviert: der normale automatische Court‑Ablauf (Countdown + Nachrücken) gilt auch für Begegnungen.</div>
+      <div class="field" style="max-width:640px">
+        <label>Wenn ein Einzel gespielt ist…</label>
+        <select id="teamFlow" style="padding:9px 12px;border-radius:9px;background:#0f1724;color:#fff;border:1px solid #2a3444;font-size:15px;width:100%">
+          <option value="leader">A · Aus – Turnierleitung startet das nächste Spiel</option>
+          <option value="assign">B · Nach Bestätigung automatisch nachrücken</option>
+          <option value="confirm">C · Ergebnis automatisch bestätigen und nachrücken</option>
+          <option value="refpick">D · Ergebnis automatisch bestätigen – Schiedsrichter zieht am Tablet das nächste Einzel</option>
+        </select>
+      </div>
+      <div class="hint" id="teamFlowHint" style="margin:4px 0 14px"></div>
       <h3 style="margin:10px 0 6px;font-size:16px">Team-Wertung (Tabellen-/Begegnungspunkte)</h3>
       <div class="hint" style="margin:0 0 12px">Entspricht „Team Points" im League-Planner. Die Grundwerte sind wie abgebildet voreingestellt. Der Live-Begegnungsstand (gewonnene Einzel · Sätze · Punkte) wird immer gezählt; diese Werte bestimmen nur die Gruppentabelle.</div>
       <div class="grid3">
@@ -500,9 +505,20 @@ function applyTourMode(){
     ? 'Teamturnier: Im Dashboard legst du Begegnungen (Team 1 gegen Team 2) mit den Einzeln S1…SN an und schiebst sie auf die Courts. Das Schiedsrichter-Tablet zeigt die Begegnung, der Schiri wählt das Einzel und pfeift es wie gewohnt.'
     : 'Einzelturnier: klassische 1-gegen-1-Spiele (unveränderter Ablauf).';
 }
+function applyTeamFlowHint(){
+  const el=$('teamFlowHint'); if(!el) return;
+  const h={
+    leader:'Ist ein Einzel fertig, bestätigt die Turnierleitung das Ergebnis und legt das nächste Einzel selbst auf den Court. Keine Automatik.',
+    assign:'Die Turnierleitung bestätigt das Ergebnis; danach wird das nächste offene Einzel der Begegnung automatisch auf denselben Court gelegt.',
+    confirm:'Nach Ablauf der Prüfzeit wird das Ergebnis automatisch bestätigt und das nächste offene Einzel automatisch auf den Court gelegt.',
+    refpick:'Nach Ablauf der Prüfzeit wird das Ergebnis automatisch bestätigt; am Court‑Tablet erscheint die Begegnungs‑Auswahl und der Schiedsrichter zieht das nächste – nur die noch nicht gespielten Einzel sind wählbar.',
+  };
+  el.innerHTML=(h[$('teamFlow').value]||'')+' <span style="opacity:.7">Die Prüfzeit entspricht der Einstellung unter „Automatischer Court‑Ablauf".</span>';
+}
 document.addEventListener('change', e=>{ if(!e.target) return;
   if(e.target.id==='autoMode') applyAutoMode();
   if(e.target.id==='tourMode') applyTourMode();
+  if(e.target.id==='teamFlow') applyTeamFlowHint();
   if(e.target.name==='autoTiming') applyTiming();
 });
 let S={};
@@ -982,7 +998,10 @@ async function loadSettings(){
   $('tourMode').value = (S.tourMode==='team'?'team':'single');
   const TP = Object.assign({ matchWon:2,matchDraw:1,matchLost:1,bonusMatchWon:1,bonusRubberWon:1,positions:6 }, S.teamPoints||{});
   $('teamPositions').value = (TP.positions!=null?TP.positions:6);
-  $('teamManualNext').checked = (S.teamManualNext!==false);   // Standard: an (Schiedsrichter zieht selbst)
+  // Team-Ablauf (A–D); Migration vom alten Schalter teamManualNext
+  let tf = S.teamFlow || (S.teamManualNext===false ? 'confirm' : 'refpick');
+  $('teamFlow').value = ['leader','assign','confirm','refpick'].includes(tf) ? tf : 'refpick';
+  applyTeamFlowHint();
   $('tpMatchWon').value=TP.matchWon; $('tpMatchDraw').value=TP.matchDraw; $('tpMatchLost').value=TP.matchLost;
   $('tpBonusMatchWon').value=TP.bonusMatchWon; $('tpBonusRubberWon').value=TP.bonusRubberWon;
   applyTourMode();
@@ -1021,7 +1040,7 @@ async function saveAll(){
     autoConfirm:(_mode==='confirm'),
     physioEnabled:$('physioEnabled').checked,
     tourMode:($('tourMode').value==='team'?'team':'single'),
-    teamManualNext:$('teamManualNext').checked,
+    teamFlow:$('teamFlow').value,
     teamPoints:{
       scoring:'ppm',
       positions:Math.max(1,Math.min(12, parseInt($('teamPositions').value,10)||6)),
