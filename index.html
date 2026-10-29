@@ -40,6 +40,13 @@
   .tphelp{margin-left:auto;background:#123a5a;color:#cfe8ff;border:1px solid #2f6bff;border-radius:11px;
     padding:11px 16px;font-weight:800;font-size:13.5px;cursor:pointer}
   .tphelp:hover{background:#164a72}
+  .tphelp.tsbtn{margin-left:0;background:#14361f;color:#bff5cf;border-color:#2e9e57}
+  .tphelp.tsbtn:hover{background:#1a4a2a}
+  #tsDlg{width:min(720px,96vw)}
+  #tsDlg .tsinfo{font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5}
+  #tsDlg input[type=text],#tsDlg textarea{width:100%;box-sizing:border-box}
+  #tsDlg textarea{height:70px;font:12px monospace}
+  #tsDlg .tsrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
   /* TP-Eingabehilfe */
   #tpDlg{width:min(820px,96vw);max-height:88vh}
   .tpbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
@@ -332,6 +339,7 @@
     <button class="mtab" data-tab="sent" onclick="setMainTab('sent')">
       Übertragene Ergebnisse <span class="count" id="sentCount">0</span></button>
     <button class="tphelp manage-only" onclick="openTpHelper()" title="Ergebnisse zum Eintragen in Tournament Planner">🖨 TP-Eingabehilfe</button>
+    <button class="tphelp tsbtn manage-only" onclick="openTsDlg()" title="Bestätigte Ergebnisse automatisch auf turnier.de eintragen">⇪ turnier.de</button>
   </div>
 
   <div id="panelSched">
@@ -473,6 +481,28 @@
     <button class="btn-primary btn-sm" onclick="tpDlg.close()">Schließen</button>
   </div>
   <div class="tpwrap" id="tpBody"></div>
+</dialog>
+
+<dialog id="tsDlg">
+  <h3>⇪ Ergebnisse auf turnier.de übertragen</h3>
+  <div class="tsinfo">
+    Öffnet die Spiele-Seite des Turniers auf turnier.de und übergibt alle offenen bestätigten Ergebnisse
+    an das Tampermonkey-Skript. Dort „Prüfen“ kontrollieren und „Übertragen“ klicken – erfolgreich
+    eingetragene Spiele wandern hier automatisch nach „Übertragene Ergebnisse“.<br>
+    Voraussetzung: bei turnier.de angemeldet, Skript „MG Turnierplanner → turnier.de“ aktiv.</div>
+  <label style="font-size:12.5px;font-weight:700">turnier.de Spiele-Link dieses Turniers</label>
+  <input type="text" id="tsUrl" placeholder="https://dsqv.turnier.de/sport/legacymatches.aspx?id=…">
+  <div class="tsrow">
+    <span id="tsCount" style="font-weight:700"></span><span style="flex:1"></span>
+    <button class="btn-ghost btn-sm" onclick="tsCopy()">Daten kopieren</button>
+    <button class="btn-green" onclick="tsOpen()">turnier.de öffnen &amp; übergeben</button>
+  </div>
+  <details style="margin-top:6px">
+    <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Rückmeldung von Hand einfügen (falls die automatische nicht ankommt)</summary>
+    <textarea id="tsBack" placeholder='{"transferred":[…]} aus dem Skript („Übertragene IDs kopieren“)'></textarea>
+    <div class="tsrow"><span style="flex:1"></span><button class="btn-ghost btn-sm" onclick="tsApplyBack()">Übernehmen</button></div>
+  </details>
+  <div class="tsrow"><span style="flex:1"></span><button class="btn-primary btn-sm" onclick="tsDlg.close()">Schließen</button></div>
 </dialog>
 
 <dialog id="editDlg">
@@ -2158,6 +2188,83 @@ Auth.guard('view').then(()=>{
   load();
   initRankingSync();
   applyRoleUI();
+});
+
+// ================= TURNIER.DE-ÜBERTRAG (Tampermonkey-Skript auf dsqv.turnier.de) =================
+const tsDlg=document.getElementById('tsDlg');
+const TS_ORIGIN_RE=/^https:\/\/([a-z0-9-]+\.)?turnier\.de$/i;
+function tsOpenResults(){
+  return MATCHES.filter(m=>m.status==='confirmed' && !m.transferred && !(TEAM_MODE && m.tie_id));
+}
+function tsSets(m){
+  if(m.ending==='walkover') return [];
+  const sets=String(m.score_text||'').trim().split(/\s+/).map(seg=>{
+    const x=seg.match(/^(\d+)\s*[-:]\s*(\d+)$/); return x?[+x[1],+x[2]]:null; }).filter(Boolean);
+  // Aufgabe: abgebrochenen Satz (Stand beim Abbruch) anhängen, falls nicht schon enthalten
+  const s=m.state;
+  if(m.ending==='retired' && s && s.cur && ((s.cur.p1||0)||(s.cur.p2||0))
+     && (s.games||[]).length===sets.length && sets.length<(Number(m.best_of)||5)){
+    sets.push([s.cur.p1||0, s.cur.p2||0]);
+  }
+  return sets;
+}
+function tsPayload(){
+  return { source:'mg-turnierplanner', matches: tsOpenResults().map(m=>({
+    id:m.id, draw:(m.draw||m.event||''), p1:m.player1_name||'', p2:m.player2_name||'',
+    sets:tsSets(m), winner:Number(m.winner)||0,
+    status:(m.ending==='walkover'||m.ending==='retired')?m.ending:null })) };
+}
+async function openTsDlg(){
+  let s={}; try{ s=await Store.getSettings(); }catch(e){}
+  document.getElementById('tsUrl').value=s.tsMatchesUrl||'';
+  const n=tsOpenResults().length, noW=tsOpenResults().filter(m=>!(m.winner==1||m.winner==2)).length;
+  document.getElementById('tsCount').textContent=n+' offene(s) Ergebnis(se)'+(noW?(' · '+noW+' ohne Sieger'):'');
+  document.getElementById('tsBack').value='';
+  tsDlg.showModal();
+}
+function tsUrlCheck(){
+  const u=document.getElementById('tsUrl').value.trim();
+  try{ const x=new URL(u);
+    if(!TS_ORIGIN_RE.test(x.origin) || !/legacymatches\.aspx/i.test(x.pathname) || !x.searchParams.get('id')) throw 0;
+    x.hash=''; return x.toString();
+  }catch(e){ toast('Bitte den Link der turnier.de Spiele-Seite eintragen (…/sport/legacymatches.aspx?id=…)'); return null; }
+}
+async function tsOpen(){
+  const url=tsUrlCheck(); if(!url) return;
+  const p=tsPayload(); if(!p.matches.length){ toast('Keine offenen Ergebnisse'); return; }
+  try{ await Store.saveSettings({tsMatchesUrl:url}); }catch(e){}
+  const w=window.open(url+'#mgtp='+encodeURIComponent(JSON.stringify(p)),'mg_turnierde');
+  if(!w){ toast('Popup blockiert – bitte erlauben oder „Daten kopieren“ nutzen'); return; }
+  toast(p.matches.length+' Ergebnis(se) an turnier.de übergeben');
+}
+async function tsCopy(){
+  const url=document.getElementById('tsUrl').value.trim();
+  if(url){ try{ await Store.saveSettings({tsMatchesUrl:url}); }catch(e){} }
+  const p=tsPayload(); if(!p.matches.length){ toast('Keine offenen Ergebnisse'); return; }
+  try{ await navigator.clipboard.writeText(JSON.stringify(p)); toast(p.matches.length+' Ergebnis(se) kopiert – auf turnier.de einfügen'); }
+  catch(e){ toast('Kopieren nicht möglich'); }
+}
+async function tsMarkTransferred(ids){
+  const known=new Set(MATCHES.map(m=>m.id));
+  ids=(ids||[]).filter(id=>typeof id==='string' && known.has(id));
+  let n=0;
+  for(const id of ids){
+    const m=MATCHES.find(x=>x.id===id); if(!m || m.transferred) continue;
+    try{ await Store.updateMatch(id,{transferred:true}); m.transferred=true; n++; }catch(e){ console.error(e); }
+  }
+  if(n){ renderDone(); toast(n+' Ergebnis(se) als übertragen markiert ✓'); }
+  return n;
+}
+async function tsApplyBack(){
+  let o; try{ o=JSON.parse(document.getElementById('tsBack').value); }catch(e){ toast('Rückmeldung ungültig'); return; }
+  const n=await tsMarkTransferred(o && o.transferred);
+  if(!n) toast('Keine passenden offenen Ergebnisse gefunden');
+  else { document.getElementById('tsBack').value=''; openTsDlg(); }
+}
+window.addEventListener('message',e=>{
+  if(!TS_ORIGIN_RE.test(e.origin)) return;
+  const d=e.data; if(!d || d.type!=='mgtp-transferred' || !Array.isArray(d.ids)) return;
+  tsMarkTransferred(d.ids);
 });
 </script>
 </body>
