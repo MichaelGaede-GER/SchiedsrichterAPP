@@ -16,12 +16,12 @@
 
   /* Kopf */
   .hd{position:absolute;left:0;right:0;top:0;height:11vh;display:flex;align-items:center;gap:1.4vw;
-    padding:0 1.8vw;background:#fff;color:#0a1a33;box-shadow:0 .6vh 2vh rgba(0,0,0,.45)}
+    padding:0 1.8vw;background:linear-gradient(180deg,#141b2b,#0f1522);color:#fff;border-bottom:1px solid rgba(255,255,255,.12);box-shadow:0 .6vh 2vh rgba(0,0,0,.45)}
   .hd-logo{height:10vh;max-width:32vw;object-fit:contain;flex:0 0 auto;image-rendering:auto}
   .hd-name{font-size:4.6vh;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0}
-  .hd-title{font-size:4.6vh;font-weight:900;color:#c4122f;white-space:nowrap;letter-spacing:.01em}
-  .hd-clock{font-size:3.4vh;font-weight:900;font-variant-numeric:tabular-nums;color:#0a1a33;
-    background:#e9eef6;border-radius:1vh;padding:.4vh 1vw}
+  .hd-title{font-size:4.6vh;font-weight:900;color:#ff4b5c;white-space:nowrap;letter-spacing:.01em}
+  .hd-clock{font-size:3.4vh;font-weight:900;font-variant-numeric:tabular-nums;color:#fff;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:1vh;padding:.4vh 1vw}
 
   /* Spalten */
   .body{position:absolute;left:1.2vw;right:1.2vw;top:11.7vh;bottom:.5vh;display:flex;gap:1.4vw}
@@ -224,8 +224,10 @@ function fitNames(){
   });
 }
 
+let TNAME='';   // Name des aktiven Turniers (Fallback, wenn kein Anzeigename gesetzt ist)
 function paintHead(){
-  const name=(SET&&SET.tournamentName)||'';
+  const sn=String((SET&&SET.tournamentName)||'').trim();
+  const name=(sn && sn!=='Squash Turnier') ? sn : (TNAME||sn);   // kein/Standard-Anzeigename -> echter Turniername
   document.getElementById('tname').textContent=name;
   document.title='Match Overview'+(name?(' – '+name):'');
   const lg=document.getElementById('logo');
@@ -241,7 +243,12 @@ async function loadCourtOrder(){
   try{ CORDER=await Store.usedCourtNumbers(null, VENUE); }catch(e){ CORDER=[]; }
   if(!CORDER.length && SET && Array.isArray(SET.courts)) CORDER=SET.courts.map(Number);
 }
-async function refreshSettings(){ try{ SET=await Store.getSettings(); }catch(e){ SET=SET||{}; } paintHead(); await loadCourtOrder(); render(); }
+async function loadTourName(){
+  try{ const tid=await Store.ensureActiveTournament(); if(!tid){ TNAME=''; return; }
+    const ts=await Store.listTournaments(); const t=(ts||[]).find(x=>x.id===tid); TNAME=t?String(t.name||''):''; }
+  catch(e){ TNAME=''; }
+}
+async function refreshSettings(){ try{ SET=await Store.getSettings(); }catch(e){ SET=SET||{}; } await loadTourName(); paintHead(); await loadCourtOrder(); render(); }
 let _loading=false, _again=false;
 async function load(){
   if(_loading){ _again=true; return; }
