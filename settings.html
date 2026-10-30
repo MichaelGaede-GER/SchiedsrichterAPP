@@ -563,7 +563,8 @@ async function renderLinks(){
     if(ll){ ll.innerHTML = hint + venues.map(v=>{
       const locq='loc='+encodeURIComponent(v.venue_id);
       const url=base+wq('live.html',[locq]);
-      return linkRow('Live-Anzeige · '+escS(v.name), url);
+      return linkRow('Live-Anzeige · '+escS(v.name), url)
+        + linkRow('Match Overview · '+escS(v.name), base+wq('matchoverview.html',[locq]));
     }).join(''); }
     // Court-/Stream-Links je Location & Court
     const blocks = venues.map(v=>{
@@ -589,7 +590,8 @@ async function renderLinks(){
   }
 
   // ---- Fallback: einfache Court-Liste (ohne Location) ----
-  if(ll){ const url=base+wq('live.html'); ll.innerHTML=hint+linkRow('Live-Anzeige'+(tname?(' · '+tname):''), url); }
+  if(ll){ const url=base+wq('live.html'); ll.innerHTML=hint+linkRow('Live-Anzeige'+(tname?(' · '+tname):''), url)
+    + linkRow('Match Overview'+(tname?(' · '+tname):''), base+wq('matchoverview.html')); }
   const list=($('courts').value||'').split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
   const rows=list.map(n=>{
     const links=[
