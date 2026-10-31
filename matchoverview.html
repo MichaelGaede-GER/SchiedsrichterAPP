@@ -260,15 +260,48 @@ async function load(){
 document.addEventListener('keydown',e=>{ if(e.key==='f'){ if(!document.fullscreenElement) document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen(); else document.exitFullscreen&&document.exitFullscreen(); } });
 window.addEventListener('resize',()=>requestAnimationFrame(fitNames));
 
+// ---- Öffentlicher Modus (TV/OBS/Handy ohne Login) ----
+// Ohne Supabase-Sitzung, aber mit Turnier-Token (?t=) kommen alle Daten über die
+// RPC-Funktion overview_public (security definer, nur dieses Turnier).
+// Realtime greift für anonyme Nutzer nicht (RLS) -> Polling.
+const TID=params.get('t')||null;
+const PUBLIC_POLL_MS=3000;
+let _pubBusy=false;
+async function pollPublic(){
+  if(_pubBusy) return; _pubBusy=true;
+  try{
+    const { data, error } = await Store.client().rpc('overview_public', { p_tid: TID, p_venue: VENUE });
+    if(error) throw error;
+    const d=data||{};
+    SET=Object.assign(Store._defaults(), d.app||{}, d.tour||{});
+    TNAME=String(d.name||'');
+    CORDER=(d.courts||[]).map(c=>c.court_no);
+    if(!CORDER.length && Array.isArray(SET.courts)) CORDER=SET.courts.map(Number);
+    ALL=(d.matches||[]).slice().sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
+    paintHead(); render();
+  }catch(e){ console.warn('[matchoverview] öffentlicher Abruf fehlgeschlagen:', e && (e.message||e)); }
+  finally{ _pubBusy=false; }
+}
+function startAuthed(){
+  Auth.guard('view').then(()=>{
+    Store.subscribeAll(load);
+    Store.subscribeSettings(refreshSettings);
+    refreshSettings();
+    load();
+  });
+  setInterval(load,60000); // Sicherheitsnetz, falls Realtime-Events verloren gehen
+}
+
 clock(); setInterval(clock,10000);
-Auth.guard('view').then(()=>{
-  Store.subscribeAll(load);
-  Store.subscribeSettings(refreshSettings);
-  refreshSettings();
-  load();
-});
+(async()=>{
+  const sb=Store.client();
+  let sess=null;
+  if(sb){ try{ sess=(await sb.auth.getSession()).data.session; }catch(e){} }
+  if(!sb || sess || !TID){ startAuthed(); return; }   // angemeldet / Testmodus / kein Token -> wie bisher
+  await pollPublic();
+  setInterval(pollPublic, PUBLIC_POLL_MS);
+})();
 setInterval(()=>{ if(ALL.some(m=>m.status==='live' && m.state && m.state.status==='between')) render(); },1000); // 15s-Halt in der Satzpause
-setInterval(load,60000); // Sicherheitsnetz, falls Realtime-Events verloren gehen
 </script>
 </body>
 </html>
