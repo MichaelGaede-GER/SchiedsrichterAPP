@@ -12,7 +12,10 @@ const Store = (() => {
   let sb = null;
 
   function initSupabase() {
-    sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    // Robust: Falls supabase-js nicht lädt (z. B. älterer Chromium in OBS), bleibt
+    // Store trotzdem verfügbar; öffentliche Anzeigen holen ihre Daten dann per fetch.
+    try { sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY); }
+    catch (e) { sb = null; console.warn('[store] supabase-js nicht verfügbar:', e && (e.message || e)); }
   }
 
   // ---------------- SUPABASE-BACKEND ----------------
@@ -689,6 +692,19 @@ const Store = (() => {
   };
 })();
 try { window.Store = Store; } catch (e) {}
+
+// Öffentliche RPC ohne supabase-js (reines fetch) – für Anzeigen ohne Login (OBS, TV, Handy)
+async function rpcPublic(fn, args) {
+  const c = window.CONFIG || {};
+  const r = await fetch(c.SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+    method: 'POST',
+    headers: { 'apikey': c.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + c.SUPABASE_ANON_KEY,
+               'Content-Type': 'application/json' },
+    body: JSON.stringify(args || {}), cache: 'no-store'
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + (await r.text()));
+  return r.json();
+}
 
 // =====================================================================
 //  GEMEINSAME HELFER

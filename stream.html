@@ -620,10 +620,7 @@ let _pubBusy=false;
 async function pollPublic(){
   if(_pubBusy) return; _pubBusy=true;
   try{
-    const sb=Store.client();
-    const { data, error } = await sb.rpc('stream_public', { p_tid: TID, p_court: COURT });
-    if(error) throw error;
-    const d=data||{};
+    const d=(await rpcPublic('stream_public', { p_tid: TID, p_court: COURT }))||{};
     SET=Object.assign(Store._defaults(), d.app||{}, d.tour||{});
     ALL=(d.matches||[]).slice().sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
     MATCH=ALL.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || !m.venue_id || m.venue_id===VENUE))||null;
@@ -643,7 +640,7 @@ function startAuthed(){
   const sb=Store.client();
   let sess=null;
   if(sb){ try{ sess=(await sb.auth.getSession()).data.session; }catch(e){} }
-  if(!sb || sess || !TID){ startAuthed(); return; }   // angemeldet / Testmodus / kein Token -> wie bisher
+  if(Store.mode!=='supabase' || sess || !TID){ startAuthed(); return; }   // angemeldet / Testmodus / kein Token -> wie bisher
   await pollPublic();
   setInterval(pollPublic, PUBLIC_POLL_MS);
 })();
