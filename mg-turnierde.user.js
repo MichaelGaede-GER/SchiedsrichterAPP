@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MG Turnierplanner → turnier.de Ergebnis-Übertrag
 // @namespace    https://schiedsrichter-app-seven.vercel.app/
-// @version      0.3.0
+// @version      0.3.1
 // @description  Importiert Spiele von turnier.de / tournamentsoftware.com in den MG Sport Turnierplanner und überträgt bestätigte Ergebnisse zurück
 // @match        https://dsqv.turnier.de/sport/legacymatches.aspx*
 // @match        https://*.turnier.de/sport/legacymatches.aspx*
@@ -502,11 +502,29 @@
     $('tpi-read').disabled = false;
   };
 
+  let ackTimer = null;
+  window.addEventListener('message', (e) => {
+    if (!window.opener || e.source !== window.opener || !e.data) return;
+    const d = e.data;
+    if (d.type === 'mgtp-import-ack') {
+      clearTimeout(ackTimer);
+      ilog(`✓ App hat ${d.n} Spiele empfangen → im App-Fenster erscheint jetzt „Spiele von turnier.de übernehmen“ – dort „✓ Jetzt importieren“ klicken.`);
+    } else if (d.type === 'mgtp-import-done') {
+      if (d.cancelled) ilog('Import in der App abgebrochen.');
+      else if (d.error) ilog('Import-Fehler in der App: ' + d.error);
+      else ilog(`✓ Import fertig: ${d.neu || 0} neu · ${d.upd || 0} aktualisiert · ${d.dup || 0} unverändert · ${d.played || 0} gespielt übersprungen${d.failed ? ' · ' + d.failed + ' fehlgeschlagen' : ''}`);
+    }
+  });
+
   $('tpi-send').onclick = () => {
     if (!importPayload) return;
+    if (!window.opener || window.opener.closed) { ilog('Kein App-Fenster mehr verbunden – bitte „JSON kopieren“ nutzen.'); return; }
     try {
       window.opener.postMessage(importPayload, '*');
-      ilog(`${importPayload.matches.length} Spiele an den Turnierplanner gesendet – dort bestätigen.`);
+      try { window.opener.focus(); } catch (e) { /* Browser erlaubt evtl. kein Umschalten */ }
+      ilog(`${importPayload.matches.length} Spiele an den Turnierplanner gesendet – warte auf Antwort …`);
+      clearTimeout(ackTimer);
+      ackTimer = setTimeout(() => ilog('⚠ Keine Antwort von der App. Prüfen: Ist die neue Version (v73) online und wurde dieses Fenster aus der App über „⇅ turnier.de → ⇩ Spiele holen“ geöffnet? Sonst „JSON kopieren“ und in der App unter „Spiele von Hand einfügen“ einfügen.'), 4000);
       if (location.hash === '#mgtp-import') history.replaceState(null, '', location.href.split('#')[0]);
     } catch (e) { ilog('Senden nicht möglich: ' + e.message + ' – bitte „JSON kopieren“ nutzen.'); }
   };

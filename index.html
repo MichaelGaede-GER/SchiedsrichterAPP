@@ -484,6 +484,16 @@
   <div class="tpwrap" id="tpBody"></div>
 </dialog>
 
+<dialog id="tsImpDlg">
+  <h3>⇩ Spiele von turnier.de übernehmen</h3>
+  <div class="tsinfo" id="tsImpInfo"></div>
+  <div class="tsrow">
+    <span style="flex:1"></span>
+    <button class="btn-ghost btn-sm" onclick="tsImpDecide(false)">Abbrechen</button>
+    <button class="btn-green" onclick="tsImpDecide(true)">✓ Jetzt importieren</button>
+  </div>
+</dialog>
+
 <dialog id="tsDlg">
   <h3>⇩ Spiele von turnier.de holen</h3>
   <div class="tsinfo">
@@ -2250,6 +2260,7 @@ Auth.guard('view').then(()=>{
 
 // ================= TURNIER.DE-ÜBERTRAG (Tampermonkey-Skript auf dsqv.turnier.de) =================
 const tsDlg=document.getElementById('tsDlg');
+const tsImpDlg=document.getElementById('tsImpDlg');
 const TS_ORIGIN_RE=/^https:\/\/([a-z0-9-]+\.)?(turnier\.de|tournamentsoftware\.com)$/i;
 function tsOpenResults(){
   return MATCHES.filter(m=>m.status==='confirmed' && !m.transferred && !(TEAM_MODE && m.tie_id));
@@ -2330,9 +2341,11 @@ async function tsImportOpen(){
   if(!w){ toast('Popup blockiert – bitte erlauben oder JSON von Hand einfügen'); return; }
   toast('turnier.de geöffnet – Spiele werden gelesen …');
 }
-let tsImporting=false;
-async function tsReceiveImport(d){
-  if(tsImporting) return; 
+let tsImporting=false, tsImpPending=null, tsImpSrc=null;
+function tsImpReply(msg){ try{ if(tsImpSrc && tsImpSrc.win) tsImpSrc.win.postMessage(msg, tsImpSrc.origin); }catch(e){} }
+async function tsReceiveImport(d, src){
+  if(tsImporting) return;
+  tsImpSrc=src||null;
   const list=(d && Array.isArray(d.matches)) ? d.matches : [];
   if(!list.length){ toast('Keine Spiele im Import'); return; }
   const recs=list.filter(m=>m && m.ext_key && m.p1 && m.p2).map(m=>({
@@ -2343,14 +2356,30 @@ async function tsReceiveImport(d){
     p2:{name:String(m.p2.name||''),country:String(m.p2.country||''),seed:null},
     played:!!m.played }));
   const open=recs.filter(r=>!r.played).length;
-  if(!confirm(`${recs.length} Spiele von ${d.source||'turnier.de'} erhalten (${open} offen, ${recs.length-open} bereits gespielt${d.open?(', '+d.open+' noch ohne Paarung'):''}).\n\nJetzt importieren?`)) return;
+  tsImpPending={d,recs};
+  const tName=(document.getElementById('tourPick')&&document.getElementById('tourPick').selectedOptions[0]||{}).textContent||'';
+  document.getElementById('tsImpInfo').innerHTML=
+    `<b>${recs.length} Spiele</b> von ${escH(d.source||'turnier.de')} erhalten:<br>`+
+    `${open} offen · ${recs.length-open} bereits gespielt (werden übersprungen)`+
+    (d.open?`<br>${d.open} Spiele noch ohne Paarung – kommen beim nächsten Import`:'')+
+    (tName?`<br><br>Ziel-Turnier: <b>${escH(tName.trim())}</b>`:'');
+  try{ tsDlg.close(); }catch(e){}
+  try{ window.focus(); }catch(e){}
+  if(!tsImpDlg.open) tsImpDlg.showModal();
+  document.title='⇩ Import bestätigen · '+document.title.replace(/^⇩ Import bestätigen · /,'');
+}
+async function tsImpDecide(ok){
+  const p=tsImpPending; tsImpPending=null;
+  tsImpDlg.close(); document.title=document.title.replace(/^⇩ Import bestätigen · /,'');
+  if(!p) return;
+  if(!ok){ tsImpReply({type:'mgtp-import-done', cancelled:true}); toast('Import abgebrochen'); return; }
   tsImporting=true;
   try{
-    assignReferees(recs);
-    if(d.url){ try{ await Store.saveSettings({tsMatchesUrl:d.url}); }catch(e){} }
-    await importRecs(recs);
-    try{ tsDlg.close(); }catch(e){}
-  }catch(e){ console.error(e); toast('Import-Fehler: '+(e.message||e)); }
+    assignReferees(p.recs);
+    if(p.d.url){ try{ await Store.saveSettings({tsMatchesUrl:p.d.url}); }catch(e){} }
+    const r=await importRecs(p.recs);
+    tsImpReply(Object.assign({type:'mgtp-import-done'}, r||{}));
+  }catch(e){ console.error(e); toast('Import-Fehler: '+(e.message||e)); tsImpReply({type:'mgtp-import-done', error:String(e.message||e)}); }
   finally{ tsImporting=false; }
 }
 function tsImportPaste(){
@@ -2362,7 +2391,9 @@ function tsImportPaste(){
 window.addEventListener('message',e=>{
   if(!TS_ORIGIN_RE.test(e.origin)) return;
   const d=e.data; if(!d) return;
-  if(d.type==='mgtp-import'){ tsReceiveImport(d); return; }
+  if(d.type==='mgtp-import'){
+    try{ e.source.postMessage({type:'mgtp-import-ack', n:(d.matches||[]).length}, e.origin); }catch(x){}   // Empfangsbestätigung ans Skript
+    tsReceiveImport(d, {win:e.source, origin:e.origin}); return; }
   if(d.type!=='mgtp-transferred' || !Array.isArray(d.ids)) return;
   tsMarkTransferred(d.ids);
 });
