@@ -7,7 +7,7 @@
 
 window.CONFIG = {
   // ---- App-Version (bei jedem Deploy hochzählen) ------------------
-  APP_VERSION: '77',
+  APP_VERSION: '78',
 
   // ---- Supabase ---------------------------------------------------
   SUPABASE_URL: 'https://mfgxrnvwrirvjjanigul.supabase.co',

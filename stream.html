@@ -69,6 +69,7 @@
   .psaball.match{background:#ff4b4b;color:#fff}
   .psabar{display:inline-flex;align-items:stretch;background:#fff;border-radius:12px;box-shadow:0 6px 26px rgba(0,0,0,.4);
     overflow:hidden;font-weight:800;color:#111;white-space:nowrap;max-width:96vw;line-height:1.2}
+  .psabar>span{flex:0 0 auto}   /* nie stauchen – Leiste wird bei Platzmangel per adjustPsa() proportional skaliert */
   .psabar .ps-name{display:inline-flex;align-items:center;gap:.28em;padding:.3em .7em;box-sizing:content-box}
   .psabar .ps-t{line-height:1.2;padding-bottom:.03em}
   .psabar .ps-name.n1{justify-content:flex-end}
@@ -478,7 +479,7 @@ function viewPsa(d){
   }
   return `<div class="psawrap">
     ${ball}
-    <div class="psabar" style="font-size:${fs}px">
+    <div class="psabar" data-fs="${fs}" style="font-size:${fs}px">
       <span class="ps-name n1"><span class="ps-t">${escS(d.p1raw)}</span>${d.cc1?` <span class="ps-cc">(${escS(d.cc1)})</span>`:''}${dot1}</span>
       <span class="ps-g">${d.g1}</span>
       <span class="ps-pts">${d.pts1} - ${d.pts2}</span>
@@ -489,12 +490,24 @@ function viewPsa(d){
   </div>`;
 }
 function adjustPsa(){
+  const bar=document.querySelector('.psabar');
   const n1=document.querySelector('.psabar .ps-name.n1'), n2=document.querySelector('.psabar .ps-name.n2');
-  if(!n1||!n2) return;
-  n1.style.width='auto'; n2.style.width='auto';
-  const w=Math.ceil(Math.max(n1.getBoundingClientRect().width, n2.getBoundingClientRect().width));
-  n1.style.width=w+'px'; n2.style.width=w+'px';
+  if(!bar||!n1||!n2) return;
+  // Namensfelder gleich breit machen (Breite = längerer Name)
+  const equalize=()=>{
+    n1.style.width='auto'; n2.style.width='auto';
+    const w=Math.ceil(Math.max(n1.getBoundingClientRect().width, n2.getBoundingClientRect().width));
+    n1.style.width=w+'px'; n2.style.width=w+'px';
+  };
+  const base=parseFloat(bar.dataset.fs)||parseFloat(bar.style.fontSize)||34;
+  bar.style.fontSize=base+'px';
+  equalize();
+  // Zu breit für die Quelle (z. B. OBS-Browserquelle < 1920px)? -> ganze Leiste proportional verkleinern,
+  // statt die Namensfelder ungleich zu stauchen
+  const maxW=window.innerWidth*0.96, w=bar.scrollWidth;
+  if(w>maxW){ bar.style.fontSize=Math.max(10, base*maxW/w*0.99)+'px'; equalize(); }
 }
+window.addEventListener('resize',()=>requestAnimationFrame(adjustPsa));
 // PSA-Line Pausen-Ablauf: Satzpause -> Fullscore einblenden; 15s vor Timer-Ende ausblenden; nach Timer-Ende PSA-Line zurück
 function psaPhase(d){
   if(!d) return 'psa';
