@@ -609,12 +609,44 @@ async function load(){
   render();
 }
 setView(VIEW);
-Auth.guard('view').then(()=>{
-  Store.subscribeAll(load);
-  Store.subscribeSettings(refreshSettings);
-  refreshSettings();
-  load();
-});
+
+// ---- Öffentlicher Stream-Modus (OBS/vMix/TV ohne Login) ----
+// Ohne Supabase-Sitzung, aber mit Turnier-Token (?t=) werden die Daten über die
+// RPC-Funktion stream_public geladen (security definer, nur dieses Turnier + Court).
+// Realtime greift für anonyme Nutzer nicht (RLS) -> Polling.
+const TID=params.get('t')||null;
+const PUBLIC_POLL_MS=1500;
+let _pubBusy=false;
+async function pollPublic(){
+  if(_pubBusy) return; _pubBusy=true;
+  try{
+    const sb=Store.client();
+    const { data, error } = await sb.rpc('stream_public', { p_tid: TID, p_court: COURT });
+    if(error) throw error;
+    const d=data||{};
+    SET=Object.assign(Store._defaults(), d.app||{}, d.tour||{});
+    ALL=(d.matches||[]).slice().sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
+    MATCH=ALL.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || !m.venue_id || m.venue_id===VENUE))||null;
+    render();
+  }catch(e){ console.warn('[stream] öffentlicher Abruf fehlgeschlagen:', e && (e.message||e)); }
+  finally{ _pubBusy=false; }
+}
+function startAuthed(){
+  Auth.guard('view').then(()=>{
+    Store.subscribeAll(load);
+    Store.subscribeSettings(refreshSettings);
+    refreshSettings();
+    load();
+  });
+}
+(async()=>{
+  const sb=Store.client();
+  let sess=null;
+  if(sb){ try{ sess=(await sb.auth.getSession()).data.session; }catch(e){} }
+  if(!sb || sess || !TID){ startAuthed(); return; }   // angemeldet / Testmodus / kein Token -> wie bisher
+  await pollPublic();
+  setInterval(pollPublic, PUBLIC_POLL_MS);
+})();
 setInterval(()=>{ if(VIEW==='fullscore') render(); },30000); // Uhr aktualisieren
 setInterval(()=>{ const d=liveState(); if(d && d.mstatus==='between') render(); }, 1000); // Satzpause: Countdown im Block / 15s-Halt
 setInterval(()=>{ if(VIEW==='psaline') psaPhaseApply(false); }, 300); // PSA-Line: Pausen-Fade (PSA <-> Fullscore, 3000ms)
