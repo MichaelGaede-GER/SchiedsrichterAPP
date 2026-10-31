@@ -640,7 +640,9 @@ function startAuthed(){
   const sb=Store.client();
   let sess=null;
   if(sb){ try{ sess=(await sb.auth.getSession()).data.session; }catch(e){} }
-  if(Store.mode!=='supabase' || sess || !TID){ startAuthed(); return; }   // angemeldet / Testmodus / kein Token -> wie bisher
+  if(Store.mode!=='supabase' || !TID){ startAuthed(); return; }   // Testmodus / kein Token -> wie bisher (mit Login)
+  // Mit Token IMMER öffentlich laden – unabhängig von einer (evtl. alten/fremden) Anmeldung im Browser
+  if(sess && sb){ try{ Store.subscribeAll(pollPublic); }catch(e){} }   // angemeldet: Realtime als Sofort-Auslöser
   await pollPublic();
   setInterval(pollPublic, PUBLIC_POLL_MS);
 })();
