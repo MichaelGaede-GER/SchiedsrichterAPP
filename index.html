@@ -340,7 +340,7 @@
     <button class="mtab" data-tab="sent" onclick="setMainTab('sent')">
       Übertragene Ergebnisse <span class="count" id="sentCount">0</span></button>
     <button class="tphelp manage-only" onclick="openTpHelper()" title="Ergebnisse zum Eintragen in Tournament Planner">🖨 TP-Eingabehilfe</button>
-    <button class="tphelp tsbtn manage-only" onclick="openTsDlg()" title="Bestätigte Ergebnisse automatisch auf turnier.de eintragen">⇪ turnier.de</button>
+    <button class="tphelp tsbtn manage-only" onclick="openTsDlg()" title="Spiele von turnier.de holen / bestätigte Ergebnisse dort eintragen">⇅ turnier.de</button>
   </div>
 
   <div id="panelSched">
@@ -485,14 +485,29 @@
 </dialog>
 
 <dialog id="tsDlg">
+  <h3>⇩ Spiele von turnier.de holen</h3>
+  <div class="tsinfo">
+    Öffnet die Spiele-Seite (dsqv.turnier.de, esf./wsf.tournamentsoftware.com), das Skript liest alle Spieltage
+    inkl. Court, Nation und Runde und schickt sie hierher. Erneuter Import aktualisiert Zeiten/Courts/Paarungen,
+    bereits gespielte Spiele werden übersprungen.</div>
+  <div class="tsrow">
+    <span style="flex:1"></span>
+    <button class="btn-primary" onclick="tsImportOpen()">⇩ Spiele holen</button>
+  </div>
+  <details style="margin-top:6px">
+    <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Spiele von Hand einfügen (JSON aus „JSON kopieren“)</summary>
+    <textarea id="tsImpJson" placeholder='{"type":"mgtp-import","matches":[…]}'></textarea>
+    <div class="tsrow"><span style="flex:1"></span><button class="btn-ghost btn-sm" onclick="tsImportPaste()">Importieren</button></div>
+  </details>
+  <hr style="border:0;border-top:1px solid var(--line,#ddd);margin:12px 0">
   <h3>⇪ Ergebnisse auf turnier.de übertragen</h3>
   <div class="tsinfo">
     Öffnet die Spiele-Seite des Turniers auf turnier.de und übergibt alle offenen bestätigten Ergebnisse
     an das Tampermonkey-Skript. Dort „Prüfen“ kontrollieren und „Übertragen“ klicken – erfolgreich
     eingetragene Spiele wandern hier automatisch nach „Übertragene Ergebnisse“.<br>
     Voraussetzung: bei turnier.de angemeldet, Skript „MG Turnierplanner → turnier.de“ aktiv.</div>
-  <label style="font-size:12.5px;font-weight:700">turnier.de Spiele-Link dieses Turniers</label>
-  <input type="text" id="tsUrl" placeholder="https://dsqv.turnier.de/sport/legacymatches.aspx?id=…">
+  <label style="font-size:12.5px;font-weight:700">turnier.de / tournamentsoftware.com Link dieses Turniers</label>
+  <input type="text" id="tsUrl" placeholder="https://dsqv.turnier.de/sport/legacymatches.aspx?id=…  oder  https://esf.tournamentsoftware.com/tournament/…">
   <div class="tsrow">
     <span id="tsCount" style="font-weight:700"></span><span style="flex:1"></span>
     <button class="btn-ghost btn-sm" onclick="tsCopy()">Daten kopieren</button>
@@ -1549,18 +1564,24 @@ function processSheet(aoa){
       t1raw, t2raw, score:r[IS], sort_ts:parseTimeMs(r[IT]), court_no:courtToNo(r[IC]),
       played:hasScore(r[IS]) });
   }
+  assignReferees(recs);
+  return recs;
+}
+// Schiedsrichter = Spieler des vorherigen Spiels auf demselben Court (je Tag)
+function assignReferees(recs){
+  const pName=(r,s)=>{ const o=r[s]; return o&&typeof o==='object' ? (o.name||'') : parsePlayer(r[s==='p1'?'t1raw':'t2raw']).name; };
+  const dayOf=x=>x.sort_ts?new Date(x.sort_ts).toDateString():'';
   const byCourt={};
-  recs.forEach(x=>{ const k=x.court_no==null?'?':x.court_no; (byCourt[k]=byCourt[k]||[]).push(x); });
+  recs.forEach(x=>{ const k=(x.court_no==null?'?':x.court_no)+'|'+dayOf(x); (byCourt[k]=byCourt[k]||[]).push(x); });
   Object.keys(byCourt).forEach(k=>{
     const list=byCourt[k];
     list.sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0) || natCmp(a.nr,b.nr));
     for(let i=0;i<list.length;i++){
       if(i===0){ list[i].referee=''; continue; }
       const p=list[i-1];
-      list[i].referee=[parsePlayer(p.t1raw).name, parsePlayer(p.t2raw).name].filter(Boolean).join(' / ');
+      list[i].referee=[pName(p,'p1'), pName(p,'p2')].filter(Boolean).join(' / ');
     }
   });
-  return recs;
 }
 
 fileInput.addEventListener('change', async e=>{
@@ -1573,6 +1594,14 @@ fileInput.addEventListener('change', async e=>{
       const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false,defval:null});
       recs=recs.concat(processSheet(aoa));
     });
+    await importRecs(recs);
+  }catch(err){ console.error(err); toast('Import-Fehler: '+err.message); }
+});
+
+// Gemeinsamer Import-Kern für XLSX und turnier.de-Skript.
+// recs: {time,event,nr,court,round,t1raw,t2raw,sort_ts,court_no,played,referee}
+//   turnier.de zusätzlich: ext_key (fester Schlüssel aus MatchID), p1/p2 = {name,country}
+async function importRecs(recs){
     const open=recs.filter(r=>!r.played);
     const played=recs.length-open.length;
     // Stabile Zuordnung über Event|Runde|Match-Nr (OHNE Spielernamen) -> Update bei aufgelösten Platzhaltern
@@ -1589,16 +1618,24 @@ fileInput.addEventListener('change', async e=>{
     });
     IMPORT_FLAGS={};
     const existing=new Set(MATCHES.map(m=>m.import_key).filter(Boolean));   // Fallback für Zeilen ohne Match-Nr
+    // turnier.de-Import: Zuordnung über MatchID-Schlüssel, sonst Event + beide Namen (z. B. früher per XLSX importiert)
+    const byExt={}, byNames={};
+    const nk=(ev,a,b)=>norm(ev)+'|'+[norm(a),norm(b)].sort().join('|');
+    MATCHES.forEach(m=>{
+      if(m.import_key && String(m.import_key).startsWith('ts:')) byExt[m.import_key]=m;
+      else if(m.player1_name && m.player2_name){ const k=nk(m.event,m.player1_name,m.player2_name); if(!(k in byNames)) byNames[k]=m; }
+    });
     const defVenue=defLocId();
     const autoCourt=!!(document.getElementById('autoCourt') && document.getElementById('autoCourt').checked);
     const rr=defVenue?venueCourtsFor(defVenue):[];
     let rrIdx=0;
     const toInsert=[]; let dup=0, upd=0;
     for(const r of open){
-      const p1=parsePlayer(r.t1raw), p2=parsePlayer(r.t2raw);
-      const sk=stableKey(r.event, r.round, r.nr);
-      const enk=evNrKey(r.event, r.nr);
-      const ex = (sk && byStable[sk]) || (enk && byEvNr[enk]) || null;
+      const p1=r.p1||parsePlayer(r.t1raw), p2=r.p2||parsePlayer(r.t2raw);
+      const sk=r.ext_key?null:stableKey(r.event, r.round, r.nr);
+      const enk=r.ext_key?null:evNrKey(r.event, r.nr);
+      const ex = r.ext_key ? (byExt[r.ext_key] || byNames[nk(r.event,p1.name,p2.name)] || null)
+                           : ((sk && byStable[sk]) || (enk && byEvNr[enk]) || null);
       if(ex){
         // Vorhandenes Spiel: aktualisieren, solange es noch nicht gestartet/gespielt ist
         if(ex.status==='scheduled'){
@@ -1610,16 +1647,23 @@ fileInput.addEventListener('change', async e=>{
           if(ex.player2_name!==n2) patch.player2_name=n2;
           if(ex.player2_country!==c2) patch.player2_country=c2;
           if((ex.player2_seed||null)!==(p2.seed||null)) patch.player2_seed=p2.seed||null;
-          if(r.round!=null && (ex.round||'')!==r.round) patch.round=r.round;
+          if(r.round!=null && (r.round!=='' || !r.ext_key) && (ex.round||'')!==r.round) patch.round=r.round;   // leere Runde aus turnier.de überschreibt nichts
           if(r.referee!=null && (ex.referee||'')!==r.referee) patch.referee=r.referee;
           if(r.time!=null && (ex.scheduled_time||'')!==r.time){ patch.scheduled_time=r.time; if(r.sort_ts!=null) patch.sort_ts=r.sort_ts; }
-          if(Object.keys(patch).length){ try{ await Store.updateMatch(ex.id, patch); upd++; if(fkey(ex.event,ex.round,ex.match_no)) IMPORT_FLAGS[fkey(ex.event,ex.round,ex.match_no)]='upd'; }catch(e){ console.error(e); } }
-          else { dup++; if(fkey(ex.event,ex.round,ex.match_no)) IMPORT_FLAGS[fkey(ex.event,ex.round,ex.match_no)]='same'; }
+          if(r.ext_key){
+            if(ex.import_key!==r.ext_key) patch.import_key=r.ext_key;
+            // Court-Änderung von turnier.de übernehmen, solange das Spiel noch nicht auf einem Court liegt
+            if(!ex.court_id && r.court_no!=null && ex.court_no!==r.court_no){ patch.court_no=r.court_no; patch.court_label=r.court!=null?String(r.court):('C'+r.court_no); }
+          }
+          const fk=r.ext_key||fkey(ex.event,ex.round,ex.match_no);
+          if(Object.keys(patch).length){ try{ await Store.updateMatch(ex.id, patch); upd++; if(fk) IMPORT_FLAGS[fk]='upd'; }catch(e){ console.error(e); } }
+          else { dup++; if(fk) IMPORT_FLAGS[fk]='same'; }
         } else dup++;   // laufend/beendet -> nicht überschreiben
         continue;
       }
-      if(sk) IMPORT_FLAGS[sk]='new'; else IMPORT_FLAGS[importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw)]='new';
-      if(!sk){                                    // keine Match-Nr -> alte namensbasierte Dedupe
+      if(r.ext_key) IMPORT_FLAGS[r.ext_key]='new';
+      else if(sk) IMPORT_FLAGS[sk]='new'; else IMPORT_FLAGS[importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw)]='new';
+      if(!sk && !r.ext_key){                                    // keine Match-Nr -> alte namensbasierte Dedupe
         const key=importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw);
         if(existing.has(key)){ dup++; continue; }
         existing.add(key);
@@ -1637,7 +1681,7 @@ fileInput.addEventListener('change', async e=>{
         court_id:null, court_no:court_no, court_label:court_label,
         venue_id:venue_id,
         scheduled_time:r.time||null, sort_ts:r.sort_ts||null,
-        referee:r.referee||null, import_key:(sk||importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw)),
+        referee:r.referee||null, import_key:(r.ext_key||sk||importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw)),
         status:'scheduled', state:null, result:null, winner:null, score_text:null });
     }
     let failed=0;
@@ -1646,8 +1690,8 @@ fileInput.addEventListener('change', async e=>{
     for(const id of dupDelete){ try{ await Store.deleteMatch(id); removed++; }catch(e){ console.error(e); } }
     const neu=toInsert.length-failed;
     toast(`${recs.length} Zeilen gelesen · ${neu} neu · ${upd} aktualisiert · ${played} gespielt übersprungen · ${dup} unverändert${removed?(' · '+removed+' Duplikate entfernt'):''}${failed?(' · '+failed+' fehlgeschlagen'):''}`);
-  }catch(err){ console.error(err); toast('Import-Fehler: '+err.message); }
-});
+    return {neu,upd,dup,played,failed,removed};
+}
 
 async function clearAll(){ if(confirm('Wirklich ALLE Spiele löschen?')){ IMPORT_FLAGS={}; await Store.deleteAll(); toast('Gelöscht'); } }
 async function bulkBestOf(v){
@@ -2206,7 +2250,7 @@ Auth.guard('view').then(()=>{
 
 // ================= TURNIER.DE-ÜBERTRAG (Tampermonkey-Skript auf dsqv.turnier.de) =================
 const tsDlg=document.getElementById('tsDlg');
-const TS_ORIGIN_RE=/^https:\/\/([a-z0-9-]+\.)?turnier\.de$/i;
+const TS_ORIGIN_RE=/^https:\/\/([a-z0-9-]+\.)?(turnier\.de|tournamentsoftware\.com)$/i;
 function tsOpenResults(){
   return MATCHES.filter(m=>m.status==='confirmed' && !m.transferred && !(TEAM_MODE && m.tie_id));
 }
@@ -2239,9 +2283,13 @@ async function openTsDlg(){
 function tsUrlCheck(){
   const u=document.getElementById('tsUrl').value.trim();
   try{ const x=new URL(u);
-    if(!TS_ORIGIN_RE.test(x.origin) || !/legacymatches\.aspx/i.test(x.pathname) || !x.searchParams.get('id')) throw 0;
-    x.hash=''; return x.toString();
-  }catch(e){ toast('Bitte den Link der turnier.de Spiele-Seite eintragen (…/sport/legacymatches.aspx?id=…)'); return null; }
+    if(!TS_ORIGIN_RE.test(x.origin)) throw 0;
+    // neue Turnierseite (/tournament/<GUID>/…) -> Tabellenansicht
+    const g=/\/tournament\/([0-9a-f-]{36})/i.exec(x.pathname);
+    if(g){ const v=x.origin+'/sport/legacymatches.aspx?id='+g[1]; document.getElementById('tsUrl').value=v; return v; }
+    if(!/legacymatches\.aspx/i.test(x.pathname) || !x.searchParams.get('id')) throw 0;
+    x.hash=''; x.searchParams.delete('d'); return x.toString();
+  }catch(e){ toast('Bitte den Link der Turnierseite eintragen (…/sport/legacymatches.aspx?id=… oder …/tournament/<ID>/Matches)'); return null; }
 }
 async function tsOpen(){
   const url=tsUrlCheck(); if(!url) return;
@@ -2275,9 +2323,47 @@ async function tsApplyBack(){
   if(!n) toast('Keine passenden offenen Ergebnisse gefunden');
   else { document.getElementById('tsBack').value=''; openTsDlg(); }
 }
+async function tsImportOpen(){
+  const url=tsUrlCheck(); if(!url) return;
+  try{ await Store.saveSettings({tsMatchesUrl:url}); }catch(e){}
+  const w=window.open(url+'#mgtp-import','mg_turnierde');
+  if(!w){ toast('Popup blockiert – bitte erlauben oder JSON von Hand einfügen'); return; }
+  toast('turnier.de geöffnet – Spiele werden gelesen …');
+}
+let tsImporting=false;
+async function tsReceiveImport(d){
+  if(tsImporting) return; 
+  const list=(d && Array.isArray(d.matches)) ? d.matches : [];
+  if(!list.length){ toast('Keine Spiele im Import'); return; }
+  const recs=list.filter(m=>m && m.ext_key && m.p1 && m.p2).map(m=>({
+    ext_key:String(m.ext_key), event:String(m.event||''), round:String(m.round||''), nr:null,
+    time:m.time||null, sort_ts:(typeof m.sort_ts==='number'?m.sort_ts:(m.time?parseTimeMs(m.time):null)),
+    court:m.court||null, court_no:(m.court_no!=null?Number(m.court_no):(m.court?courtToNo(m.court):null)),
+    p1:{name:String(m.p1.name||''),country:String(m.p1.country||''),seed:null},
+    p2:{name:String(m.p2.name||''),country:String(m.p2.country||''),seed:null},
+    played:!!m.played }));
+  const open=recs.filter(r=>!r.played).length;
+  if(!confirm(`${recs.length} Spiele von ${d.source||'turnier.de'} erhalten (${open} offen, ${recs.length-open} bereits gespielt${d.open?(', '+d.open+' noch ohne Paarung'):''}).\n\nJetzt importieren?`)) return;
+  tsImporting=true;
+  try{
+    assignReferees(recs);
+    if(d.url){ try{ await Store.saveSettings({tsMatchesUrl:d.url}); }catch(e){} }
+    await importRecs(recs);
+    try{ tsDlg.close(); }catch(e){}
+  }catch(e){ console.error(e); toast('Import-Fehler: '+(e.message||e)); }
+  finally{ tsImporting=false; }
+}
+function tsImportPaste(){
+  let o; try{ o=JSON.parse(document.getElementById('tsImpJson').value); }catch(e){ toast('JSON ungültig'); return; }
+  if(!o || o.type!=='mgtp-import'){ toast('Das ist kein Spiele-Import aus dem Skript'); return; }
+  document.getElementById('tsImpJson').value='';
+  tsReceiveImport(o);
+}
 window.addEventListener('message',e=>{
   if(!TS_ORIGIN_RE.test(e.origin)) return;
-  const d=e.data; if(!d || d.type!=='mgtp-transferred' || !Array.isArray(d.ids)) return;
+  const d=e.data; if(!d) return;
+  if(d.type==='mgtp-import'){ tsReceiveImport(d); return; }
+  if(d.type!=='mgtp-transferred' || !Array.isArray(d.ids)) return;
   tsMarkTransferred(d.ids);
 });
 </script>
