@@ -247,6 +247,50 @@
     .games .g{font-size:15px;padding:5px 10px}
     .footlogo{max-height:11vh;max-width:70vw}
   }
+
+  /* ===== HANDY QUERFORMAT (flache Höhe) – Tablets im Querformat bleiben unverändert ===== */
+  @media (orientation:landscape) and (max-height:560px){
+    #app{height:100%}
+    .top{padding:4px 112px 4px 12px;gap:8px}                               /* rechts Platz für Sprachwahl */
+    .top .court{font-size:13px}
+    .top .status{font-size:11px}
+    .top .right{gap:6px}
+    #wakeBadge{display:none}
+    .netstat{font-size:12px;padding:3px 9px}
+    .iconbtn{padding:5px 10px;font-size:12px}
+    .clock{font-size:12px;padding:3px 8px}
+
+    .names{padding:5px 10px;gap:8px}
+    .namepill{font-size:clamp(14px,5vh,22px);padding:5px 14px}
+    .namepill .cflag{width:28px;height:19px}
+
+    .board{gap:8px;padding:0 10px 4px}
+    .panel{border-radius:16px}
+    .panel.left,.panel.right{border-width:4px}
+    .score{font-size:min(44vh,20vw)}
+    /* Ecken: außen oben Aufschlag, innen oben Satzball, außen unten Trikot, innen unten LET */
+    .serve{top:8px;width:min(15vh,64px);height:min(15vh,64px);font-size:min(8vh,34px)}
+    .panel.left .serve{left:8px}.panel.right .serve{right:8px}
+    .gameball{top:8px;font-size:10px;padding:3px 8px}
+    .panel.left .gameball{right:8px;left:auto}.panel.right .gameball{left:8px;right:auto}
+    .pshirt{bottom:6px}
+    .pshirt svg{width:min(14vh,58px);height:min(14vh,58px)}
+    .panel.left .pshirt{left:8px}.panel.right .pshirt{right:8px}
+    .ebtn{bottom:8px;width:min(16vh,66px);height:min(16vh,66px);font-size:min(4.6vh,19px)}
+    .panel.left .ebtn{left:auto;right:8px}.panel.right .ebtn{right:auto;left:8px}
+
+    .mid{gap:10px;min-width:60px}
+    .midbtn{width:min(13vh,56px);height:min(13vh,56px);font-size:20px}
+    .mid-label{display:none}
+
+    .foot{gap:0;padding:4px 12px 6px}
+    .footrow{gap:10px}
+    .setpill{font-size:clamp(18px,6vh,28px);padding:5px 24px}
+    .games{gap:6px}
+    .games .g{font-size:14px;padding:3px 9px}
+    .footrow .refline{font-size:15px}
+    .footlogo{display:none}
+  }
 </style>
 </head>
 <body>
