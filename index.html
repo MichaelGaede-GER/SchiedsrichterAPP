@@ -1794,11 +1794,47 @@ async function importRecs(recs){
       if(!realNames(ex.player1_name,ex.player2_name) || !realNames(p1.name,p2.name)) return true;
       return pk(ex.player1_name,ex.player2_name)===pk(p1.name,p2.name);
     };
+    // ---- Platzhalter auflösen ----
+    // Ein Platzhalter („offen vs offen“) wurde unter Zeit+Court+Konkurrenz angelegt. Wird das Spiel auf turnier.de
+    // später auf einen anderen Court / eine andere Zeit gelegt, passt dieser Schlüssel nicht mehr.
+    // -> Spiele von turnier.de mit echten Spielern, die es in der App noch NICHT gibt, übernehmen den
+    //    bestpassenden offenen Platzhalter: gleicher Tag + gleiche Konkurrenz, dann gleiche Zeit, gleicher Court, nächste Zeit.
+    const dayKey=t=>t?new Date(t).toDateString():'';
+    const evBase=e=>norm(String(e||'').split(' - ')[0]);
+    const evSame=(a,b)=>norm(a)===norm(b) || (!!evBase(a) && evBase(a)===evBase(b));
+    // gleicher Termin + Court, aber andere Konkurrenz (z. B. Herren A statt Herren B) = anderes Spiel
+    const slotEventOk=(m,r)=>!norm(m.event) || !norm(r.event) || evSame(m.event,r.event);
+    const knownInApp=(r,p1,p2)=>MATCHES.some(m=>{
+      if(r.ext_key && m.import_key===r.ext_key) return true;
+      if(!realNames(m.player1_name,m.player2_name) || pk(m.player1_name,m.player2_name)!==pk(p1.name,p2.name)) return false;
+      return !r.sort_ts || !m.sort_ts || dayKey(m.sort_ts)===dayKey(r.sort_ts);   // gleiche Paarung am selben Tag = dasselbe Spiel
+    });
+    const phPool=MATCHES.filter(m=>m.status==='scheduled' && !m.court_id && matchHasMissing(m)
+      && !String(m.import_key||'').startsWith('ts:') && !(TEAM_MODE && m.tie_id));
+    const phFor=new Map();
+    if(phPool.length){
+      const cands=[];
+      recs.forEach(r=>{
+        if(!r.ext_key || String(r.ext_key).startsWith('tsslot:') || !r.sort_ts) return;
+        const p1=r.p1||parsePlayer(r.t1raw), p2=r.p2||parsePlayer(r.t2raw);
+        if(!realNames(p1.name,p2.name) || knownInApp(r,p1,p2)) return;
+        phPool.forEach(m=>{
+          if(!m.sort_ts || dayKey(m.sort_ts)!==dayKey(r.sort_ts) || !evSame(m.event,r.event)) return;
+          const dMin=Math.abs(m.sort_ts-r.sort_ts)/60000; if(dMin>180) return;
+          const sameCourt=(m.court_no!=null && m.court_no===r.court_no);
+          cands.push({r, m, score:(dMin===0?0:1000+dMin*10)+(sameCourt?0:100)});
+        });
+      });
+      cands.sort((a,b)=>a.score-b.score);
+      const takenPh=new Set();
+      cands.forEach(c=>{ if(phFor.has(c.r) || takenPh.has(c.m.id)) return; phFor.set(c.r,c.m); takenPh.add(c.m.id); });
+    }
     const findTs=(r,p1,p2)=>{
       const tryM=m=>(m && !usedIds.has(m.id)) ? m : null;
       let ex=tryM(byExt[r.ext_key]);
       if(!ex && realNames(p1.name,p2.name)) ex=tryM(byNames[nk(r.event,p1.name,p2.name)]) || tryM(byPair[pk(p1.name,p2.name)]);
-      if(!ex){ const s=tryM(bySlot[slotOf(r.sort_ts,r.court_no)]); if(s && slotCompatible(s,p1,p2)) ex=s; }
+      if(!ex){ const s=tryM(bySlot[slotOf(r.sort_ts,r.court_no)]); if(s && slotCompatible(s,p1,p2) && slotEventOk(s,r)) ex=s; }
+      if(!ex){ const ph=phFor.get(r); if(ph && !usedIds.has(ph.id)) ex=ph; }   // aufgelöster Platzhalter (Court/Zeit geändert)
       return ex;
     };
     const defVenue=defLocId();
@@ -1881,7 +1917,8 @@ async function importRecs(recs){
         if(c.length) return c[0];
       }
       const s=bySlot[slotOf(r.sort_ts,r.court_no)];
-      if(okPlayed(s) && slotCompatible(s,p1,p2)) return s;
+      if(okPlayed(s) && slotCompatible(s,p1,p2) && slotEventOk(s,r)) return s;
+      const ph=phFor.get(r); if(okPlayed(ph)) return ph;   // Platzhalter, dessen Spiel auf anderem Court/Zeit gespielt wurde
       return null;
     };
     let resIn=0, resNoWin=0;
@@ -1891,7 +1928,11 @@ async function importRecs(recs){
       const sc=parseImportScore(r.score, r.sets);
       if(!sc.sets.length && !sc.ending && !(r.winner==1||r.winner==2)) continue;
       let g1=0,g2=0; sc.sets.forEach(s=>{ if(s[0]>s[1]) g1++; else if(s[1]>s[0]) g2++; });
-      let winner = (r.winner==1||r.winner==2) ? Number(r.winner) : (sc.ending ? null : (g1>g2?1:g2>g1?2:null));
+      // Sieger: 1) von turnier.de markiert (fett / has-won)  2) wer aufgegeben hat -> der andere gewinnt
+      //         3) normales Spiel: mehr Sätze  4) Retired ohne Angabe: Satzführender (Notlösung)
+      let winner = (r.winner==1||r.winner==2) ? Number(r.winner) : null;
+      if(!winner && (r.retired_by==1||r.retired_by==2) && (sc.ending==='retired'||sc.ending==='walkover')) winner=3-Number(r.retired_by);
+      if(!winner && !sc.ending) winner=g1>g2?1:g2>g1?2:null;
       if(!winner && sc.ending==='retired' && g1!==g2) winner=g1>g2?1:2;
       usedIds.add(ex.id);
       const patch={ status:'confirmed', court_id:null, transferred:true, ending:sc.ending||null, winner,
@@ -1902,6 +1943,12 @@ async function importRecs(recs){
         patch.player2_name=p2.name; patch.player2_country=countryToISO(p2.country)||ex.player2_country||null; patch.player2_seed=p2.seed||null;
       }
       if(r.ext_key && ex.import_key!==r.ext_key && !String(ex.import_key||'').startsWith('ts:')) patch.import_key=r.ext_key;
+      if(r.ext_key){   // tatsächlicher Court / Zeit / Konkurrenz laut turnier.de
+        if(r.court_no!=null && ex.court_no!==r.court_no){ patch.court_no=r.court_no; patch.court_label=r.court!=null?String(r.court):('C'+r.court_no); }
+        if(r.time && (ex.scheduled_time||'')!==r.time){ patch.scheduled_time=r.time; if(r.sort_ts!=null) patch.sort_ts=r.sort_ts; }
+        if(r.event && (ex.event||'')!==r.event){ patch.event=r.event; patch.draw=r.event; }
+        if(r.round && (ex.round||'')!==r.round) patch.round=r.round;
+      }
       try{ await Store.updateMatch(ex.id, patch); Object.assign(ex, patch); resIn++; if(!winner) resNoWin++; }
       catch(e){ console.error(e); }
     }
@@ -2586,7 +2633,8 @@ async function tsReceiveImport(d, src){
     return { ext_key, event:String(m.event||''), round:String(m.round||''), nr:null,
       time:m.time||null, sort_ts, court:m.court||null, court_no,
       p1:pl(m.p1), p2:pl(m.p2), played:!!m.played,
-      score:(m.score!=null?String(m.score):null), sets:(Array.isArray(m.sets)?m.sets:null), winner:(m.winner==1||m.winner==2)?Number(m.winner):null };
+      score:(m.score!=null?String(m.score):null), sets:(Array.isArray(m.sets)?m.sets:null), winner:(m.winner==1||m.winner==2)?Number(m.winner):null,
+      retired_by:(()=>{ const x=m.retired_by!=null?m.retired_by:m.retiredBy; return (x==1||x==2)?Number(x):null; })() };
   });
   const open=recs.filter(r=>!r.played).length;
   const noId=recs.filter(r=>!r.played && r.ext_key.startsWith('tsslot:')).length;
@@ -2615,6 +2663,28 @@ async function tsImpDecide(ok){
     tsImpReply(Object.assign({type:'mgtp-import-done'}, r||{}));
   }catch(e){ console.error(e); toast('Import-Fehler: '+(e.message||e)); tsImpReply({type:'mgtp-import-done', error:String(e.message||e)}); }
   finally{ tsImporting=false; }
+}
+// Wer hat aufgegeben? Sucht „retired / Aufgabe / aufgegeben“ im Text und den Spielernamen direkt davor bzw. danach.
+// -> 1 / 2 (aufgebender Spieler) oder null, wenn nicht eindeutig
+function tsRetiredSide(text, n1, n2){
+  const t=String(text||'').toLowerCase();
+  const re=/retired|retirement|aufgabe|aufgegeben|\bret\./g; let mm, best=null;
+  const keyOf=n=>{ const p=String(n||'').toLowerCase().replace(/\s*\[[^\]]*\]\s*$/,'').trim().split(/\s+/).filter(Boolean); return p.length?p[p.length-1]:''; };
+  const k1=keyOf(n1), k2=keyOf(n2); if(!k1 || !k2 || k1===k2) return null;
+  while((mm=re.exec(t))){
+    const near=(k)=>{ let d=Infinity, i=-1;
+      while((i=t.indexOf(k,i+1))>=0){
+        const a=i<mm.index ? i+k.length : mm.index+mm[0].length, b=i<mm.index ? mm.index : i;
+        if(b<a) continue;
+        const between=t.slice(a,b).replace(/\[[^\]]*\]/g,'');
+        if(/\d/.test(between)) continue;              // Satzergebnis dazwischen -> gehört nicht zusammen
+        if(b-a<d) d=b-a;
+      }
+      return d; };
+    const d1=near(k1), d2=near(k2);
+    if(d1<=25 && d1<d2) best=1; else if(d2<=25 && d2<d1) best=2;
+  }
+  return best;
 }
 // ---- Gespeicherte turnier.de-Spieleseite (legacymatches, „Speichern unter → nur HTML“) direkt einlesen ----
 function tsParseLegacyHtml(text){
@@ -2655,14 +2725,17 @@ function tsParseLegacyHtml(text){
     const event=parts.join(' - '); const round=parts.slice(1).filter(p=>p!==parts[0]).join(' - ');
     const p1=side(tds[i+2]), p2=side(tds[i+4]);
     const score=clean(tds[i+5]&&tds[i+5].textContent);
-    const isWin=td=>!!(td && td.querySelector('strong, b, .winner, .match-winner'));
+    // Sieger = fettgedruckter Spieler (strong/b, Gewinner-Klasse oder font-weight im style)
+    const BOLD_SEL='strong, b, .winner, .match-winner, [class*="winner"], [class*="has-won"], [style*="bold"], [style*="font-weight:700"], [style*="font-weight: 700"]';
+    const isWin=td=>!!(td && (td.matches(BOLD_SEL) || td.querySelector(BOLD_SEL)));
     const lw=isWin(tds[i+2])?1:(isWin(tds[i+4])?2:null);
+    const retBy=tsRetiredSide(clean(tr.textContent), p1.name, p2.name);
     const ca=tr.querySelector('a[href*="court.aspx"]'); const court=ca?clean(ca.textContent):'';
     const cn=/court\s*(\d+)/i.exec(court);
     const mi=tr.querySelector('a[href*="match-info/"]');
     const mm=mi?/match-info\/([0-9a-f]{8})[0-9a-f-]{28}\/(\d+)\/(\d+)/i.exec(mi.getAttribute('href')||''):null;
     out.push({ ext_key: mm?('ts:'+mm[1].toLowerCase()+':'+mm[2]+':'+mm[3]):null, event, round, time, sort_ts:dt.getTime(),
-      court, court_no: cn?Number(cn[1]):null, p1, p2, score:score||null, winner:lw,
+      court, court_no: cn?Number(cn[1]):null, p1, p2, score:score||null, winner:lw, retired_by:retBy,
       played: /\d/.test(score) || /w\.?\s?o\.?|walkover|aufgabe|ret/i.test(score) });
   });
   return {url, ymd, matches:out};
@@ -2695,7 +2768,10 @@ function tsParseNewHtml(doc, text){
       const event=items[0]||'', round=items[1]||'';
       const rows=[...mEl.querySelectorAll('.match__body .match__row')];
       const p1=side(rows[0]), p2=side(rows[1]);
-      let winner=null; rows.slice(0,2).forEach((r,i)=>{ if(r.classList.contains('has-won')) winner=i+1; });
+      let winner=null; rows.slice(0,2).forEach((r,i)=>{ if(r.classList.contains('has-won') || r.querySelector('strong, b, .has-won')) winner=winner||(i+1); });
+      // Wer hat aufgegeben? Status direkt in der Spielerzeile, sonst Name neben „retired“ im Text
+      let retBy=null; rows.slice(0,2).forEach((r,i)=>{ if(/retired|aufgabe|aufgegeben|\bret\./i.test(clean(r.textContent))) retBy=retBy||(i+1); });
+      if(!retBy) retBy=tsRetiredSide(clean(mEl.textContent), p1.name, p2.name);
       const sets=[...mEl.querySelectorAll('.match__result ul.points')].map(ul=>{
         const c=[...ul.querySelectorAll('.points__cell')].map(li=>parseInt(clean(li.textContent),10));
         return (c.length>=2 && Number.isFinite(c[0]) && Number.isFinite(c[1])) ? [c[0],c[1]] : null; }).filter(Boolean);
@@ -2710,7 +2786,7 @@ function tsParseNewHtml(doc, text){
       let time=null, sort_ts=null;
       if(hm){ time=`${String(D).padStart(2,'0')}.${String(M).padStart(2,'0')}.${Y} ${hm[1].padStart(2,'0')}:${hm[2]}`; sort_ts=new Date(Y,M-1,D,+hm[1],+hm[2]).getTime(); }
       out.push({ ext_key:null, event, round, time, sort_ts, court:court||null, court_no:cn, p1, p2,
-        score:score||null, sets:sets.length?sets:null, winner,
+        score:score||null, sets:sets.length?sets:null, winner, retired_by:retBy,
         played: sets.length>0 || wo || ret || (!!winner && !/now playing|läuft/i.test(body)) });
     });
   });
