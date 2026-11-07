@@ -11,10 +11,23 @@ const Store = (() => {
   const useSupabase = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY);
   let sb = null;
 
+  // Zeitlimit für jede Supabase-Anfrage: Bei WLAN ohne Internet hängen Anfragen sonst
+  // sehr lange -> Tablet zeigt zu lange „Online“, Anmeldung/Laden bleibt stehen.
+  // Abgebrochene Anfragen werden wie ein Netzfehler behandelt (court.html sendet später nach).
+  function fetchWithTimeout(input, init) {
+    init = init || {};
+    if (typeof AbortController === 'undefined') return fetch(input, init);
+    const ms = Number(cfg.FETCH_TIMEOUT_MS) || 15000;
+    const ac = new AbortController(), outer = init.signal;
+    if (outer) { if (outer.aborted) ac.abort(); else outer.addEventListener('abort', () => ac.abort(), { once: true }); }
+    const t = setTimeout(() => ac.abort(), ms);
+    return fetch(input, Object.assign({}, init, { signal: ac.signal })).finally(() => clearTimeout(t));
+  }
+
   function initSupabase() {
     // Robust: Falls supabase-js nicht lädt (z. B. älterer Chromium in OBS), bleibt
     // Store trotzdem verfügbar; öffentliche Anzeigen holen ihre Daten dann per fetch.
-    try { sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY); }
+    try { sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { global: { fetch: fetchWithTimeout } }); }
     catch (e) { sb = null; console.warn('[store] supabase-js nicht verfügbar:', e && (e.message || e)); }
   }
 

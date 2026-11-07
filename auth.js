@@ -16,7 +16,32 @@
     office:'Tournament Office', referee:'Schiedsrichter (Court)', viewer:'Nur ansehen' };
 
   var sb = (typeof Store !== 'undefined' && Store.client) ? Store.client() : null;
-  var USER = null, ROLE = null, PLATFORM_ADMIN = false, MEMBERSHIPS = 0;
+  var USER = null, ROLE = null, PLATFORM_ADMIN = false, MEMBERSHIPS = 0, OFFLINE_AUTH = false, NET_DOWN = false;
+
+  // ---------- Offline: zuletzt bekannte Anmeldung + Rollen pro Turnier merken ----------
+  // Ohne Internet kann weder der Token erneuert noch die Rolle geladen werden. Damit ein
+  // Tablet trotzdem (z. B. nach Neustart) weiter schiedsen kann, gilt dann die Rolle, die
+  // dieses Konto zuletzt online für das Turnier hatte. Schreiben prüft weiterhin der Server.
+  var AUTH_CACHE = 'squash_auth_cache';
+  function cacheLoad() { try { return JSON.parse(localStorage.getItem(AUTH_CACHE) || 'null'); } catch (e) { return null; } }
+  function cacheSave(tid) {
+    if (!USER || !USER.id) return;
+    try {
+      var c = cacheLoad();
+      if (!c || c.uid !== USER.id) c = { uid: USER.id, email: USER.email || '', roles: {} };
+      c.email = USER.email || c.email; c.platformAdmin = PLATFORM_ADMIN; c.memberships = MEMBERSHIPS;
+      if (tid) c.roles[tid] = ROLE; c.at = Date.now();
+      localStorage.setItem(AUTH_CACHE, JSON.stringify(c));
+    } catch (e) {}
+  }
+  function isNetErr(e) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+    var m = String((e && (e.message || e.name || e)) || '');
+    return /fetch|network|load failed|abort|timeout|timed out|offline/i.test(m);
+  }
+  function withTimeout(p, ms) {
+    return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout')); }, ms); })]);
+  }
 
   // ---------- UI: Overlay ----------
   function el(tag, css, html) { var e = document.createElement(tag); if (css) e.style.cssText = css; if (html != null) e.innerHTML = html; return e; }
@@ -97,28 +122,49 @@
 
   // ---------- Rolle laden (für das AKTIVE Turnier) ----------
   async function loadRole() {
-    ROLE = null; PLATFORM_ADMIN = false; MEMBERSHIPS = 0;
-    if (!USER) return ROLE;
-    // Plattform-Admin?
-    try {
-      var p = await sb.from('profiles').select('role').eq('id', USER.id).maybeSingle();
-      if (p && p.data && p.data.role === 'admin') PLATFORM_ADMIN = true;
-    } catch (e) {}
-    // Anzahl Turnier-Mitgliedschaften (für den Turnier-Picker-Zugang)
-    try {
-      var c = await sb.from('tournament_members').select('tournament_id', { count: 'exact', head: true }).eq('user_id', USER.id);
-      MEMBERSHIPS = c.count || 0;
-    } catch (e) {}
-    if (PLATFORM_ADMIN) { ROLE = 'admin'; return ROLE; }
-    // Rolle für das aktive Turnier
+    // Werte erst lokal ermitteln und am Ende gemeinsam setzen (parallele Aufrufe sehen nie „leer“)
+    if (!USER) { ROLE = null; PLATFORM_ADMIN = false; MEMBERSHIPS = 0; return ROLE; }
+    var uid = USER.id, role = null, pa = false, mem = 0, netFail = false, T = 8000;
+    NET_DOWN = false;
+    var chk = function (r) { if (r && r.error && isNetErr(r.error)) netFail = true; return r; };
+    // aktives Turnier (vorab, damit auch offline das richtige Turnier gilt)
     var tid = null;
     try { tid = (typeof Store !== 'undefined' && Store.ensureActiveTournament) ? await Store.ensureActiveTournament() : (Store.activeTournament && Store.activeTournament()); } catch (e) {}
-    if (tid) {
+    if (!OFFLINE_AUTH) {
+      // Plattform-Admin?
       try {
-        var m = await sb.from('tournament_members').select('role').eq('tournament_id', tid).eq('user_id', USER.id).maybeSingle();
-        ROLE = (m && m.data && m.data.role) || null;
-      } catch (e) { ROLE = null; }
+        var p = chk(await withTimeout(sb.from('profiles').select('role').eq('id', uid).maybeSingle(), T));
+        if (p && p.data && p.data.role === 'admin') pa = true;
+      } catch (e) { if (isNetErr(e)) netFail = true; }
+      // Anzahl Turnier-Mitgliedschaften (für den Turnier-Picker-Zugang)
+      if (!netFail) try {
+        var c = chk(await withTimeout(sb.from('tournament_members').select('tournament_id', { count: 'exact', head: true }).eq('user_id', uid), T));
+        mem = (c && c.count) || 0;
+      } catch (e) { if (isNetErr(e)) netFail = true; }
+      // Rolle für das aktive Turnier
+      if (!netFail && !pa && tid) {
+        try {
+          var m = chk(await withTimeout(sb.from('tournament_members').select('role').eq('tournament_id', tid).eq('user_id', uid).maybeSingle(), T));
+          role = (m && m.data && m.data.role) || null;
+        } catch (e) { role = null; if (isNetErr(e)) netFail = true; }
+      }
+      if (!netFail) {
+        if (pa) role = 'admin';
+        PLATFORM_ADMIN = pa; MEMBERSHIPS = mem; ROLE = role;
+        cacheSave(tid);                       // Online-Stand für spätere Offline-Starts merken
+        return ROLE;
+      }
     }
+    // Offline / Server nicht erreichbar -> zuletzt bekannte Rolle dieses Kontos verwenden
+    NET_DOWN = true;
+    var ca = cacheLoad();
+    pa = false; mem = 0; role = null;
+    if (ca && ca.uid === uid) {
+      OFFLINE_AUTH = true;
+      pa = !!ca.platformAdmin; mem = ca.memberships || 0;
+      role = pa ? 'admin' : ((tid && ca.roles && ca.roles[tid]) || null);
+    }
+    PLATFORM_ADMIN = pa; MEMBERSHIPS = mem; ROLE = role;
     return ROLE;
   }
 
@@ -130,10 +176,16 @@
     // Lokaler Testmodus: keine Anmeldung, volle Rechte
     if (!sb) { PLATFORM_ADMIN = true; ROLE = 'admin'; USER = { email: '(lokal)' }; return { user: USER, role: ROLE }; }
     showLoading();
-    var s = null;
-    try { s = (await sb.auth.getSession()).data.session; } catch (e) {}
-    if (!s) { hideLoading(); showLogin(); await whenAuthed(); }
-    else { USER = s.user; await loadRole(); }
+    var s = null, sErr = null;
+    try { var gs = await withTimeout(sb.auth.getSession(), 8000); s = gs.data.session; sErr = gs.error || null; }
+    catch (e) { sErr = e; }
+    var ca = cacheLoad();
+    if (!s && ca && ca.uid && (sErr ? isNetErr(sErr) : navigator.onLine === false)) {
+      // Offline und Token kann nicht erneuert werden -> mit zuletzt angemeldetem Konto weiter
+      USER = { id: ca.uid, email: ca.email || '' }; OFFLINE_AUTH = true; await loadRole();
+    }
+    else if (!s) { hideLoading(); showLogin(); await whenAuthed(); }
+    else { USER = s.user; OFFLINE_AUTH = false; await loadRole(); }
     // Zugriffslogik
     var ok;
     if (need === 'view') {
@@ -145,6 +197,12 @@
     }
     if (need && !ok) {
       hideLoading();
+      if (OFFLINE_AUTH || NET_DOWN) {
+        showBlock('Offline', 'Keine Internetverbindung, und für dieses Turnier ist auf diesem Gerät noch keine Anmeldung gespeichert. '
+          + 'Bitte einmal mit Internet öffnen – danach funktioniert dieser Court auch offline.');
+        if (typeof window !== 'undefined') window.addEventListener('online', function () { location.reload(); }, { once: true });
+        return new Promise(function () {});
+      }
       var msg = (MEMBERSHIPS === 0 && !PLATFORM_ADMIN)
         ? 'Dein Konto ist noch keinem Turnier zugeordnet. Bitte von einem Administrator hinzufügen lassen.'
         : ('Dein Konto hat für diese Ansicht keine Berechtigung' + (ROLE ? (' (' + (ROLE_LABEL[ROLE] || ROLE) + ')') : '') + '.');
@@ -162,8 +220,10 @@
   function isPlatformAdmin() { return PLATFORM_ADMIN; }
   function membershipCount() { return MEMBERSHIPS; }
   async function refreshRole() { await loadRole(); return ROLE; }
+  function isOffline() { return OFFLINE_AUTH; }
 
   async function signOut() {
+    try { localStorage.removeItem(AUTH_CACHE); } catch (e) {}   // bewusst abgemeldet -> keine Offline-Anmeldung mehr
     try { if (sb) await sb.auth.signOut(); } catch (e) {}
     location.reload();
   }
@@ -202,7 +262,7 @@
     sb.auth.onAuthStateChange(function (event, session) {
       if (event === 'SIGNED_OUT') { USER = null; ROLE = 'viewer'; return; }
       if (session && session.user) {
-        USER = session.user;
+        USER = session.user; OFFLINE_AUTH = false;            // wieder online angemeldet (z. B. Token erneuert)
         loadRole().then(function () {
           // Wartet die Login-Maske gerade? Dann auflösen – guard() erledigt
           // danach Rechteprüfung (Block oder Freigabe). Kein Reload!
@@ -217,7 +277,7 @@
 
   window.Auth = {
     guard: guard, can: can, role: role, roleLabel: roleLabel, user: user,
-    isPlatformAdmin: isPlatformAdmin, membershipCount: membershipCount, refreshRole: refreshRole,
+    isPlatformAdmin: isPlatformAdmin, membershipCount: membershipCount, refreshRole: refreshRole, isOffline: isOffline,
     signOut: signOut, listUsers: listUsers, setUserRole: setUserRole,
     listMembers: listMembers, addMember: addMember, setMemberRole: setMemberRole, removeMember: removeMember,
     ROLE_LABEL: ROLE_LABEL
