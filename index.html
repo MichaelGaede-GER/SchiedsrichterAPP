@@ -228,6 +228,19 @@
   .field{display:flex;flex-direction:column;gap:3px;margin-bottom:9px}
   .field label{font-size:12px;color:var(--muted)}
   .field input,.field select{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
+  /* Manuelles Ergebnis im Dialog „Spiel bearbeiten" */
+  .resbox{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:4px 0 10px;background:var(--panel2)}
+  .resbox .reshd{font-size:12.5px;font-weight:700;margin-bottom:8px}
+  .resbox .reshd .hint{font-weight:400;color:var(--muted)}
+  .ressets{display:grid;grid-template-columns:minmax(110px,1.6fr) repeat(5,minmax(44px,1fr));gap:6px;align-items:center}
+  .ressets .rsh{font-size:11px;color:var(--muted);text-align:center}
+  .ressets .rsn{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ressets .rsn.win{font-weight:800;color:var(--green,#7CFF9B)}
+  .ressets input{width:100%;box-sizing:border-box;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px 4px;font:inherit;text-align:center}
+  .ressets input.bad{border-color:#ff6b6b}
+  .resfoot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:9px;font-size:12.5px}
+  .resfoot label{display:flex;align-items:center;gap:6px;color:var(--muted)}
+  #resInfo{font-weight:700}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
   @media(max-width:640px){ .grid3{grid-template-columns:1fr} }
@@ -370,7 +383,7 @@
     </div>
     <p style="font-size:12.5px;color:var(--muted);margin:10px 0 0">
       Spiel auf einen Court <b>ziehen</b>, den Button <b>▶ Court</b> nutzen, oder Spiel antippen und dann Court antippen.
-      Bereits gespielte Spiele werden beim Import automatisch übersprungen.</p>
+      Bereits gespielte Spiele: Steht beim Import schon ein Ergebnis auf turnier.de, wandert das vorhandene Spiel mit diesem Ergebnis automatisch nach „Übertragene Ergebnisse“.</p>
   </div>
 
   <div id="panelDone" style="display:none"><div class="card"><div id="done"></div></div></div>
@@ -417,6 +430,15 @@
       </select></div>
     <div class="field" id="winnerWrap" style="display:none"><label>Sieger</label>
       <select id="f_winner"><option value="1">Spieler 1</option><option value="2">Spieler 2</option></select></div>
+  </div>
+  <div class="resbox" id="resBox">
+    <div class="reshd">Ergebnis eintragen <span class="hint">– optional, leer lassen solange das Spiel noch zu spielen ist</span></div>
+    <div class="ressets" id="resSets"></div>
+    <div class="resfoot">
+      <span id="resInfo"></span><span style="flex:1"></span>
+      <label title="Ergebnis steht schon auf turnier.de / im Tournament Planner"><input type="checkbox" id="f_resSent"> schon auf turnier.de eingetragen → „Übertragene Ergebnisse“</label>
+      <button class="btn-ghost btn-sm" type="button" onclick="resBuild([])">Leeren</button>
+    </div>
   </div>
   <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
     <button class="btn-ghost" onclick="addDlg.close()">Abbrechen</button>
@@ -500,8 +522,8 @@
   <h3>⇩ Spiele von turnier.de holen</h3>
   <div class="tsinfo">
     Öffnet die Spiele-Seite (dsqv.turnier.de, esf./wsf.tournamentsoftware.com), das Skript liest alle Spieltage
-    inkl. Court, Nation und Runde und schickt sie hierher. Erneuter Import aktualisiert Zeiten/Courts/Paarungen,
-    bereits gespielte Spiele werden übersprungen.</div>
+    inkl. Court, Nation und Runde und schickt sie hierher. Erneuter Import aktualisiert Zeiten/Courts/Paarungen;
+    hat ein vorhandenes Spiel auf turnier.de schon ein Ergebnis, wird es übernommen und nach „Übertragene Ergebnisse“ verschoben.</div>
   <div class="tsrow">
     <span style="flex:1"></span>
     <button class="btn-primary" onclick="tsImportOpen()">⇩ Spiele holen</button>
@@ -1491,9 +1513,58 @@ async function syncFromRanking(){
 async function setBo(id,v){ await Store.updateMatch(id,{best_of:Number(v)}); }
 
 const addDlg=document.getElementById('addDlg');
+['f_p1','f_p2'].forEach(id=>{ const e=document.getElementById(id); if(e) e.addEventListener('input',()=>{ try{ resUpd(); }catch(x){} }); });
+document.getElementById('f_winner').addEventListener('change',()=>{ try{ resUpd(); }catch(x){} });
 let editingMatchId=null;
 function setF(id,v){ document.getElementById(id).value=(v==null?'':v); }
-function updWinnerVis(){ document.getElementById('winnerWrap').style.display = document.getElementById('f_ending').value?'':'none'; }
+function updWinnerVis(){ document.getElementById('winnerWrap').style.display = document.getElementById('f_ending').value?'':'none'; try{ resUpd(); }catch(e){} }
+// ---- Manuelles Ergebnis im Dialog „Spiel bearbeiten“ ----
+const RES_N=5;
+function resBuild(sets){
+  sets=sets||[];
+  const el=document.getElementById('resSets'); if(!el) return;
+  let h='<div></div>'+Array.from({length:RES_N},(_,i)=>`<div class="rsh">Satz ${i+1}</div>`).join('');
+  [0,1].forEach(side=>{
+    h+=`<div class="rsn" id="rsn${side}"></div>`+Array.from({length:RES_N},(_,i)=>{
+      const v=(sets[i] && sets[i][side]!=null) ? sets[i][side] : '';
+      return `<input type="number" min="0" max="99" inputmode="numeric" class="rsi" data-i="${i}" data-s="${side}" value="${v}">`; }).join('');
+  });
+  el.innerHTML=h;
+  el.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',resUpd));
+  resUpd();
+}
+function resNames(){
+  const n1=(document.getElementById('f_p1').value||'').trim()||'Spieler 1';
+  const n2=(document.getElementById('f_p2').value||'').trim()||'Spieler 2';
+  const a=document.getElementById('rsn0'), b=document.getElementById('rsn1');
+  if(a){ a.textContent=n1; a.title=n1; } if(b){ b.textContent=n2; b.title=n2; }
+  return [n1,n2];
+}
+// Liest die Satzfelder: {sets:[[a,b],…], g1, g2, bad:[Satznummern unvollständig]}
+function resRead(){
+  const val=(i,s)=>{ const x=document.querySelector(`#resSets input[data-i="${i}"][data-s="${s}"]`); return x?x.value.trim():''; };
+  const sets=[], bad=[];
+  for(let i=0;i<RES_N;i++){
+    const a=val(i,0), b=val(i,1);
+    document.querySelectorAll(`#resSets input[data-i="${i}"]`).forEach(x=>x.classList.toggle('bad', (a==='')!==(b==='')));
+    if(a==='' && b==='') continue;
+    if(a==='' || b===''){ bad.push(i+1); continue; }
+    sets.push([parseInt(a,10)||0, parseInt(b,10)||0]);
+  }
+  let g1=0,g2=0; sets.forEach(s=>{ if(s[0]>s[1]) g1++; else if(s[1]>s[0]) g2++; });
+  return {sets,g1,g2,bad};
+}
+function resUpd(){
+  const r=resRead(), names=resNames(), info=document.getElementById('resInfo'); if(!info) return;
+  const ending=document.getElementById('f_ending').value;
+  const w = ending ? (Number(document.getElementById('f_winner').value)||1) : (r.g1>r.g2?1:r.g2>r.g1?2:0);
+  ['rsn0','rsn1'].forEach((id,i)=>{ const e=document.getElementById(id); if(e) e.classList.toggle('win', !!(r.sets.length||ending) && w===i+1); });
+  if(r.bad.length){ info.style.color='#ff6b6b'; info.textContent='Satz '+r.bad.join(', ')+' unvollständig'; return; }
+  info.style.color='';
+  if(!r.sets.length){ info.textContent = ending ? '' : 'kein Ergebnis – Spiel bleibt angesetzt'; return; }
+  if(!ending && !w){ info.style.color='#ffb020'; info.textContent=`Sätze ${r.g1}:${r.g2} – Sieger nicht eindeutig`; return; }
+  info.textContent=`Sätze ${r.g1}:${r.g2} · Sieger: ${names[w-1]}`;
+}
 function fillVenueSelect(selId){
   const row=document.getElementById('venueRow'), sel=document.getElementById('f_venue');
   if(!sel) return;
@@ -1542,6 +1613,7 @@ function openAdd(){
   setF('f_seed1',''); setF('f_seed2','');
   setF('f_court',''); setF('f_bo','3'); setF('f_time',''); setF('f_ref','');
   setF('f_ending',''); updWinnerVis();
+  document.getElementById('f_resSent').checked=false; resBuild([]);
   fillVenueSelect();
   addDlg.showModal();
 }
@@ -1556,7 +1628,9 @@ function openEditMatch(id){
   setF('f_seed1',m.player1_seed||''); setF('f_seed2',m.player2_seed||'');
   setF('f_court',m.court_no||''); setF('f_bo',m.best_of||3);
   setF('f_time',m.scheduled_time||''); setF('f_ref',m.referee||'');
-  setF('f_ending',m.ending||''); setF('f_winner',String(m.winner||1)); updWinnerVis();
+  setF('f_ending',m.ending||''); setF('f_winner',String(m.winner||1));
+  document.getElementById('f_resSent').checked=!!m.transferred;
+  resBuild(parseSetsText(m.score_text)); updWinnerVis();
   fillVenueSelect(m.venue_id||'');
   addDlg.showModal();
 }
@@ -1577,25 +1651,41 @@ async function saveMatch(){
     scheduled_time:time, sort_ts:(parseTimeMs(time)||null), referee:g('f_ref')||null,
     venue_id: (document.getElementById('f_venue') && document.getElementById('f_venue').value) || null,
   };
+  const res=resRead();
+  if(res.bad.length){ toast('Satz '+res.bad.join(', ')+' unvollständig – bitte beide Werte eintragen oder leeren'); return; }
+  const sentNow=document.getElementById('f_resSent').checked;
+  const m0=editingMatchId?MATCHES.find(x=>x.id===editingMatchId):null;
+  if(m0 && m0.court_id && (ending || res.sets.length)){ toast('Spiel läuft gerade auf Court '+m0.court_id+' – Ergebnis dort bestätigen oder Spiel erst vom Court nehmen'); return; }
+  const scoreTxt=res.sets.map(s=>s[0]+'-'+s[1]).join(' ');
+  let resultSet=false;
   if(ending){
     // Sonderwertung -> als bestätigtes Ergebnis, Gegner/Sieger gewinnt
     const winner=Number(g('f_winner'))||1;
-    const m=editingMatchId?MATCHES.find(x=>x.id===editingMatchId):null;
     patch.status='confirmed'; patch.winner=winner; patch.ending=ending; patch.court_id=null;
-    patch.result = ending==='walkover' ? 'W.O.' : (m&&m.result?m.result:'0-0');
-    patch.score_text = (m&&m.score_text)?m.score_text:'';
-    patch.transferred = m?!!m.transferred:false;
+    patch.result = ending==='walkover' ? 'W.O.' : (res.sets.length ? (res.g1+'-'+res.g2) : (m0&&m0.result?m0.result:'0-0'));
+    patch.score_text = res.sets.length ? scoreTxt : ((m0&&m0.score_text)?m0.score_text:'');
+    patch.transferred = sentNow;
+    resultSet=true;
+  } else if(res.sets.length){
+    // Manuell eingetipptes Ergebnis -> bestätigt (bzw. direkt „übertragen“)
+    if(res.g1===res.g2){ toast(`Sätze ${res.g1}:${res.g2} – Sieger nicht eindeutig, bitte Ergebnis prüfen`); return; }
+    patch.status='confirmed'; patch.winner=res.g1>res.g2?1:2; patch.ending=null; patch.court_id=null;
+    patch.result=res.g1+'-'+res.g2; patch.score_text=scoreTxt; patch.transferred=sentNow;
+    resultSet=true;
   } else {
     patch.ending=null;
   }
   if(editingMatchId){
     await Store.updateMatch(editingMatchId, patch);
-    addDlg.close(); toast(ending?('Wertung gesetzt: '+ending):'Spiel aktualisiert');
+    addDlg.close();
+    if(resultSet && m0){ try{ await rankingWriteBack(Object.assign({}, m0, patch)); }catch(e){} }
+    toast(resultSet ? ('Ergebnis gespeichert → '+(sentNow?'„Übertragene Ergebnisse“':'„Bestätigte Ergebnisse“')+(ending?(' ('+ending+')'):''))
+                    : 'Spiel aktualisiert');
   } else {
     const base={ match_no:'', court_id:null, import_key:null, status:'scheduled',
       state:null, result:null, winner:null, score_text:null };
     await Store.insertMatch(Object.assign(base, patch));
-    addDlg.close(); toast('Spiel angelegt');
+    addDlg.close(); toast(resultSet ? ('Spiel mit Ergebnis angelegt → '+(sentNow?'„Übertragene Ergebnisse“':'„Bestätigte Ergebnisse“')) : 'Spiel angelegt');
   }
 }
 
@@ -1651,6 +1741,16 @@ fileInput.addEventListener('change', async e=>{
   }catch(err){ console.error(err); toast('Import-Fehler: '+err.message); }
 });
 
+// Ergebnis aus einer Import-Quelle lesen: „11-8 11-5 11-7“, „11:8, 9:11“, „Walkover“, „11-5 4-2 Ret.“
+function parseImportScore(txt, sets){
+  const s=String(txt||'');
+  let out=[];
+  if(Array.isArray(sets) && sets.length) out=sets.map(x=>[parseInt(x[0],10)||0, parseInt(x[1],10)||0]);
+  else s.replace(/(\d{1,2})\s*[-:]\s*(\d{1,2})/g,(all,a,b)=>{ out.push([+a,+b]); return all; });
+  const ending = /walkover|kampflos|\bw\.?\s?o\.?(?![a-z])/i.test(s) ? 'walkover'
+              : (/retired|aufgabe|abgebrochen|\bret\.?(?![a-z])/i.test(s) ? 'retired' : null);
+  return {sets:out, ending};
+}
 // Gemeinsamer Import-Kern für XLSX und turnier.de-Skript.
 // recs: {time,event,nr,court,round,t1raw,t2raw,sort_ts,court_no,played,referee}
 //   turnier.de zusätzlich: ext_key (fester Schlüssel aus MatchID), p1/p2 = {name,country}
@@ -1761,6 +1861,49 @@ async function importRecs(recs){
         referee:r.referee||null, import_key:(r.ext_key||sk||importKey(r.event,r.nr,r.round,r.t1raw,r.t2raw)),
         status:'scheduled', state:null, result:null, winner:null, score_text:null });
     }
+    // ---- Bereits gespielte Spiele: Ergebnis bei vorhandenen, noch angesetzten Spielen übernehmen ----
+    // -> Spiel wird bestätigt + als übertragen markiert (steht ja schon auf turnier.de) und verschwindet aus „Angesetzte Spiele“
+    const okPlayed=m=>m && !usedIds.has(m.id) && m.status==='scheduled' && !m.court_id && !(TEAM_MODE && m.tie_id);
+    const findPlayed=(r,p1,p2)=>{
+      if(r.ext_key && okPlayed(byExt[r.ext_key])) return byExt[r.ext_key];
+      if(!r.ext_key){ const sk=stableKey(r.event,r.round,r.nr), ek=evNrKey(r.event,r.nr);
+        const m=(sk&&byStable[sk])||(ek&&byEvNr[ek])||null; if(okPlayed(m)) return m; }
+      if(realNames(p1.name,p2.name)){
+        const key=pk(p1.name,p2.name);
+        let c=MATCHES.filter(m=>okPlayed(m) && realNames(m.player1_name,m.player2_name) && pk(m.player1_name,m.player2_name)===key);
+        const ce=c.filter(m=>norm(m.event)===norm(r.event)); if(ce.length) c=ce;
+        if(r.sort_ts){   // gleiche Paarung an anderem Tag ist ein anderes Spiel; sonst das zeitlich nächste
+          const day=new Date(r.sort_ts).toDateString();
+          c=c.filter(m=>!m.sort_ts || new Date(m.sort_ts).toDateString()===day);
+          c.sort((a,b)=>Math.abs((a.sort_ts||0)-r.sort_ts)-Math.abs((b.sort_ts||0)-r.sort_ts));
+        }
+        if(c.length) return c[0];
+      }
+      const s=bySlot[slotOf(r.sort_ts,r.court_no)];
+      if(okPlayed(s) && slotCompatible(s,p1,p2)) return s;
+      return null;
+    };
+    let resIn=0, resNoWin=0;
+    for(const r of recs.filter(x=>x.played)){
+      const p1=r.p1||parsePlayer(r.t1raw), p2=r.p2||parsePlayer(r.t2raw);
+      const ex=findPlayed(r,p1,p2); if(!ex) continue;
+      const sc=parseImportScore(r.score, r.sets);
+      if(!sc.sets.length && !sc.ending && !(r.winner==1||r.winner==2)) continue;
+      let g1=0,g2=0; sc.sets.forEach(s=>{ if(s[0]>s[1]) g1++; else if(s[1]>s[0]) g2++; });
+      let winner = (r.winner==1||r.winner==2) ? Number(r.winner) : (sc.ending ? null : (g1>g2?1:g2>g1?2:null));
+      if(!winner && sc.ending==='retired' && g1!==g2) winner=g1>g2?1:2;
+      usedIds.add(ex.id);
+      const patch={ status:'confirmed', court_id:null, transferred:true, ending:sc.ending||null, winner,
+        score_text: sc.sets.map(s=>s[0]+'-'+s[1]).join(' '),
+        result: sc.ending==='walkover' ? 'W.O.' : (g1+'-'+g2) };
+      if(realNames(p1.name,p2.name)){   // Spielerreihenfolge der Quelle übernehmen (Sätze beziehen sich darauf)
+        patch.player1_name=p1.name; patch.player1_country=countryToISO(p1.country)||ex.player1_country||null; patch.player1_seed=p1.seed||null;
+        patch.player2_name=p2.name; patch.player2_country=countryToISO(p2.country)||ex.player2_country||null; patch.player2_seed=p2.seed||null;
+      }
+      if(r.ext_key && ex.import_key!==r.ext_key && !String(ex.import_key||'').startsWith('ts:')) patch.import_key=r.ext_key;
+      try{ await Store.updateMatch(ex.id, patch); Object.assign(ex, patch); resIn++; if(!winner) resNoWin++; }
+      catch(e){ console.error(e); }
+    }
     let failed=0;
     if(toInsert.length){ try{ await Store.insertMany(toInsert); }catch(e){ failed=toInsert.length; console.error('Batch-Insert fehlgeschlagen:',e); } }
     // turnier.de: Platzhalter-Spiele (noch ohne Match-ID), die es an diesem Tag so nicht mehr gibt
@@ -1777,8 +1920,8 @@ async function importRecs(recs){
     let removed=0;
     for(const id of dupDelete){ try{ await Store.deleteMatch(id); removed++; }catch(e){ console.error(e); } }
     const neu=toInsert.length-failed;
-    toast(`${recs.length} Zeilen gelesen · ${neu} neu · ${upd} aktualisiert · ${played} gespielt übersprungen · ${dup} unverändert${removed?(' · '+removed+' veraltete/doppelte entfernt'):''}${failed?(' · '+failed+' fehlgeschlagen'):''}`);
-    return {neu,upd,dup,played,failed,removed};
+    toast(`${recs.length} Zeilen gelesen · ${neu} neu · ${upd} aktualisiert${resIn?(' · '+resIn+' Ergebnis(se) übernommen → „Übertragene Ergebnisse“'+(resNoWin?(' ('+resNoWin+' ohne Sieger)'):'')):''} · ${played-resIn} gespielt übersprungen · ${dup} unverändert${removed?(' · '+removed+' veraltete/doppelte entfernt'):''}${failed?(' · '+failed+' fehlgeschlagen'):''}`);
+    return {neu,upd,dup,played,results:resIn,failed,removed};
 }
 
 async function clearAll(){ if(confirm('Wirklich ALLE Spiele löschen?')){ IMPORT_FLAGS={}; await Store.deleteAll(); toast('Gelöscht'); } }
@@ -2441,7 +2584,8 @@ async function tsReceiveImport(d, src){
       : ('tsslot:'+(sort_ts||nrm(m.time))+'|'+(court_no!=null?court_no:nrm(m.court))+'|'+nrm(m.event));   // ohne Runde: Skript kennt sie bei Platzhaltern nicht
     return { ext_key, event:String(m.event||''), round:String(m.round||''), nr:null,
       time:m.time||null, sort_ts, court:m.court||null, court_no,
-      p1:pl(m.p1), p2:pl(m.p2), played:!!m.played };
+      p1:pl(m.p1), p2:pl(m.p2), played:!!m.played,
+      score:(m.score!=null?String(m.score):null), sets:(Array.isArray(m.sets)?m.sets:null), winner:(m.winner==1||m.winner==2)?Number(m.winner):null };
   });
   const open=recs.filter(r=>!r.played).length;
   const noId=recs.filter(r=>!r.played && r.ext_key.startsWith('tsslot:')).length;
@@ -2449,7 +2593,7 @@ async function tsReceiveImport(d, src){
   const tName=(document.getElementById('tourPick')&&document.getElementById('tourPick').selectedOptions[0]||{}).textContent||'';
   document.getElementById('tsImpInfo').innerHTML=
     `<b>${recs.length} Spiele</b> von ${escH(d.source||'turnier.de')} erhalten:<br>`+
-    `${open} offen · ${recs.length-open} bereits gespielt (werden übersprungen)`+
+    `${open} offen · ${recs.length-open} bereits gespielt – deren Ergebnis wird bei vorhandenen Spielen übernommen (→ „Übertragene Ergebnisse“)`+
     (noId?`<br>davon ${noId} noch ohne feste Paarung (Platzhalter) – werden beim nächsten Import aktualisiert`:'')+
     (tName?`<br><br>Ziel-Turnier: <b>${escH(tName.trim())}</b>`:'');
   try{ tsDlg.close(); }catch(e){}
@@ -2475,7 +2619,8 @@ async function tsImpDecide(ok){
 function tsParseLegacyHtml(text){
   const doc=new DOMParser().parseFromString(text,'text/html');
   const tb=doc.querySelector('table.ruler.matches > tbody') || doc.querySelector('table.matches > tbody');
-  if(!tb) throw new Error('Keine Spieltabelle gefunden – bitte die Seite „Spiele“ (legacymatches) speichern');
+  if(!tb && doc.querySelector('.match.match--list')) return tsParseNewHtml(doc, text);   // neue Turnierseite (/tournament/…/matches)
+  if(!tb) throw new Error('Keine Spieltabelle gefunden – bitte die Seite „Spiele“ (legacymatches oder /tournament/…/matches) speichern');
   // Spieltag aus dem aktiven Kalendertag bzw. aus den Spieldetail-Links (d=YYYYMMDD)
   const dm=(s)=>{ const x=/[?&;]d(?:=|%3d)(\d{8})/i.exec(s||''); return x?x[1]:null; };
   let ymd=null; const act=doc.querySelector('.tournamentcalendar a.active');
@@ -2509,12 +2654,64 @@ function tsParseLegacyHtml(text){
     const event=parts.join(' - '); const round=parts.slice(1).filter(p=>p!==parts[0]).join(' - ');
     const p1=side(tds[i+2]), p2=side(tds[i+4]);
     const score=clean(tds[i+5]&&tds[i+5].textContent);
+    const isWin=td=>!!(td && td.querySelector('strong, b, .winner, .match-winner'));
+    const lw=isWin(tds[i+2])?1:(isWin(tds[i+4])?2:null);
     const ca=tr.querySelector('a[href*="court.aspx"]'); const court=ca?clean(ca.textContent):'';
     const cn=/court\s*(\d+)/i.exec(court);
     const mi=tr.querySelector('a[href*="match-info/"]');
     const mm=mi?/match-info\/([0-9a-f]{8})[0-9a-f-]{28}\/(\d+)\/(\d+)/i.exec(mi.getAttribute('href')||''):null;
     out.push({ ext_key: mm?('ts:'+mm[1].toLowerCase()+':'+mm[2]+':'+mm[3]):null, event, round, time, sort_ts:dt.getTime(),
-      court, court_no: cn?Number(cn[1]):null, p1, p2, played: /\d/.test(score) || /w\.?\s?o\.?|walkover|aufgabe|ret/i.test(score) });
+      court, court_no: cn?Number(cn[1]):null, p1, p2, score:score||null, winner:lw,
+      played: /\d/.test(score) || /w\.?\s?o\.?|walkover|aufgabe|ret/i.test(score) });
+  });
+  return {url, ymd, matches:out};
+}
+// Neue turnier.de-Spieleseite (Listenansicht .match--list): Zeitblöcke mit Spielkarten, Ergebnis je Satz
+function tsParseNewHtml(doc, text){
+  const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+  const tab=doc.querySelector('a.js-date-selection-tab[aria-selected="true"]') || doc.querySelector('.page-nav__item--active a.js-date-selection-tab');
+  let ymd=tab ? (tab.getAttribute('data-value')||'') : '';
+  if(!/^\d{8}$/.test(ymd)){ const x=/\/matches\/(\d{8})/i.exec((tab&&tab.getAttribute('href'))||'') || /\/matches\/(\d{8})/i.exec(text); ymd=x?x[1]:''; }
+  if(!/^\d{8}$/.test(ymd)) throw new Error('Spieltag nicht erkennbar – bitte die Seite eines einzelnen Spieltags speichern');
+  const Y=+ymd.slice(0,4), M=+ymd.slice(4,6), D=+ymd.slice(6,8);
+  const tm=/https?:\/\/([a-z0-9.-]+)\/tournament\/([0-9a-f-]{36})/i.exec((tab&&tab.getAttribute('href'))||'') || /https?:\/\/([a-z0-9.-]+)\/tournament\/([0-9a-f-]{36})/i.exec(text);
+  const url=tm?('https://'+tm[1]+'/sport/legacymatches.aspx?id='+tm[2].toUpperCase()):null;
+  const side=(row)=>{
+    if(!row) return {name:'',country:''};
+    const as=[...row.querySelectorAll('.match__row-title-value-content a')];
+    let name=as.length ? as.map(a=>clean(a.textContent)).filter(Boolean).join(' / ') : clean((row.querySelector('.match__row-title-value-content')||{}).textContent);
+    const img=row.querySelector('img.icon-lang'); const a0=as[0];
+    const country=clean((img&&img.getAttribute('alt')) || (a0&&a0.getAttribute('data-nationality-id')) || '').toUpperCase();
+    const sm=/^(.*?)\s*\[(\d+(?:\/\d+)?)\]$/.exec(name);       // „Name [3/4]“ -> Setzung abtrennen (wie beim Skript-Import)
+    if(sm) return {name:sm[1], country, seed:sm[2]};
+    return {name, country};
+  };
+  const out=[];
+  doc.querySelectorAll('.match-group__wrapper').forEach(g=>{
+    const hm=/(\d{1,2}):(\d{2})/.exec(clean((g.querySelector('.match-group__header')||{}).textContent));
+    g.querySelectorAll('.match.match--list').forEach(mEl=>{
+      const items=[...mEl.querySelectorAll('.match__header-title-item')].map(x=>clean(x.textContent));
+      const event=items[0]||'', round=items[1]||'';
+      const rows=[...mEl.querySelectorAll('.match__body .match__row')];
+      const p1=side(rows[0]), p2=side(rows[1]);
+      let winner=null; rows.slice(0,2).forEach((r,i)=>{ if(r.classList.contains('has-won')) winner=i+1; });
+      const sets=[...mEl.querySelectorAll('.match__result ul.points')].map(ul=>{
+        const c=[...ul.querySelectorAll('.points__cell')].map(li=>parseInt(clean(li.textContent),10));
+        return (c.length>=2 && Number.isFinite(c[0]) && Number.isFinite(c[1])) ? [c[0],c[1]] : null; }).filter(Boolean);
+      const body=clean((mEl.querySelector('.match__body')||{}).textContent)+' '+clean((mEl.querySelector('.match__header-aside')||{}).textContent);
+      const wo=/walkover|kampflos|\bw\.\s?o\.?/i.test(body), ret=/retired|aufgabe|\bret\./i.test(body);
+      let score=sets.map(s=>s[0]+'-'+s[1]).join(' ');
+      if(wo) score=(score?score+' ':'')+'Walkover'; else if(ret) score=(score?score+' ':'')+'Ret.';
+      let court='', cn=null;
+      mEl.querySelectorAll('.match__footer-list-item, .match__header-aside-block').forEach(x=>{
+        if(court) return; const s=clean(x.textContent)+' '+(x.getAttribute('title')||''); const c=/court\s*(\d+)/i.exec(s);
+        if(c){ court='Court '+c[1]; cn=Number(c[1]); } });
+      let time=null, sort_ts=null;
+      if(hm){ time=`${String(D).padStart(2,'0')}.${String(M).padStart(2,'0')}.${Y} ${hm[1].padStart(2,'0')}:${hm[2]}`; sort_ts=new Date(Y,M-1,D,+hm[1],+hm[2]).getTime(); }
+      out.push({ ext_key:null, event, round, time, sort_ts, court:court||null, court_no:cn, p1, p2,
+        score:score||null, sets:sets.length?sets:null, winner,
+        played: sets.length>0 || wo || ret || (!!winner && !/now playing|läuft/i.test(body)) });
+    });
   });
   return {url, ymd, matches:out};
 }
