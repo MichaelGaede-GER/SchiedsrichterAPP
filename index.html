@@ -210,6 +210,7 @@
     border-radius:8px;padding:6px 6px;white-space:nowrap}
   .assignbtn:hover{background:#1b2b4d}
   .assignbtn.busy{border-color:var(--line);color:var(--muted);background:transparent;cursor:not-allowed}
+  .assignbtn .busyby{display:block;font-size:10px;font-weight:600;line-height:1.25;margin-top:2px;max-width:150px;white-space:normal;color:#ffb020}
   .emptyrow{padding:22px;text-align:center;color:var(--muted)}
 
   .done{display:grid;grid-template-columns:90px 1fr minmax(240px,auto) 190px;gap:14px;align-items:center;
@@ -1187,7 +1188,11 @@ function renderSched(){
   }
   el.innerHTML='';
   rows.forEach(m=>{
-    const busy=MATCHES.some(x=>x.court_id===m.court_no && x.status==='live');
+    const busyM=MATCHES.find(x=>x.court_id===m.court_no && x.status==='live' && x.id!==m.id);
+    const busy=!!busyM;
+    // Wer belegt den Court? (Anzeige im grauen Button + Tooltip)
+    const busyTxt=busyM ? ((busyM.player1_name||'offen')+' – '+(busyM.player2_name||'offen')) : '';
+    const busyFin=!!(busyM && busyM.state && busyM.state.status==='finished');
     const row=document.createElement('div');
     row.className='m'+(selectedMatch===m.id?' sel':'')+(m.highlight?' hl':''); row.draggable=true;
     row.innerHTML=`
@@ -1216,8 +1221,9 @@ function renderSched(){
       <div>${(typeof Auth!=='undefined' && !Auth.can('manage'))
         ? `<span style="color:var(--muted);font-size:11px">${m.court_label||(m.court_no?('C'+m.court_no):'')}</span>`
         : (m.court_no
-        ? `<button class="assignbtn ${busy?'busy':''}" ${busy?'disabled title="Court belegt"':''}
-             onclick="assign('${m.id}',${m.court_no})">▶ Court ${m.court_no}</button>`
+        ? (busy
+          ? `<button class="assignbtn busy" disabled title="Court ${m.court_no} belegt: ${escH(busyTxt)}${busyFin?' – Spiel beendet, Ergebnis noch nicht bestätigt':' – Spiel läuft'}">▶ Court ${m.court_no}<span class="busyby">${busyFin?'⏳ bestätigen: ':'belegt: '}${escH(busyTxt)}</span></button>`
+          : `<button class="assignbtn" onclick="assign('${m.id}',${m.court_no})">▶ Court ${m.court_no}</button>`)
         : `<span style="color:var(--muted);font-size:11px">ziehen</span>`)}</div>`;
     row.addEventListener('dragstart',e=>e.dataTransfer.setData('text/id',m.id));
     row.querySelector('.ev').addEventListener('click',()=>toggleSel(m.id));
