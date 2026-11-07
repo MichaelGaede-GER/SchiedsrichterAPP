@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tablet-Kontrolle</title>
+<style>
+  :root{--bg:#0d1117;--panel:#161c26;--line:#243247;--ink:#eef3fb;--muted:#8aa0bf;--blue:#1f6fff;--red:#e5484d;
+    --pill:#4aa3ff;--green:#7CFF9B;--gold:#ffd54a;--warn:#ffb020;--bad:#ff6b6b}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;
+    background:linear-gradient(180deg,#0f1724,#0d1117);border-bottom:1px solid var(--line)}
+  header h1{font-size:20px;margin:0;font-weight:900}
+  .chip{font-size:12.5px;font-weight:800;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .chip.ok{background:#0d1b12;border-color:#1f6b46;color:var(--green)}
+  .chip.bad{background:#2a0f12;border-color:#7a2a2f;color:var(--bad)}
+  .chip.warn{background:#2a1f08;border-color:#7a5a12;color:var(--warn)}
+  header .sp{flex:1}
+  select,.btn{background:#1a2434;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 11px;font:inherit;font-size:13px}
+  .btn{font-weight:800;cursor:pointer}
+  .btn:hover{border-color:#3a4f70}
+  .btn.blue{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn.green{background:#1f8f55;border-color:#1f8f55;color:#fff}
+  .btn.red{background:#5a1a1f;border-color:#7a2a2f;color:#ffd0d3}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  label.tg{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+  main{padding:16px 18px 40px}
+  .hint{color:var(--muted);font-size:13px;margin:0 0 14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--cardw,420px),1fr));gap:16px}
+  .venuehead{grid-column:1/-1;color:#8fd0ff;font-weight:900;font-size:16px;margin:6px 2px -4px}
+  .empty{color:var(--muted);padding:50px 0;text-align:center;font-size:16px}
+
+  /* ---- Karte ---- */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+  .card.alert{border-color:var(--bad);box-shadow:0 0 0 2px rgba(255,107,107,.35)}
+  .card.warnc{border-color:var(--warn)}
+  .chead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;font-size:12.5px;color:var(--muted)}
+  .chead b{color:var(--ink);font-size:14px}
+  .chead .sp{flex:1}
+
+  /* ---- Mini-Tablet (Nachbau von court.html) ---- */
+  .tab{container-type:inline-size;background:#000;position:relative;aspect-ratio:16/10;display:flex;flex-direction:column;
+    border-top:1px solid #000;border-bottom:1px solid #000;color:#fff;overflow:hidden}
+  .t-top{display:flex;align-items:center;gap:2cqw;padding:1.2cqw 2.4cqw;background:#111;flex:0 0 auto}
+  .t-court{font-weight:800;letter-spacing:.2cqw;font-size:3cqw}
+  .t-status{font-size:2.3cqw;color:#9fb3cc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .t-right{margin-left:auto;display:flex;gap:1.4cqw;align-items:center;font-size:2.2cqw;white-space:nowrap}
+  .t-net{font-weight:800;padding:.4cqw 1.6cqw;border-radius:99px;background:#0d1b12;border:1px solid #1f6b46;color:#7CFF9B}
+  .t-net.off{background:#2a0f12;border-color:#7a2a2f;color:#ff6b6b}
+  .t-clock{font-weight:800;color:#cfe0ff}
+  .t-names{display:grid;grid-template-columns:1fr 1fr;gap:2cqw;padding:1.6cqw 2.4cqw;flex:0 0 auto}
+  .t-pill{display:flex;align-items:center;gap:1.4cqw;border-radius:99px;padding:1.2cqw 2.4cqw;font-weight:800;
+    font-size:3.2cqw;background:var(--pill);color:#06172e;min-width:0}
+  .t-pill.r{justify-content:flex-end}
+  .t-pill .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .t-pill .sd{color:#0b3d75;font-size:.75em}
+  .t-pill .fl{width:5cqw;height:3.4cqw;border-radius:.4cqw;background-size:cover;background-position:center;flex:0 0 auto}
+  .t-cb{display:inline-flex;gap:.6cqw;margin-left:.6cqw}
+  .t-cb span{font-size:2cqw;font-weight:900;border-radius:.6cqw;padding:.1cqw .8cqw;background:#ffd23f;color:#241800}
+  .t-board{flex:1 1 auto;display:grid;grid-template-columns:1fr 8cqw 1fr;gap:2cqw;padding:0 2.4cqw 1.4cqw;min-height:0}
+  .t-panel{position:relative;border-radius:3cqw;display:flex;align-items:center;justify-content:center;background:#0b0b0b}
+  .t-panel.l{border:.8cqw solid var(--blue)} .t-panel.r{border:.8cqw solid var(--red)}
+  .t-score{font-weight:800;font-size:19cqw;line-height:1;font-variant-numeric:tabular-nums}
+  .t-serve{position:absolute;top:1.6cqw;width:8cqw;height:8cqw;border-radius:50%;background:#e9edf3;color:#0b0b0b;
+    display:flex;align-items:center;justify-content:center;font-weight:900;font-size:4.6cqw}
+  .t-panel.l .t-serve{left:1.8cqw} .t-panel.r .t-serve{right:1.8cqw}
+  .t-gb{position:absolute;top:1.8cqw;font-size:1.9cqw;font-weight:900;letter-spacing:.1cqw;padding:.5cqw 1.4cqw;border-radius:99px}
+  .t-panel.l .t-gb{right:1.8cqw} .t-panel.r .t-gb{left:1.8cqw}
+  .gb-game{background:#f2b134;color:#241800}.gb-match{background:#2fbf71;color:#052012}
+  .t-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2cqw}
+  .t-mid i{width:7cqw;height:7cqw;border-radius:50%;background:#2b2b2b;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:3cqw}
+  .t-mid i.b{background:var(--blue)}
+  .t-foot{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2cqw;padding:1cqw 2.4cqw 2cqw;flex:0 0 auto}
+  .t-games{display:flex;gap:1.2cqw;flex-wrap:wrap}
+  .t-games span{background:#151515;border:1px solid #2a2a2a;border-radius:1.2cqw;padding:.6cqw 1.6cqw;font-size:2.6cqw;font-weight:700}
+  .t-set{background:#151515;border:1px solid #2a2a2a;border-radius:99px;padding:1cqw 4cqw;font-weight:800;font-size:3.6cqw;font-variant-numeric:tabular-nums}
+  .t-ov{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;gap:2cqw;
+    padding:2.4cqw 2cqw;background:#070c14;border-top:2px solid #2f6bff;font-weight:900;font-size:3.4cqw;text-align:center}
+  .t-ov.done{border-color:#2fbf71}.t-ov.alert{border-color:#ff6b6b;color:#ffd0d3}
+  .t-ov small{font-weight:700;color:#9fb3cc;font-size:2.6cqw}
+  .t-idle{flex:1;display:flex;align-items:center;justify-content:center;color:#9fb3cc;font-size:3.4cqw;text-align:center;padding:4cqw}
+
+  /* ---- Abgleich + Steuerung ---- */
+  .sync{padding:8px 10px;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line)}
+  .sync.ok{color:var(--green)} .sync.bad{background:#2a0f12;color:#ffd0d3} .sync.warn{background:#2a1f08;color:#ffe2a8} .sync.info{color:var(--muted)}
+  .sync .sp{flex:1}
+  .ctrl{display:none;padding:10px;border-top:1px solid var(--line);background:#121925}
+  .ctrl.open{display:block}
+  .ctrl .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  .ctrl .row:last-child{margin-bottom:0}
+  .ctrl .lbl{font-size:12px;color:var(--muted);width:100%}
+  .cmdst{font-size:12.5px;color:var(--muted);padding:0 10px 8px}
+  .cmdst.ok{color:var(--green)} .cmdst.bad{color:var(--bad)}
+  .acts{display:flex;gap:8px;padding:8px 10px;border-top:1px solid var(--line);align-items:center;flex-wrap:wrap}
+  .acts .sp{flex:1}
+  .meta{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>📟 Tablet-Kontrolle</h1>
+  <span class="chip" id="tourChip">Turnier: …</span>
+  <span class="chip" id="liveChip">Verbinde…</span>
+  <span class="chip" id="cntChip">0 Courts</span>
+  <span class="sp"></span>
+  <select id="venueSel" onchange="render()" style="display:none"><option value="">Alle Locations</option></select>
+  <label class="tg"><input type="checkbox" id="showIdle" onchange="render()"> auch Tablets ohne Spiel</label>
+  <select id="sizeSel" onchange="setSize(this.value)" title="Kartengröße">
+    <option value="340">klein</option><option value="420" selected>mittel</option><option value="560">groß</option></select>
+  <a class="btn" href="index.html">← Verwaltung</a>
+</header>
+<main>
+  <p class="hint">Zeigt jedes Tablet so, wie der Schiedsrichter es gerade sieht – live vom Tablet, inklusive Punkten, die noch nicht im Dashboard gespeichert sind.
+    Weicht das Dashboard vom Tablet ab, wird die Karte <b style="color:var(--bad)">rot</b> markiert: dann „⇪ Stand senden“ drücken.</p>
+  <div class="grid" id="grid"><div class="empty">Lade…</div></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>window.__NO_APPVER=true;</script>
+<script src="store.js"></script>
+<script src="auth.js"></script>
+<script>
+// ===================== Daten =====================
+let TID=null, MATCHES=[], VENUES=[], ME='';
+const MIRROR={};          // key -> {p: Payload vom Tablet, rx: Empfangszeit}
+const CMD={};             // key -> {id,type,sentAt,res,resAt}
+const OPEN=new Set();     // geöffnete Steuer-Panels
+let ch=null, chReady=false;
+const FRESH_MS=15000;     // Tablet gilt als verbunden, wenn der letzte Spiegel jünger ist
+
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const keyOf=(court,venue)=>String(court)+'|'+(venue||'');
+function progress(st){ if(!st) return -1;
+  let n=((st.gamesWon1||0)+(st.gamesWon2||0))*100000;
+  (st.games||[]).forEach(g=>{ n+=((g.p1||0)+(g.p2||0))*1000; });
+  if(st.cur) n+=(st.cur.p1||0)+(st.cur.p2||0); return n; }
+function scoreLine(st){ if(!st) return '—';
+  const g=(st.games||[]).map(x=>x.p1+'-'+x.p2);
+  const cur=(st.cur && st.status!=='finished' && st.status!=='warmup') ? (' · '+(st.cur.p1||0)+':'+(st.cur.p2||0)) : '';
+  return (g.length?g.join(' '):'') + cur || '0:0'; }
+function ago(ms){ if(!ms) return '—'; const s=Math.max(0,Math.round((Date.now()-ms)/1000));
+  return s<60?(s+' s'):(s<3600?(Math.floor(s/60)+' min'):(Math.floor(s/3600)+' h')); }
+function fmt(s){ s=Math.max(0,Math.round(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+function flagUrl(code, region){
+  try{ const r=(typeof regionFlagUrl==='function')?regionFlagUrl(region,80):''; if(r) return r; }catch(e){}
+  if(!code) return ''; let c=String(code).toLowerCase().trim();
+  if(!/^[a-z]{2}$/.test(c) && !['eng','sct','wls'].includes(c)) c=(typeof countryToISO==='function'&&countryToISO(code))||'';
+  if(!c) return ''; const map={eng:'gb-eng',sct:'gb-sct',wls:'gb-wls'};
+  return 'https://flagcdn.com/h80/'+(map[c]||c)+'.png'; }
+function venueName(id){ const v=VENUES.find(x=>x.venue_id===id); return v?v.name:''; }
+
+async function load(){
+  try{
+    const all=await Store.listMatches();
+    MATCHES=all.filter(m=>m.status==='live' && m.court_id!=null);
+    setChip('liveChip', chReady?'ok':'warn', chReady?'● Live verbunden':'Dashboard ok · Tablet-Kanal verbindet…');
+  }catch(e){ setChip('liveChip','bad','Dashboard nicht erreichbar'); }
+  render();
+}
+let _ldT=null; function loadSoon(){ clearTimeout(_ldT); _ldT=setTimeout(load,250); }
+function setChip(id,cls,txt){ const e=document.getElementById(id); if(e){ e.className='chip '+(cls||''); e.textContent=txt; } }
+
+// ===================== Karten zusammenstellen =====================
+function buildCards(){
+  const cards={};
+  MATCHES.forEach(m=>{
+    const k=keyOf(m.court_id, m.venue_id||'');
+    cards[k]={key:k, court:Number(m.court_id), venue:m.venue_id||'', db:m};
+  });
+  const now=Date.now();
+  Object.keys(MIRROR).forEach(k=>{
+    const mi=MIRROR[k]; if(now-mi.rx>5*60000) return;             // länger als 5 min still -> weg
+    // gleiches Spiel ggf. unter anderem Schlüssel (Tablet ohne/mit Location)
+    let c=cards[k];
+    if(!c && mi.p.matchId){ c=Object.values(cards).find(x=>x.db && x.db.id===mi.p.matchId); }
+    if(!c && !mi.p.venue){ c=Object.values(cards).find(x=>x.court===Number(mi.p.court) && !x.mirror); }
+    if(!c){ c=cards[k]={key:k, court:Number(mi.p.court), venue:mi.p.venue||'', db:null}; }
+    c.mirror=mi;
+  });
+  return Object.values(cards);
+}
+function analyse(c){
+  const now=Date.now();
+  const mi=c.mirror, fresh=!!(mi && now-mi.rx<FRESH_MS);
+  const tabMatch=fresh && mi.p.matchId ? mi.p.matchId : null;
+  const same=!!(c.db && tabMatch && tabMatch===c.db.id);
+  const a={fresh, same, mi, db:c.db};
+  a.record = (fresh && mi.p.record) ? mi.p.record : c.db;
+  a.state  = (fresh && mi.p.state && (same || !c.db)) ? mi.p.state : (c.db ? c.db.state : null);
+  a.src    = (fresh && mi.p.state && (same || !c.db)) ? 'tablet' : 'db';
+  a.matchId= (c.db && c.db.id) || tabMatch;
+  // Abgleich Tablet <-> Dashboard
+  a.level='info'; a.msg='';
+  if(!c.db && fresh && tabMatch){ a.level='bad'; a.msg='Tablet schiedst ein Spiel, das im Dashboard nicht (mehr) auf diesem Court liegt.'; }
+  else if(!c.db && fresh){ a.level='info'; a.msg='Tablet bereit – kein Spiel zugewiesen.'; }
+  else if(c.db && !mi){ a.level='warn'; a.msg='Kein Live-Signal vom Tablet (alte Tablet-Version oder Tablet aus) – Anzeige aus dem Dashboard.'; }
+  else if(c.db && !fresh){ a.level='warn'; a.msg='Tablet seit '+ago(mi.rx)+' still – Anzeige aus dem Dashboard.'; }
+  else if(c.db && tabMatch && !same){ a.level='bad'; a.msg='Tablet zeigt ein ANDERES Spiel als das Dashboard.'; }
+  else if(c.db && fresh && !tabMatch){ a.level='bad'; a.msg='Dashboard: Spiel läuft auf diesem Court – Tablet zeigt aber kein Spiel.'; }
+  else if(same){
+    const pt=progress(mi.p.state), pd=progress(c.db.state);
+    const tFin=mi.p.state && mi.p.state.status==='finished';
+    const dFin=c.db.state && c.db.state.status==='finished';
+    if(pt>pd){ a.level='bad'; a.msg='Tablet ist weiter als das Dashboard: Tablet '+scoreLine(mi.p.state)+' · Dashboard '+scoreLine(c.db.state); }
+    else if(pt<pd){ a.level='warn'; a.msg='Dashboard ist weiter als das Tablet (Tablet '+scoreLine(mi.p.state)+').'; }
+    else if(tFin && (!dFin || !(c.db.winner==1||c.db.winner==2))){ a.level='bad'; a.msg='Match auf dem Tablet beendet – Endergebnis fehlt im Dashboard.'; }
+    else if(mi.p.pending){ a.level='warn'; a.msg='Tablet hat ungesendete Änderungen'+(mi.p.online?' – wird gerade gesendet…':' – Tablet offline.'); }
+    else { a.level='ok'; a.msg='✓ Tablet und Dashboard stimmen überein'; }
+  }
+  return a;
+}
+
+// ===================== Darstellung =====================
+const OVL={ ovWarmup:'Aufwärmen', ovRest:'Satzpause', ovConfirm:'Fragt: Ergebnis korrekt?', ovDone:'Match beendet',
+  ovInjury:'Verletzungspause', ovTie:'Begegnungs-Auswahl', ovMsg:'Nachricht der Turnierleitung offen', ovLet:'LET-Entscheidung',
+  ovDecide:'Entscheidung', ovTimer:'Timer-Menü', ovPenalty:'Strafe', ovShirt:'Shirt-Farbe' };
+function timerText(st){ const t=st&&st.timer; if(!t) return '';
+  const sec = t.running && t.endsAt ? (t.endsAt-Date.now())/1000 : (t.sec||0);
+  if(!t.running && !(sec>0)) return '';
+  return (t.label?t.label+' ':'')+fmt(sec); }
+// laufende Uhr: wird jede Sekunde per tick() aktualisiert, ohne die Karte neu zu zeichnen
+function timerSpan(st){ const t=st&&st.timer; const txt=timerText(st); if(!txt) return '';
+  if(t.running && t.endsAt) return `<span data-tend="${t.endsAt}" data-tlabel="${esc(t.label||'')}">${esc(txt)}</span>`;
+  return esc(txt); }
+function agoSpan(ms){ return `<span data-ago="${ms||0}">${ago(ms)}</span>`; }
+function statusText(st){ if(!st) return 'wartet'; return ({warmup:'Aufwärmen',playing:'läuft',between:'Satzpause',finished:'beendet'})[st.status]||st.status||''; }
+function cBadges(st,p){ const l=(st&&st.conduct&&st.conduct['p'+p])||[]; if(!l.length) return '';
+  const c={warning:0,stroke:0,game:0}; l.forEach(e=>{ if(c[e.type]!=null) c[e.type]++; });
+  let h=''; if(c.warning) h+='<span title="Verwarnung">⚠'+(c.warning>1?'×'+c.warning:'')+'</span>';
+  if(c.stroke) h+='<span title="Strafpunkt">P'+(c.stroke>1?'×'+c.stroke:'')+'</span>';
+  if(c.game) h+='<span title="Strafsatz">S'+(c.game>1?'×'+c.game:'')+'</span>';
+  return '<span class="t-cb">'+h+'</span>'; }
+function gameBall(st,p){ if(!st||st.status!=='playing') return '';
+  if(st['gameBall'+p]!=null) return st['gameBall'+p];
+  const N=11, me=st.cur['p'+p]||0, op=st.cur['p'+(p===1?2:1)]||0;
+  const gb=(me+1>=N)&&(me+1-op>=2); if(!gb) return '';
+  const need=Math.floor((st.bestOf||3)/2)+1; const won=(st['gamesWon'+p]||0);
+  return won===need-1?'match':'game'; }
+
+function tabletHtml(c,a){
+  const r=a.record, st=a.state;
+  const net = a.fresh ? (a.mi.p.online ? '<span class="t-net">🟢 Online</span>' : '<span class="t-net off">🔴 Offline</span>') : '';
+  if(!r){
+    return `<div class="tab"><div class="t-top"><div class="t-court">COURT ${c.court}</div><div class="t-right">${net}</div></div>
+      <div class="t-idle">Warte auf Spiel…</div></div>`;
+  }
+  const s=st||{status:'warmup',games:[],cur:{p1:0,p2:0},gamesWon1:0,gamesWon2:0,bestOf:r.best_of||3};
+  const cur=s.cur||{p1:0,p2:0};
+  const srv=cur.server, side=cur.side||'R';
+  const gb1=gameBall(s,1), gb2=gameBall(s,2);
+  const fl=(code,reg)=>{ const u=flagUrl(code,reg); return u?`<span class="fl" style="background-image:url('${u}')"></span>`:''; };
+  const sd=v=>v?` <span class="sd">[${esc(v)}]</span>`:'';
+  const tt=timerText(s), ts=timerSpan(s);
+  const games=(s.games||[]).map((g,i)=>`<span>S${i+1}: ${g.p1}-${g.p2}</span>`).join('');
+  // Was liegt gerade über dem Spielfeld?
+  let ov='';
+  const ovs=(a.src==='tablet' && a.mi.p.overlays)||[];
+  const main=ovs.find(x=>OVL[x]);
+  if(s.status==='finished' || ovs.includes('ovDone') || ovs.includes('ovConfirm')){
+    const w=s.matchWinner===1?r.player1_name:(s.matchWinner===2?r.player2_name:'');
+    const lock=(a.src==='tablet' && a.mi.p.locked)?' · 🔒 gesperrt':'';
+    ov=`<div class="t-ov done">🏆 ${esc(w||'?')} · ${s.gamesWon1||0}-${s.gamesWon2||0}<small>${esc(ovs.includes('ovConfirm')?OVL.ovConfirm:'Match beendet')}${lock}</small></div>`;
+  } else if(main){
+    ov=`<div class="t-ov ${main==='ovInjury'||main==='ovMsg'?'alert':''}">${esc(OVL[main])}${tt?` <small>${ts}</small>`:''}</div>`;
+  } else if(a.src==='db' && (s.status==='warmup' || s.status==='between')){
+    ov=`<div class="t-ov">${esc(statusText(s))}${tt?` <small>${ts}</small>`:''}</div>`;
+  }
+  const bat=(a.src==='tablet'?a.mi.p.battery:s.battery);
+  const batTxt=bat&&bat.level!=null?`<span title="Akku">${bat.charging?'⚡':'🔋'}${bat.level}%</span>`:'';
+  return `<div class="tab">
+    <div class="t-top">
+      <div class="t-court">COURT ${c.court}</div>
+      <div class="t-status">${esc(r.event||r.draw||'')} · ${esc(r.round||'')} · Bo${s.bestOf||r.best_of||3}</div>
+      <div class="t-right">${batTxt}${net}<span class="t-clock">${tt?ts:'—'}</span></div>
+    </div>
+    <div class="t-names">
+      <div class="t-pill">${fl(r.player1_country,r.player1_region)}<span class="tx">${esc(r.player1_name||'')}${sd(r.player1_seed)}</span>${cBadges(s,1)}</div>
+      <div class="t-pill r">${cBadges(s,2)}<span class="tx">${esc(r.player2_name||'')}${sd(r.player2_seed)}</span>${fl(r.player2_country,r.player2_region)}</div>
+    </div>
+    <div class="t-board">
+      <div class="t-panel l">${srv===1?`<div class="t-serve">${side}</div>`:''}${gb1?`<div class="t-gb gb-${gb1}">${gb1==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}<div class="t-score">${cur.p1||0}</div></div>
+      <div class="t-mid"><i>↶</i><i class="b">⏱</i></div>
+      <div class="t-panel r">${srv===2?`<div class="t-serve">${side}</div>`:''}${gb2?`<div class="t-gb gb-${gb2}">${gb2==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}<div class="t-score">${cur.p2||0}</div></div>
+    </div>
+    <div class="t-foot"><div class="t-games">${games}</div><div class="t-set">Satz ${s.gamesWon1||0} – ${s.gamesWon2||0}</div></div>
+    ${ov}
+  </div>`;
+}
+
+function cmdLine(c){
+  const x=CMD[c.key]; if(!x) return '';
+  const names={resend:'Stand senden',reload:'Neu laden',point:'Punkt',undo:'Undo',message:'Nachricht',ping:'Ping'};
+  if(x.res) return `<div class="cmdst ${/^(ok|gesendet|lädt neu)/.test(x.res)?'ok':'bad'}">Tablet: ${esc(names[x.type]||x.type)} → ${esc(x.res)} (vor ${agoSpan(x.resAt)})</div>`;
+  if(Date.now()-x.sentAt>8000) return `<div class="cmdst bad">${esc(names[x.type]||x.type)}: keine Antwort vom Tablet${x.viaDb?' (Befehl liegt im Dashboard bereit)':''}</div>`;
+  return `<div class="cmdst">⏳ ${esc(names[x.type]||x.type)} gesendet…</div>`;
+}
+
+function render(){
+  const g=document.getElementById('grid');
+  const vf=document.getElementById('venueSel').value;
+  const showIdle=document.getElementById('showIdle').checked;
+  let cards=buildCards().map(c=>({c,a:analyse(c)}));
+  cards=cards.filter(({c,a})=> (c.db || (a.fresh && (a.mi.p.matchId || showIdle))) && (!vf || c.venue===vf));
+  cards.sort((x,y)=>String(venueName(x.c.venue)).localeCompare(venueName(y.c.venue)) || x.c.court-y.c.court);
+  const bad=cards.filter(x=>x.a.level==='bad').length;
+  setChip('cntChip', bad?'bad':'', cards.length+' Court(s)'+(bad?(' · '+bad+' Abweichung'+(bad>1?'en':'')):''));
+  if(!cards.length){ g.innerHTML='<div class="empty">Keine aktiven Spiele auf den Courts.</div>'; _gridKeys=[]; _gridHtml={}; return; }
+  const multiVenue=new Set(cards.map(x=>x.c.venue)).size>1;
+  let lastV=null; const parts=[];
+  cards.forEach(({c,a})=>{
+    if(multiVenue && c.venue!==lastV){ lastV=c.venue; parts.push({key:'v:'+c.venue, html:`<div class="venuehead">🏟 ${esc(venueName(c.venue)||'ohne Location')}</div>`}); }
+    let html='';
+    const k=c.key.replace(/'/g,''), open=OPEN.has(c.key);
+    const canDb=!!c.db, playing=a.state && a.state.status==='playing';
+    const fin=a.state && a.state.status==='finished';
+    const metaDb=c.db?`Dashboard gespeichert vor ${agoSpan(Date.parse(c.db.updated_at||'')||0)}`:'nicht im Dashboard';
+    const metaTab=a.mi?`Tablet-Signal vor ${agoSpan(a.mi.rx)}${a.mi.p.ver?' · v'+esc(a.mi.p.ver):''}${a.mi.p.user?' · '+esc(a.mi.p.user):''}`:'kein Tablet-Signal';
+    html+=`<div class="card ${a.level==='bad'?'alert':(a.level==='warn'?'warnc':'')}">
+      <div class="chead"><b>Court ${c.court}</b>${c.venue&&!multiVenue?` · ${esc(venueName(c.venue))}`:''}
+        <span class="chip">${esc(statusText(a.state))}</span>
+        <span class="chip ${a.src==='tablet'?'ok':''}">${a.src==='tablet'?'Quelle: Tablet live':'Quelle: Dashboard'}</span>
+        <span class="sp"></span></div>
+      ${tabletHtml(c,a)}
+      <div class="sync ${a.level}">${a.level==='bad'?'⚠ ':''}${esc(a.msg)}<span class="sp"></span>
+        ${(a.level==='bad'||a.level==='warn')&&a.matchId?`<button class="btn green" onclick="cmd('${k}','resend')">⇪ Stand senden</button>`:''}</div>
+      ${cmdLine(c)}
+      <div class="acts">
+        <span class="meta">${metaDb}<br>${metaTab}</span><span class="sp"></span>
+        <button class="btn" onclick="cmd('${k}','resend')" ${a.matchId?'':'disabled'} title="Tablet schickt seinen aktuellen Stand erneut ans Dashboard">⇪ Stand senden</button>
+        <button class="btn ${open?'blue':''}" onclick="toggleCtrl('${k}')">✎ Steuern</button>
+      </div>
+      <div class="ctrl ${open?'open':''}">
+        <div class="row"><span class="lbl">Spielstand am Tablet ändern (wird am Tablet ausgeführt und gespeichert)</span>
+          <button class="btn" onclick="cmd('${k}','point',{who:1})" ${canDb&&playing?'':'disabled'}>+1 ${esc((a.record&&a.record.player1_name)||'Spieler 1')}</button>
+          <button class="btn" onclick="cmd('${k}','point',{who:2})" ${canDb&&playing?'':'disabled'}>+1 ${esc((a.record&&a.record.player2_name)||'Spieler 2')}</button>
+          <button class="btn red" onclick="cmd('${k}','undo')" ${canDb?'':'disabled'} title="${fin?'Auch nach Matchende möglich':'Letzten Punkt zurücknehmen'}">↶ Undo${fin?' (Matchende aufheben)':''}</button>
+        </div>
+        <div class="row"><span class="lbl">Tablet</span>
+          <button class="btn" onclick="cmd('${k}','reload')">⟳ Tablet neu laden</button>
+          <button class="btn" onclick="sendMsg('${k}')" ${canDb?'':'disabled'}>✉ Nachricht</button>
+          <button class="btn" onclick="cmd('${k}','ping')">📡 Ping</button>
+        </div>
+      </div>
+    </div>`;
+    parts.push({key:c.key, html});
+  });
+  patchGrid(g, parts);
+}
+// Nur geänderte Karten ersetzen -> keine verlorenen Klicks, kein Flackern
+let _gridKeys=[], _gridHtml={};
+function patchGrid(g, parts){
+  const keys=parts.map(p=>p.key);
+  const sameOrder = keys.length===_gridKeys.length && keys.every((k,i)=>k===_gridKeys[i]) && g.children.length===keys.length;
+  if(!sameOrder){
+    g.innerHTML=parts.map(p=>p.html).join('');
+  } else {
+    parts.forEach((p,i)=>{ if(_gridHtml[p.key]!==p.html){ const tmp=document.createElement('div'); tmp.innerHTML=p.html; g.replaceChild(tmp.firstElementChild, g.children[i]); } });
+  }
+  _gridKeys=keys; _gridHtml={}; parts.forEach(p=>_gridHtml[p.key]=p.html);
+}
+function tick(){
+  document.querySelectorAll('[data-ago]').forEach(e=>{ const v=Number(e.getAttribute('data-ago')); e.textContent=ago(v); });
+  document.querySelectorAll('[data-tend]').forEach(e=>{ const end=Number(e.getAttribute('data-tend')), l=e.getAttribute('data-tlabel')||'';
+    e.textContent=(l?l+' ':'')+fmt((end-Date.now())/1000); });
+}
+function toggleCtrl(k){ const key=findKey(k); if(OPEN.has(key)) OPEN.delete(key); else OPEN.add(key); render(); }
+function findKey(k){ return buildCards().map(c=>c.key).find(x=>x.replace(/'/g,'')===k) || k; }
+function setSize(v){ document.documentElement.style.setProperty('--cardw', v+'px'); try{ localStorage.setItem('ctrl_cardw',v); }catch(e){} }
+
+// ===================== Befehle =====================
+function newId(){ return 'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+async function cmd(k, type, extra){
+  const key=findKey(k);
+  const c=buildCards().find(x=>x.key===key); if(!c) return;
+  const a=analyse(c);
+  const who=extra&&extra.who, r=a.record||{};
+  if(type==='point' && !confirm(`Court ${c.court}: Punkt für ${who===2?r.player2_name:r.player1_name} am Tablet eintragen?`)) return;
+  if(type==='undo' && !confirm(`Court ${c.court}: Letzten Punkt am Tablet zurücknehmen?`+(a.state&&a.state.status==='finished'?'\n\nDas Match ist beendet – das Endergebnis wird dadurch wieder aufgehoben.':''))) return;
+  if(type==='reload' && !confirm(`Court ${c.court}: Tablet-Seite neu laden? Der Spielstand bleibt erhalten.`)) return;
+  const id=newId();
+  const payload=Object.assign({id, type, court:c.court, venue:c.venue||'', matchId:a.matchId||null, at:Date.now(), by:ME}, extra||{});
+  CMD[key]={id, type, sentAt:Date.now(), res:null, viaDb:false};
+  render(); setTimeout(render, 8200);   // „keine Antwort“ anzeigen
+  const safe=['resend','reload','ping'].includes(type);
+  if(safe && ch && chReady){ try{ await ch.send({type:'broadcast', event:'cmd', payload}); }catch(e){} }
+  // Spielstand-Befehle immer über die Datenbank; harmlose als Rückfall, falls das Tablet nicht antwortet
+  const viaDb=async()=>{
+    if(!c.db) return;
+    try{
+      let m=c.db; try{ m=await Store.getMatch(c.db.id) || m; }catch(e){}
+      const st=Object.assign({}, m.state||{}, {cmd:payload});
+      await Store.updateMatch(c.db.id, {state:st});
+      if(CMD[key] && CMD[key].id===id){ CMD[key].viaDb=true; render(); }
+    }catch(e){ if(CMD[key] && CMD[key].id===id){ CMD[key].res='Fehler: '+(e.message||e); CMD[key].resAt=Date.now(); render(); } }
+  };
+  if(!safe) await viaDb();
+  else if(type!=='ping') setTimeout(()=>{ const x=CMD[key]; if(x && x.id===id && !x.res) viaDb(); }, 3500);
+}
+async function sendMsg(k){
+  const key=findKey(k); const c=buildCards().find(x=>x.key===key); if(!c||!c.db) return;
+  const text=prompt('Nachricht an das Tablet auf Court '+c.court+':'); if(text==null) return;
+  const t=String(text).trim(); if(!t) return;
+  try{
+    let m=c.db; try{ m=await Store.getMatch(c.db.id) || m; }catch(e){}
+    const st=Object.assign({}, m.state||{}); st.message={text:t, at:Date.now()};
+    await Store.updateMatch(c.db.id,{state:st});
+    CMD[key]={id:newId(), type:'message', sentAt:Date.now(), res:'gesendet', resAt:Date.now()}; render();
+  }catch(e){ alert('Fehler: '+(e.message||e)); }
+}
+
+// ===================== Realtime: Spiegel vom Tablet =====================
+function initChannel(){
+  const sb=Store.client&&Store.client();
+  if(!sb||!sb.channel){ setChip('liveChip','bad','Kein Realtime (lokaler Modus)'); return; }
+  ch=sb.channel('mgtp-ctrl-'+(TID||'none'), {config:{broadcast:{self:false}}});
+  ch.on('broadcast',{event:'tablet'},msg=>{
+      const p=msg&&msg.payload; if(!p||p.court==null) return;
+      MIRROR[keyOf(p.court,p.venue||'')]={p, rx:Date.now()}; renderSoon();
+    })
+    .on('broadcast',{event:'ack'},msg=>{
+      const p=msg&&msg.payload; if(!p) return;
+      Object.keys(CMD).forEach(k=>{ if(CMD[k].id===p.id){ CMD[k].res=p.res||'ok'; CMD[k].resAt=Date.now(); } });
+      renderSoon();
+    })
+    .subscribe(st=>{ chReady=(st==='SUBSCRIBED');
+      setChip('liveChip', chReady?'ok':'warn', chReady?'● Live verbunden':('Tablet-Kanal: '+st)); });
+}
+let _rT=null; function renderSoon(){ if(_rT) return; _rT=setTimeout(()=>{ _rT=null; render(); },150); }
+
+// ===================== Start =====================
+(async function(){
+  try{ const v=localStorage.getItem('ctrl_cardw'); if(v){ setSize(v); document.getElementById('sizeSel').value=v; } }catch(e){}
+  await Auth.guard('manage');
+  ME=(Auth.user&&Auth.user()&&Auth.user().email)||'';
+  TID=await Store.ensureActiveTournament();
+  try{ const ts=await Store.listTournaments(); const t=ts.find(x=>x.id===TID); setChip('tourChip','', 'Turnier: '+(t?t.name:'— keins gewählt —')); }catch(e){}
+  if(!TID){ document.getElementById('grid').innerHTML='<div class="empty">Kein Turnier aktiv. Bitte in der Verwaltung ein Turnier wählen.</div>'; return; }
+  try{ VENUES=await Store.getTournamentVenues(TID); }catch(e){ VENUES=[]; }
+  if(VENUES.length>1){ const s=document.getElementById('venueSel'); s.style.display='';
+    s.innerHTML='<option value="">Alle Locations</option>'+VENUES.map(v=>`<option value="${esc(v.venue_id)}">🏟 ${esc(v.name)}</option>`).join(''); }
+  initChannel();
+  Store.subscribeAll(loadSoon);
+  await load();
+  setInterval(tick, 1000);            // Uhren + „vor X s“
+  setInterval(render, 3000);          // Signal-Frische / Zeitüberschreitungen neu bewerten
+  setInterval(load, 30000);           // Sicherheitsnetz, falls ein Realtime-Event verloren geht
+})();
+</script>
+</body>
+</html>

@@ -839,17 +839,30 @@ function buildLocal(){       // aktuellen Stand lokal festhalten (überlebt Offl
     finished:(M.status==='finished'?{result:M.resultString(),winner:M.matchWinner,score_text:M.setScores(),ending:M.ending||null}:null),
     rev:((OFF&&OFF.rev)||0)+1, savedAt:Date.now(), pending:true };
   offSave();
+  try{ sendMirror(); }catch(e){}
 }
 function setOnlineBadge(b){ ONLINE=!!b; const el=document.getElementById('netStatus');
   if(el){ el.textContent=b?'🟢 Online':'🔴 Offline'; el.className='netstat '+(b?'on':'off'); } }
+let _flushAgain=false;
 async function flush(){        // lokalen Stand hochladen, sobald möglich
-  if(!OFF||!OFF.pending||syncing) return; syncing=true;
+  if(!OFF||!OFF.pending) return;
+  if(syncing){ _flushAgain=true; return; }          // läuft schon -> danach sofort neuesten Stand nachsenden
+  syncing=true;
+  const sent=OFF, rev=sent.rev;                     // genau DIESEN Stand senden
+  let ok=false;
   try{
-    const patch={ state:OFF.state }; if(OFF.finished) Object.assign(patch, OFF.finished);
-    await Store.updateMatch(OFF.matchId, patch);
-    OFF.pending=false; offSave(); setOnlineBadge(true);
+    const patch={ state:sent.state }; if(sent.finished) Object.assign(patch, sent.finished);
+    await Store.updateMatch(sent.matchId, patch);
+    ok=true;
+    // Nur als erledigt markieren, wenn inzwischen kein neuerer Stand entstanden ist
+    // (vorher wurde hier der NEUERE Stand – z. B. der Matchball – fälschlich als gesendet markiert)
+    if(OFF && OFF.matchId===sent.matchId && OFF.rev===rev){ OFF.pending=false; offSave(); }
+    setOnlineBadge(true);
   }catch(e){ setOnlineBadge(false); }
   syncing=false;
+  const again=_flushAgain; _flushAgain=false;
+  if(ok && (again || (OFF && OFF.pending))) setTimeout(flush, 0);
+  try{ sendMirror(true); }catch(e){}
 }
 function flushThrottled(){ const now=Date.now(); if(now-_flushT>2500){ _flushT=now; flush(); } }
 async function sync(){ buildLocal(); await flush(); }          // Punkte/Statuswechsel
@@ -857,6 +870,98 @@ async function pushTimer(){ buildLocal(); flushThrottled(); }   // Timer-Ticks (
 window.addEventListener('online', ()=>{ setOnlineBadge(true); flush(); });
 window.addEventListener('offline', ()=>{ setOnlineBadge(false); });
 setInterval(()=>{ if(navigator.onLine!==false && OFF && OFF.pending) flush(); }, 5000); // Wiederholversuch
+
+// ================= KONTROLLSEITE: Spiegel + Fernsteuerung =================
+// Das Tablet schickt seinen aktuellen Stand (auch noch nicht gespeicherte Punkte) per Realtime-Broadcast
+// an kontrolle.html. Harmlose Befehle (Stand senden, Neu laden, Ping) kommen per Broadcast,
+// Befehle, die den Spielstand ändern (Punkt, Undo), nur über die Datenbank (state.cmd, Rechte per RLS).
+const CTRL_CH='mgtp-ctrl-'+(TID||'none');
+const CMD_DONE_KEY='squash_cmd_done';
+let ctrlCh=null, ctrlReady=false, _mirT=0, _mirTO=null;
+function cmdDoneList(){ try{ return JSON.parse(localStorage.getItem(CMD_DONE_KEY)||'[]'); }catch(e){ return []; } }
+function cmdMark(id){ try{ const a=cmdDoneList(); a.push(id); localStorage.setItem(CMD_DONE_KEY, JSON.stringify(a.slice(-60))); }catch(e){} }
+function shownOverlays(){
+  return ['ovWarmup','ovRest','ovConfirm','ovDone','ovInjury','ovTie','ovMsg','ovLet','ovDecide','ovTimer','ovPenalty','ovShirt']
+    .filter(id=>{ const e=document.getElementById(id); return e && e.classList.contains('show'); });
+}
+function mirrorState(){
+  if(!match||!M) return null;
+  const s=withTimer(M.serialize());
+  delete s.history; delete s.decisions; delete s.rallies;
+  s.games=(s.games||[]).map(g=>({p1:g.p1,p2:g.p2,winner:g.winner,conduct:g.conduct||undefined}));
+  s.gameBall1=(M.status==='playing')?(M.matchBall(1)?'match':(M.gameBall(1)?'game':'')):'';
+  s.gameBall2=(M.status==='playing')?(M.matchBall(2)?'match':(M.gameBall(2)?'game':'')):'';
+  return s;
+}
+function mirrorPayload(){
+  return { court:COURT, venue:VENUE||'', tid:TID, at:Date.now(), ver:(window.CONFIG&&window.CONFIG.APP_VERSION)||'',
+    online:ONLINE, pending:!!(OFF&&OFF.pending), rev:OFF?OFF.rev:0, savedAt:OFF?OFF.savedAt:null,
+    matchId:match?match.id:null, record:match?recordSnapshot(match):null, state:mirrorState(),
+    locked:!!finishLocked, overlays:shownOverlays(), battery:BATTERY, injury:!!injuryActive,
+    user:(typeof Auth!=='undefined'&&Auth.user&&Auth.user())?(Auth.user().email||''):'' };
+}
+function sendMirror(force){
+  if(!ctrlCh || !ctrlReady) return;
+  const now=Date.now();
+  if(!force && now-_mirT<400){ clearTimeout(_mirTO); _mirTO=setTimeout(()=>sendMirror(true),450); return; }
+  _mirT=now;
+  try{ ctrlCh.send({type:'broadcast', event:'tablet', payload:mirrorPayload()}); }catch(e){}
+}
+function ackCtrl(c,res){
+  if(!ctrlCh || !ctrlReady) return;
+  try{ ctrlCh.send({type:'broadcast', event:'ack', payload:{id:c.id, type:c.type, court:COURT, venue:VENUE||'', res, at:Date.now()}}); }catch(e){}
+}
+function initCtrl(){
+  const sb=(Store.client&&Store.client())||null; if(!sb || !sb.channel) return;
+  try{
+    ctrlCh=sb.channel(CTRL_CH, {config:{broadcast:{self:false}}});
+    ctrlCh.on('broadcast', {event:'cmd'}, (msg)=>onCtrlCmd(msg && msg.payload, 'bc'))
+          .subscribe(st=>{ ctrlReady=(st==='SUBSCRIBED'); if(ctrlReady) sendMirror(true); });
+  }catch(e){ ctrlCh=null; }
+  setInterval(()=>sendMirror(true), 5000);                 // Herzschlag (auch Overlay-/Akku-Wechsel)
+}
+async function onCtrlCmd(c, src){
+  if(!c || !c.id || !c.type) return;
+  if(src==='bc'){
+    if(Number(c.court)!==COURT) return;
+    if(c.venue && VENUE && c.venue!==VENUE) return;
+    if(['ping','resend','reload'].indexOf(c.type)<0) return;        // Spielstand nur über die Datenbank ändern
+  } else {
+    if(c.at && Math.abs(Date.now()-c.at) > 120000) { cmdMark(c.id); return; }  // altes Kommando ignorieren
+  }
+  if(c.type==='ping'){ ackCtrl(c,'ok'); sendMirror(true); return; }
+  if(cmdDoneList().indexOf(c.id)>=0){ ackCtrl(c,'ok'); return; }   // schon ausgeführt (z. B. Broadcast + DB)
+  cmdMark(c.id);
+  if(c.matchId && match && c.matchId!==match.id){ ackCtrl(c,'anderes Spiel'); return; }
+  let res='ok';
+  try{
+    if(c.type==='resend'){
+      if(match && M){ buildLocal(); await flush(); res=(OFF&&OFF.pending)?'noch nicht gespeichert – wird wiederholt':'gesendet'; }
+      else res='kein Spiel auf dem Tablet';
+    } else if(c.type==='reload'){
+      ackCtrl(c,'lädt neu'); setTimeout(()=>location.reload(), 500); return;
+    } else if(c.type==='point'){
+      if(!M) res='kein Spiel';
+      else if(M.status!=='playing') res='Satz läuft nicht ('+M.status+')';
+      else { M.point(Number(c.who)===2?2:1); afterChange(); toast('Turnierleitung: Punkt korrigiert'); }
+    } else if(c.type==='undo'){
+      if(!M) res='kein Spiel';
+      else {
+        const wasFinished=(M.status==='finished');
+        if(finishLocked || wasFinished){ resetFinishState(); refConfirmed=false; }   // Turnierleitung darf auch nach Matchende zurücknehmen
+        if(M.undo()){
+          hide('ovDone'); hide('ovConfirm'); hide('ovRest'); afterChange();
+          if(wasFinished && M.status!=='finished'){   // bereits gemeldetes Endergebnis im Dashboard wieder entfernen
+            try{ await Store.updateMatch(match.id,{result:null, winner:null, score_text:null, ending:null}); }catch(e){}
+          }
+          toast('Turnierleitung: letzter Punkt zurückgenommen');
+        }
+        else res='nichts zum Zurücknehmen';
+      }
+    } else res='unbekannt';
+  }catch(e){ res='Fehler: '+(e.message||e); }
+  ackCtrl(c,res); sendMirror(true);
+}
 
 // ============ RENDER ============
 function render(){
@@ -1321,7 +1426,15 @@ function afterChange(){
 }
 
 // ============ LADEN / REALTIME ============
+let _dbCmd=null;
 async function loadCourt(){
+  _dbCmd=null;
+  await loadCourtCore();
+  const c=_dbCmd; _dbCmd=null;
+  if(c) onCtrlCmd(c,'db');
+  try{ sendMirror(); }catch(e){}
+}
+async function loadCourtCore(){
   let list=null;
   try{ list=await Store.listMatches(); setOnlineBadge(true); }
   catch(e){ setOnlineBadge(false); list=null; }
@@ -1366,6 +1479,7 @@ async function loadCourt(){
   TIE = (TEAM_ON() && live.tie_id) ? (ALLTIES.find(t=>t.id===live.tie_id)||null) : null;
   hide('ovTie');
   const isNew=!match || match.id!==live.id;
+  if(live.state && live.state.cmd && live.state.cmd.id) _dbCmd=Object.assign({matchId:live.id}, live.state.cmd);   // Kommando der Kontrollseite
 
   // Physio von der Turnierleitung bestätigt -> lokale Anforderung löschen
   if(live.state && live.state.physio && live.state.physio.ack && PHYSIO){ PHYSIO=null; toast('✔ Physio bestätigt'); }
@@ -1378,6 +1492,14 @@ async function loadCourt(){
   if(OFF && OFF.matchId===live.id && OFF.pending && progress(OFF.state) >= progress(live.state)){
     applyFrom(live, OFF.state, isNew);
     flush();                 // lokalen Stand hochladen
+    return;
+  }
+
+  // SCHUTZ: Server hat einen ÄLTEREN Stand als dieses Tablet (z. B. verspätete Rückmeldung
+  // des vorletzten Punkts) -> eigenen Stand behalten und erneut senden statt ihn zu verwerfen
+  if(!isNew && M && match && match.id===live.id && progress(M.serialize()) > progress(live.state)){
+    applyFrom(live, null, false);
+    buildLocal(); flush();
     return;
   }
 
@@ -1540,6 +1662,7 @@ function hideAll(){ ['ovWarmup','ovLet','ovDecide','ovTimer','ovRest','ovConfirm
 
 async function refreshSettings(){ SETTINGS=await Store.getSettings(); applyBranding(); loadCourt(); }
 Auth.guard('score').then(()=>{
+  try{ initCtrl(); }catch(e){}
   Store.subscribeAll(loadCourt);
   try{ Store.subscribeTies(loadCourt); }catch(e){}
   Store.subscribeSettings(refreshSettings);
