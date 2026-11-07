@@ -117,6 +117,7 @@
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
   body.role-readonly .manage-only{display:none!important}
   .toolbar .spacer{flex:1}
+  select.filter.dayon{border-color:#ffb020;box-shadow:0 0 0 1px #ffb020 inset;font-weight:700}
   input.search,select.filter{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
     border-radius:8px;padding:8px 10px;font:inherit}
   input.search{min-width:180px}
@@ -346,6 +347,7 @@
   <div id="panelSched">
     <div class="toolbar">
       <input id="search" class="search" placeholder="Suche Spieler / Event…" oninput="render()">
+      <select id="dayFilter" class="filter" onchange="setDayFilter(this.value)" title="Nur Spiele eines Turniertags anzeigen"><option value="">Alle Tage</option></select>
       <select id="courtFilter" class="filter" onchange="render()"><option value="">Alle Courts</option></select>
       <div class="spacer"></div>
       <button class="btn-primary btn-sm manage-only" onclick="fileInput.click()">⬆ XLSX importieren</button>
@@ -1104,11 +1106,42 @@ function importFlagBadge(m){
   if(fl==='same') return '<span class="impflag fsame">✓ unverändert</span>';
   return '';
 }
+// ---- Turniertag-Filter (Tag 1 / Tag 2 / …) ----
+// Tag eines Spiels: aus sort_ts, sonst aus „dd.mm.yyyy“ in der Zeitangabe
+function dayKeyOf(m){
+  if(m && m.sort_ts){ const d=new Date(m.sort_ts); if(!isNaN(d)) return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  const x=/(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(String(m&&m.scheduled_time||''));
+  return x ? x[3]+'-'+x[2].padStart(2,'0')+'-'+x[1].padStart(2,'0') : '';
+}
+let DAY_FILTER=''; try{ DAY_FILTER=localStorage.getItem('mgtp_dayFilter')||''; }catch(e){}
+function setDayFilter(v){ DAY_FILTER=v||''; try{ localStorage.setItem('mgtp_dayFilter',DAY_FILTER); }catch(e){} render(); }
+function fillDayFilter(){
+  const sel=document.getElementById('dayFilter'); if(!sel) return;
+  const pool=MATCHES.filter(m=>!(TEAM_MODE && m.tie_id));
+  const days=[...new Set(pool.map(dayKeyOf).filter(Boolean))].sort();          // Tag 1 = frühester Spieltag
+  const open=m=>!m.court_id && m.status==='scheduled';
+  const WD=['So','Mo','Di','Mi','Do','Fr','Sa'];
+  if(DAY_FILTER && DAY_FILTER!=='none' && !days.includes(DAY_FILTER)) DAY_FILTER='';   // gespeicherter Tag gehört nicht zu diesem Turnier
+  const noDay=pool.filter(m=>open(m) && !dayKeyOf(m)).length;
+  let html=`<option value="">Alle Tage (${pool.filter(open).length})</option>`;
+  days.forEach((k,i)=>{
+    const [y,mo,d]=k.split('-').map(Number); const wd=WD[new Date(y,mo-1,d).getDay()];
+    const n=pool.filter(m=>open(m) && dayKeyOf(m)===k).length;
+    html+=`<option value="${k}">Tag ${i+1} · ${wd} ${String(d).padStart(2,'0')}.${String(mo).padStart(2,'0')}. (${n})</option>`;
+  });
+  if(noDay) html+=`<option value="none">ohne Termin (${noDay})</option>`;
+  if(sel.innerHTML!==html) sel.innerHTML=html;
+  sel.value=DAY_FILTER;
+  sel.style.display = (days.length>1 || noDay) ? '' : 'none';                  // nur zeigen, wenn es etwas zu wählen gibt
+  sel.classList.toggle('dayon', !!DAY_FILTER);
+}
 function renderSched(){
   const el=document.getElementById('sched');
   const q=(document.getElementById('search').value||'').toLowerCase().trim();
   const cf=document.getElementById('courtFilter').value;
+  fillDayFilter();
   let rows=MATCHES.filter(m=>!m.court_id && m.status==='scheduled' && !(TEAM_MODE && m.tie_id));
+  if(DAY_FILTER) rows=rows.filter(m=>DAY_FILTER==='none' ? !dayKeyOf(m) : dayKeyOf(m)===DAY_FILTER);
   if(cf) rows=rows.filter(m=>String(m.court_no)===cf);
   if(q) rows=rows.filter(m=>(`${m.player1_name} ${m.player2_name} ${m.event||m.draw||''}`).toLowerCase().includes(q));
   rows.sort((a,b)=> natCmp(a.match_no,b.match_no) || (a.sort_ts||0)-(b.sort_ts||0));   // natürlich nach #Nr, dann Zeit
@@ -1121,7 +1154,9 @@ function renderSched(){
         '<span style="color:var(--muted)">Entweder ist die Datenbank leer (dann importieren) – oder die Row-Level-Security blockiert das Lesen. '+
         'Führe <b>supabase-schema.sql</b> erneut aus (Abschnitt 5 legt die Lese-Policy an).</span></div>';
     } else {
-      el.innerHTML='<div class="emptyrow">Keine offenen Ansetzungen. Über „⬆ XLSX importieren“ oder „+ Spiel“ anlegen.</div>';
+      el.innerHTML = (DAY_FILTER && MATCHES.some(m=>!m.court_id && m.status==='scheduled'))
+        ? '<div class="emptyrow">Keine offenen Spiele an diesem Tag. Oben bei „Alle Tage“ einen anderen Tag wählen.</div>'
+        : '<div class="emptyrow">Keine offenen Ansetzungen. Über „⬆ XLSX importieren“ oder „+ Spiel“ anlegen.</div>';
     }
     return;
   }
