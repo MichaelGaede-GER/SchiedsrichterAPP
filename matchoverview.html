@@ -70,11 +70,13 @@
   .ls .st{font-size:1.45vh;font-weight:900;letter-spacing:.08em;color:var(--muted)}
   .dot{width:.9vh;height:.9vh;border-radius:50%;background:var(--live);animation:bl 1.4s infinite;flex:0 0 auto}
   @keyframes bl{50%{opacity:.25}}
+  .mover{position:fixed;left:.6vw;bottom:.3vh;z-index:5;font:700 1.3vh "Segoe UI",Arial,sans-serif;color:rgba(255,255,255,.35);letter-spacing:.04em;pointer-events:none}
   .livebg{background:linear-gradient(90deg,rgba(255,75,75,.16),rgba(255,75,75,.03)) !important}
 </style>
 </head>
 <body>
 <div id="app">
+  <div id="mover" class="mover"></div>
   <div id="bg"></div>
   <div class="hd">
     <img id="logo" class="hd-logo" alt="" style="display:none">
@@ -103,6 +105,9 @@
 <script>
 // Match Overview: rechts angesetzte Spiele (Zeit -> Court), links laufende + beendete Spiele.
 // Je Spalte max. 30 Zeilen; links teilen sich laufende und beendete Spiele die 30 Plätze.
+// Versionsnummer der Match Overview – bei jedem Update hochzählen (unten links sichtbar)
+const MO_VERSION='MO 1.4';
+document.getElementById('mover').textContent=MO_VERSION;
 const MAX=21;   // Zeilen je Spalte bei 3,9vh Zeilenhöhe (links teilen sich laufende + beendete Spiele die Plätze)
 const params=new URLSearchParams(location.search);
 const VENUE=params.get('loc')||null;
@@ -242,20 +247,25 @@ function fitNames(){
 }
 
 // Turniername immer passend: erst einzeilig verkleinern (4,6vh -> 3vh),
-// reicht das nicht, zweizeilig umbrechen und wieder so groß wie möglich (max. 3,8vh, min. 1,9vh)
+// reicht das nicht, zweizeilig umbrechen und wieder so groß wie möglich (max. 3,8vh, min. 1,9vh).
+// Browser messen auf ganze Pixel gerundet -> am Ende 2 % Luft, damit sicher keine „…“ entstehen.
 function fitTitle(){
   const el=document.getElementById('tname'); if(!el) return;
   const vh=window.innerHeight/100;
-  const fits=()=>el.scrollWidth<=el.clientWidth+1 && el.scrollHeight<=el.clientHeight+1;
-  const best=(lo,hi)=>{ el.style.fontSize=hi+'px'; if(fits()) return hi;
-    for(let i=0;i<14;i++){ const mid=(lo+hi)/2; el.style.fontSize=mid+'px'; if(fits()) lo=mid; else hi=mid; }
-    el.style.fontSize=lo+'px'; return lo; };
+  const fitW=()=>el.scrollWidth<=el.clientWidth;
+  const fitH=()=>el.scrollHeight<=el.clientHeight+1;
+  const best=(lo,hi,ok)=>{ el.style.fontSize=hi+'px'; if(ok()) return hi;
+    for(let i=0;i<14;i++){ const mid=(lo+hi)/2; el.style.fontSize=mid+'px'; if(ok()) lo=mid; else hi=mid; }
+    return lo; };
   el.classList.remove('two');
-  best(3*vh, 4.6*vh);
-  if(fits()) return;
+  let f=best(3*vh, 4.6*vh, fitW);
+  el.style.fontSize=f+'px';
+  if(fitW()){ if(el.scrollWidth>=el.clientWidth-1) el.style.fontSize=(f*0.98)+'px'; return; }   // knapp -> etwas Luft
   el.classList.add('two');
-  best(1.9*vh, 3.8*vh);
+  f=best(1.9*vh, 3.8*vh, ()=>fitH() && fitW());
+  el.style.fontSize=(f*0.98)+'px';
 }
+function titleOverflows(){ const el=document.getElementById('tname'); return !!el && (el.scrollWidth>el.clientWidth || el.scrollHeight>el.clientHeight+1); }
 let TNAME='';   // Name des aktiven Turniers (Fallback, wenn kein Anzeigename gesetzt ist)
 function paintHead(){
   const sn=String((SET&&SET.tournamentName)||'').trim();
@@ -295,6 +305,7 @@ window.addEventListener('resize',()=>requestAnimationFrame(()=>{ fitNames(); fit
 if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>fitTitle());   // nach dem Laden der Schrift neu messen
 // Logo lädt oft erst nach dem Namen -> danach neu anpassen; zusätzlich bei jeder Größenänderung des Namensfelds
 document.getElementById('logo').addEventListener('load',()=>requestAnimationFrame(fitTitle));
+setInterval(()=>{ const el=document.getElementById('tname'); if(titleOverflows()) fitTitle(); },2000);   // Sicherheitsnetz
 if(window.ResizeObserver){ let _fw=0;
   new ResizeObserver(es=>{ const w=Math.round(es[0].contentRect.width); if(w!==_fw){ _fw=w; requestAnimationFrame(fitTitle); } })
     .observe(document.getElementById('tname')); }
