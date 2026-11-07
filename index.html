@@ -1731,7 +1731,8 @@ async function importRecs(recs){
     // turnier.de: Platzhalter-Spiele (noch ohne Match-ID), die es an diesem Tag so nicht mehr gibt
     // (verschoben oder inzwischen mit Match-ID gekommen) -> entfernen, damit keine Leichen bleiben
     const dayOfTs=t=>t?new Date(t).toDateString():'';
-    const tsDays=new Set(recs.filter(r=>r.ext_key && r.sort_ts).map(r=>dayOfTs(r.sort_ts)));
+    // nur Tage aufräumen, für die die Quelle auch Platzhalter-Spiele mitliefert (altes Skript liefert keine -> nichts löschen)
+    const tsDays=new Set(recs.filter(r=>r.ext_key && String(r.ext_key).startsWith('tsslot:') && r.sort_ts).map(r=>dayOfTs(r.sort_ts)));
     if(tsDays.size){
       before.forEach(m=>{
         if(String(m.import_key||'').startsWith('tsslot:') && m.status==='scheduled' && !m.court_id
@@ -2392,14 +2393,17 @@ async function tsReceiveImport(d, src){
   if(!list.length){ toast('Keine Spiele im Import'); return; }
   // Auch Spiele OHNE Match-ID / ohne Spieler übernehmen (Platzhalter wie „Verlierer Q2“, offene Gruppenspiele).
   // Die bekommen einen Slot-Schlüssel (Tag+Zeit+Court+Konkurrenz) und werden beim nächsten Import aufgelöst.
-  const pl=(p)=>{ if(p && typeof p==='object') return {name:String(p.name||'').trim(),country:String(p.country||''),seed:p.seed||null};
-                  return {name:String(p||'').trim(),country:'',seed:null}; };
+  const pl=(p)=>{ const o=(p && typeof p==='object') ? p : {name:p};
+    let name=String(o.name||'').trim(), seed=o.seed||null;
+    const sm=/^(.*?)\s*\[(\d+(?:\/\d+)?)\]$/.exec(name);              // „Maya Weishar [1]“ -> Name + Setzung
+    if(sm){ name=sm[1]; seed=seed||sm[2]; }
+    return {name, country:String(o.country||''), seed}; };
   const recs=list.filter(m=>m && (m.ext_key || m.time || m.sort_ts)).map(m=>{
     const sort_ts=(typeof m.sort_ts==='number'?m.sort_ts:(m.time?parseTimeMs(m.time):null));
     const court_no=(m.court_no!=null?Number(m.court_no):(m.court?courtToNo(m.court):null));
     const nrm=s=>String(s==null?'':s).toLowerCase().replace(/\s+/g,' ').trim();
     const ext_key=m.ext_key ? String(m.ext_key)
-      : ('tsslot:'+(sort_ts||nrm(m.time))+'|'+(court_no!=null?court_no:nrm(m.court))+'|'+nrm(m.event)+'|'+nrm(m.round));
+      : ('tsslot:'+(sort_ts||nrm(m.time))+'|'+(court_no!=null?court_no:nrm(m.court))+'|'+nrm(m.event));   // ohne Runde: Skript kennt sie bei Platzhaltern nicht
     return { ext_key, event:String(m.event||''), round:String(m.round||''), nr:null,
       time:m.time||null, sort_ts, court:m.court||null, court_no,
       p1:pl(m.p1), p2:pl(m.p2), played:!!m.played };
@@ -2444,7 +2448,6 @@ function tsParseLegacyHtml(text){
   if(!ymd){ const a=doc.querySelector('a[href*="match-info/"]'); if(a) ymd=dm(decodeURIComponent(a.getAttribute('href')||'')); }
   const idm=/[?&]id=([0-9a-f-]{36})/i.exec((act&&act.getAttribute('href'))||'') || /match-info\/([0-9a-f-]{36})/i.exec(text);
   const url=idm?('https://'+((/https?:\/\/([a-z0-9.-]+)\/sport\//i.exec(text)||[])[1]||'dsqv.turnier.de')+'/sport/legacymatches.aspx?id='+idm[1].toUpperCase()):null;
-  const WD=['So','Mo','Di','Mi','Do','Fr','Sa'];
   const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
   const side=(td)=>{
     if(!td) return {name:'',country:''};
@@ -2464,17 +2467,18 @@ function tsParseLegacyHtml(text){
     const hm=/(\d{1,2}):(\d{2})/.exec(tCell.textContent||''); if(!hm || !ymd) return;
     const Y=+ymd.slice(0,4), M=+ymd.slice(4,6), D=+ymd.slice(6,8);
     const dt=new Date(Y,M-1,D,+hm[1],+hm[2]);
-    const time=`${WD[dt.getDay()]} ${String(D).padStart(2,'0')}.${String(M).padStart(2,'0')}.${Y} ${hm[1].padStart(2,'0')}:${hm[2]}`;
+    const time=`${String(D).padStart(2,'0')}.${String(M).padStart(2,'0')}.${Y} ${hm[1].padStart(2,'0')}:${hm[2]}`;
     // Konkurrenz: „Herren B - Qualifikation“ -> Event „Herren B“, Runde „Qualifikation“
     const parts=clean(tds[i+1]&&tds[i+1].textContent).split(' - ').map(clean).filter(Boolean);
-    const event=parts[0]||''; const round=parts.slice(1).filter(p=>p!==event).join(' - ');
+    // Format wie das Tampermonkey-Skript: Event = kompletter Konkurrenzname, Runde = Teil nach „ - “
+    const event=parts.join(' - '); const round=parts.slice(1).filter(p=>p!==parts[0]).join(' - ');
     const p1=side(tds[i+2]), p2=side(tds[i+4]);
     const score=clean(tds[i+5]&&tds[i+5].textContent);
     const ca=tr.querySelector('a[href*="court.aspx"]'); const court=ca?clean(ca.textContent):'';
     const cn=/court\s*(\d+)/i.exec(court);
     const mi=tr.querySelector('a[href*="match-info/"]');
-    const mm=mi?/match-info\/[0-9a-f-]{36}\/(\d+)\/(\d+)/i.exec(mi.getAttribute('href')||''):null;
-    out.push({ ext_key: mm?('ts:'+mm[1]+'-'+mm[2]):null, event, round, time, sort_ts:dt.getTime(),
+    const mm=mi?/match-info\/([0-9a-f]{8})[0-9a-f-]{28}\/(\d+)\/(\d+)/i.exec(mi.getAttribute('href')||''):null;
+    out.push({ ext_key: mm?('ts:'+mm[1].toLowerCase()+':'+mm[2]+':'+mm[3]):null, event, round, time, sort_ts:dt.getTime(),
       court, court_no: cn?Number(cn[1]):null, p1, p2, played: /\d/.test(score) || /w\.?\s?o\.?|walkover|aufgabe|ret/i.test(score) });
   });
   return {url, ymd, matches:out};
