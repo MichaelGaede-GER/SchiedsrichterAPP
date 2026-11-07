@@ -631,6 +631,8 @@ function isPlaceholder(name){
   const kw=['verlierer','gewinner','sieger','winner','loser','qualifik','qualifi','quali','qualification','qualifikation','tbd','n.n'];
   if(kw.some(k=>s.includes(k))) return true;
   if(/\bw\s?\d/.test(s) || /\bl\s?\d/.test(s)) return true;   // W1 / L2 …
+  if(/\b(gruppe|group|pool)\b/.test(s) || /#\s?\d/.test(s)) return true;   // „Gruppe A #3“ (Gruppenplatz, noch offen)
+  if(/^(offen|open|bye|freilos|-+|—)$/.test(s)) return true;
   if(s.includes('/')) return true;                              // zwei Namen (noch offen)
   return false;
 }
@@ -1807,6 +1809,7 @@ async function importRecs(recs){
     const knownInApp=(r,p1,p2)=>MATCHES.some(m=>{
       if(r.ext_key && m.import_key===r.ext_key) return true;
       if(!realNames(m.player1_name,m.player2_name) || pk(m.player1_name,m.player2_name)!==pk(p1.name,p2.name)) return false;
+      const ik=String(m.import_key||''); if(r.ext_key && ik.startsWith('ts:') && ik!==r.ext_key) return false;   // andere Match-ID = anderes Spiel
       return !r.sort_ts || !m.sort_ts || dayKey(m.sort_ts)===dayKey(r.sort_ts);   // gleiche Paarung am selben Tag = dasselbe Spiel
     });
     const phPool=MATCHES.filter(m=>m.status==='scheduled' && !m.court_id && matchHasMissing(m)
@@ -1829,10 +1832,22 @@ async function importRecs(recs){
       const takenPh=new Set();
       cands.forEach(c=>{ if(phFor.has(c.r) || takenPh.has(c.m.id)) return; phFor.set(c.r,c.m); takenPh.add(c.m.id); });
     }
+    // Namens-Treffer nur, wenn es wirklich dasselbe Spiel sein kann: keine ANDERE turnier.de-Match-ID
+    // und gleicher Tag (dieselbe Paarung kann im Turnier mehrfach vorkommen, z. B. Runde 1 und Platzierung)
+    const nameOk=(m,r)=>{
+      const ik=String(m.import_key||'');
+      if(r.ext_key && ik.startsWith('ts:') && ik!==r.ext_key) return false;
+      if(r.sort_ts && m.sort_ts && dayKey(m.sort_ts)!==dayKey(r.sort_ts)) return false;
+      return true;
+    };
     const findTs=(r,p1,p2)=>{
       const tryM=m=>(m && !usedIds.has(m.id)) ? m : null;
       let ex=tryM(byExt[r.ext_key]);
-      if(!ex && realNames(p1.name,p2.name)) ex=tryM(byNames[nk(r.event,p1.name,p2.name)]) || tryM(byPair[pk(p1.name,p2.name)]);
+      if(!ex && realNames(p1.name,p2.name)){
+        const c=MATCHES.filter(m=>!usedIds.has(m.id) && realNames(m.player1_name,m.player2_name)
+          && pk(m.player1_name,m.player2_name)===pk(p1.name,p2.name) && nameOk(m,r));
+        ex=c.find(m=>norm(m.event)===norm(r.event)) || c[0] || null;
+      }
       if(!ex){ const s=tryM(bySlot[slotOf(r.sort_ts,r.court_no)]); if(s && slotCompatible(s,p1,p2) && slotEventOk(s,r)) ex=s; }
       if(!ex){ const ph=phFor.get(r); if(ph && !usedIds.has(ph.id)) ex=ph; }   // aufgelöster Platzhalter (Court/Zeit geändert)
       return ex;
@@ -1907,7 +1922,7 @@ async function importRecs(recs){
         const m=(sk&&byStable[sk])||(ek&&byEvNr[ek])||null; if(okPlayed(m)) return m; }
       if(realNames(p1.name,p2.name)){
         const key=pk(p1.name,p2.name);
-        let c=MATCHES.filter(m=>okPlayed(m) && realNames(m.player1_name,m.player2_name) && pk(m.player1_name,m.player2_name)===key);
+        let c=MATCHES.filter(m=>okPlayed(m) && realNames(m.player1_name,m.player2_name) && pk(m.player1_name,m.player2_name)===key && nameOk(m,r));
         const ce=c.filter(m=>norm(m.event)===norm(r.event)); if(ce.length) c=ce;
         if(r.sort_ts){   // gleiche Paarung an anderem Tag ist ein anderes Spiel; sonst das zeitlich nächste
           const day=new Date(r.sort_ts).toDateString();
@@ -1954,15 +1969,28 @@ async function importRecs(recs){
     }
     let failed=0;
     if(toInsert.length){ try{ await Store.insertMany(toInsert); }catch(e){ failed=toInsert.length; console.error('Batch-Insert fehlgeschlagen:',e); } }
-    // turnier.de: Platzhalter-Spiele (noch ohne Match-ID), die es an diesem Tag so nicht mehr gibt
-    // (verschoben oder inzwischen mit Match-ID gekommen) -> entfernen, damit keine Leichen bleiben
+    // ---- Aufräumen: Was es an einem importierten Spieltag auf turnier.de nicht mehr gibt, entfernen ----
+    // Gilt für alle Tage, die diese turnier.de-Quelle liefert (Seite/Skript listet den ganzen Spieltag).
+    // Entfernt werden nur Spiele, die noch nicht auf einem Court lagen und von turnier.de/Import stammen:
+    //  - turnier.de-Spiele (ts:/tsslot:), deren Match-ID nicht mehr vorkommt (verschoben, aufgelöst, gelöscht)
+    //  - importierte Platzhalter („offen“, „Gruppe A #3“ …), die keinem Spiel mehr zugeordnet wurden
+    // Nie: manuell angelegte Spiele (ohne Import-Schlüssel), Ranglisten-Spiele (rk:), laufende/beendete Spiele.
     const dayOfTs=t=>t?new Date(t).toDateString():'';
-    // nur Tage aufräumen, für die die Quelle auch Platzhalter-Spiele mitliefert (altes Skript liefert keine -> nichts löschen)
-    const tsDays=new Set(recs.filter(r=>r.ext_key && String(r.ext_key).startsWith('tsslot:') && r.sort_ts).map(r=>dayOfTs(r.sort_ts)));
+    const fromTs=recs.some(r=>r.ext_key);                         // nur beim turnier.de-Import (nicht XLSX)
+    const tsDays=new Set(fromTs ? recs.filter(r=>r.sort_ts).map(r=>dayOfTs(r.sort_ts)) : []);
+    const seenKeys=new Set(recs.map(r=>r.ext_key).filter(Boolean));
+    const seenPairs=new Set(recs.map(r=>{ const a=r.p1||parsePlayer(r.t1raw), b=r.p2||parsePlayer(r.t2raw);
+      return realNames(a.name,b.name) ? (dayOfTs(r.sort_ts)+'|'+pk(a.name,b.name)) : null; }).filter(Boolean));
     if(tsDays.size){
       before.forEach(m=>{
-        if(String(m.import_key||'').startsWith('tsslot:') && m.status==='scheduled' && !m.court_id
-           && matchHasMissing(m) && !usedIds.has(m.id) && tsDays.has(dayOfTs(m.sort_ts)) && !dupDelete.includes(m.id)) dupDelete.push(m.id);
+        const ik=String(m.import_key||'');
+        if(m.status!=='scheduled' || m.court_id || m.state || (TEAM_MODE && m.tie_id)) return;
+        if(usedIds.has(m.id) || dupDelete.includes(m.id) || !m.sort_ts || !tsDays.has(dayOfTs(m.sort_ts))) return;
+        if(!ik || ik.startsWith('rk:') || seenKeys.has(ik)) return;
+        const fromTsKey=ik.startsWith('ts:') || ik.startsWith('tsslot:');
+        if(!fromTsKey && !matchHasMissing(m)) return;              // echtes XLSX-Spiel mit Spielern bleibt
+        if(realNames(m.player1_name,m.player2_name) && seenPairs.has(dayOfTs(m.sort_ts)+'|'+pk(m.player1_name,m.player2_name))) return;
+        dupDelete.push(m.id);
       });
     }
     let removed=0;
