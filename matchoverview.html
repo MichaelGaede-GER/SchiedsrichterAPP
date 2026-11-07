@@ -31,15 +31,16 @@
   .sec .cnt{color:#fff;opacity:.55;letter-spacing:.05em}
   .sec.live{color:#ff8a8a}
   .rows{display:flex;flex-direction:column}
-  .row{height:2.72vh;display:grid;align-items:center;column-gap:.6vw;font-size:1.85vh;font-weight:700;
+  /* Alle Zeilen gleich hoch (links wie rechts); 2-zeilige Kategorie braucht etwas mehr Höhe */
+  .row{height:3.9vh;display:grid;align-items:center;column-gap:.6vw;font-size:2.05vh;font-weight:700;
     border-bottom:1px solid var(--line);padding:0 .4vw;white-space:nowrap}
   .row:nth-child(odd){background:rgba(255,255,255,.035)}
   .row.empty{color:var(--muted);font-weight:600;font-style:italic;grid-template-columns:1fr !important}
 
   /* links: laufend + beendet */
-  .lrow{grid-template-columns:3.4vw 1fr 1fr 10.4vw 4.4vw}
+  .lrow{grid-template-columns:3.4vw 1fr 1fr 12.6vw 8.4vw}
   /* rechts: angesetzt */
-  .rrow{grid-template-columns:1fr 1fr 4.4vw 3.4vw 3.6vw}
+  .rrow{grid-template-columns:1fr 1fr 8.8vw 3.4vw 3.6vw}
 
   .pl{display:flex;align-items:center;gap:.45vw;min-width:0}
   .pl.p1{justify-content:flex-end}
@@ -52,11 +53,16 @@
   .crt{font-weight:900;color:#8fd0ff;font-variant-numeric:tabular-nums;text-align:center;
     background:rgba(143,208,255,.1);border-radius:.5vh;line-height:2.2vh}
   .crt.on{background:var(--live);color:#fff}
-  .cat{font-size:1.55vh;font-weight:800;color:#8fd0ff;text-align:center;overflow:hidden;text-overflow:ellipsis}
+  .cat{display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:0;line-height:1.12;text-align:center}
+  .cat span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cat .c1{font-size:1.6vh;font-weight:900;color:#8fd0ff}
+  .cat .c2{font-size:1.4vh;font-weight:700;color:#c9def5;opacity:.85}
+  .nm.open{color:var(--muted);font-style:italic;font-weight:600}
   .tm{font-weight:900;font-variant-numeric:tabular-nums;text-align:right}
   .res{font-variant-numeric:tabular-nums;font-size:1.7vh;font-weight:800;color:#e8eef7;
     overflow:hidden;text-overflow:ellipsis;text-align:center}
   .res .x{color:var(--yellow);font-weight:900}
+  .res .gm{display:inline-block;margin:0 .32vw}
   .ls{display:flex;align-items:center;justify-content:center;gap:.5vw;font-variant-numeric:tabular-nums}
   .ls .g{background:#1b1b1b;border:1px solid rgba(255,255,255,.18);border-radius:.4vh;padding:0 .45vw;font-weight:900}
   .ls .p{color:var(--yellow);font-weight:900;font-size:2vh}
@@ -96,7 +102,7 @@
 <script>
 // Match Overview: rechts angesetzte Spiele (Zeit -> Court), links laufende + beendete Spiele.
 // Je Spalte max. 30 Zeilen; links teilen sich laufende und beendete Spiele die 30 Plätze.
-const MAX=30;
+const MAX=21;   // Zeilen je Spalte bei 3,9vh Zeilenhöhe (links teilen sich laufende + beendete Spiele die Plätze)
 const params=new URLSearchParams(location.search);
 const VENUE=params.get('loc')||null;
 let SET=null, ALL=[], CORDER=[];
@@ -124,6 +130,15 @@ function inVenue(m){ return !VENUE || !m.venue_id || m.venue_id===VENUE; }
 function courtRank(n){ const i=CORDER.indexOf(n); return i>=0?i:1000+(Number(n)||0); }
 function courtLbl(n){ return n==null||n===''?'–':('C'+String(n).padStart(2,'0')); }
 function catOf(m){ return m.event||m.draw||''; }
+// Kategorie zweizeilig: oben Konkurrenz („Herren B“), unten Gruppe/Runde („Qualifikation“, „P17 -21“, „Round of 16“)
+function catHtml(m){
+  const parts=String(catOf(m)).split(' - ').map(x=>x.trim()).filter(Boolean);
+  const main=parts[0]||'';
+  let sub=parts.slice(1).filter(x=>x.toLowerCase()!==main.toLowerCase()).join(' - ');   // „Herren B - Herren B - P17 -21“ -> „P17 -21“
+  if(!sub && m.round) sub=String(m.round);
+  return `<div class="cat"><span class="c1">${escS(main)}</span>${sub?`<span class="c2">${escS(sub)}</span>`:''}</div>`;
+}
+function nameHtml(n){ const t=String(n==null?'':n).trim(); return t?`<span class="nm">${escS(t)}</span>`:'<span class="nm open">offen</span>'; }
 
 // ---- Satzpause: 15s letzten Stand halten, dann 0:0 (wie liveState() in stream.html) ----
 const BETW={};
@@ -162,16 +177,17 @@ function resultHtml(m){
   if(/walk|^w\.?o/.test(end) || /\bw\.?\s?o\.?\b|walkover/i.test(blob)) tag='w.o.';
   else if(end==='retired' || /\bret/i.test(blob)) tag='ret.';
   else if(end==='conduct' || /\bdisq/i.test(blob)) tag='disq.';
-  if(!tag) return escS(txt);
+  const body = games.length ? games.map(g=>`<span class="gm">${escS(g)}</span>`).join('') : escS(txt);   // Sätze als Blöcke -> sauberer Abstand
+  if(!tag) return body;
   if(!games.length) return `<span class="x">${tag}</span>`;            // z.B. Walkover ohne gespielte Sätze
-  return escS(txt)+` <span class="x">${tag}</span>`;
+  return body+` <span class="x">${tag}</span>`;
 }
 
 // ---- Zeilen ----
 function players(m, w){
   const c1=w===1?'win':(w===2?'lose':''), c2=w===2?'win':(w===1?'lose':'');
-  return `<div class="pl p1 ${c1}"><span class="nm">${escS(m.player1_name)}</span>${flagSpan(m.player1_country,m.player1_region)}</div>
-    <div class="pl p2 ${c2}">${flagSpan(m.player2_country,m.player2_region)}<span class="nm">${escS(m.player2_name)}</span></div>`;
+  return `<div class="pl p1 ${c1}">${nameHtml(m.player1_name)}${flagSpan(m.player1_country,m.player1_region)}</div>
+    <div class="pl p2 ${c2}">${flagSpan(m.player2_country,m.player2_region)}${nameHtml(m.player2_name)}</div>`;
 }
 function liveRow(m){
   const s=m.state||{}; let score;
@@ -181,13 +197,13 @@ function liveRow(m){
     const p=curPts(m);
     score=`<div class="ls"><span class="g">${s.gamesWon1||0}</span><span class="p">${p.p1}:${p.p2}</span><span class="g">${s.gamesWon2||0}</span>${s.status==='between'?'<span class="st">PAUSE</span>':''}</div>`;
   }
-  return `<div class="row lrow livebg"><div class="crt on">${courtLbl(m.court_id)}</div>${players(m,0)}${score}<div class="cat">${escS(catOf(m))}</div></div>`;
+  return `<div class="row lrow livebg"><div class="crt on">${courtLbl(m.court_id)}</div>${players(m,0)}${score}${catHtml(m)}</div>`;
 }
 function doneRow(m){
-  return `<div class="row lrow"><div class="crt">${courtLbl(m.court_id||m.court_no)}</div>${players(m,winnerOf(m))}<div class="res">${resultHtml(m)}</div><div class="cat">${escS(catOf(m))}</div></div>`;
+  return `<div class="row lrow"><div class="crt">${courtLbl(m.court_id||m.court_no)}</div>${players(m,winnerOf(m))}<div class="res">${resultHtml(m)}</div>${catHtml(m)}</div>`;
 }
 function schedRow(m){
-  return `<div class="row rrow">${players(m,0)}<div class="cat">${escS(catOf(m))}</div><div class="crt">${courtLbl(m.court_no)}</div><div class="tm">${escS(stTime(m.scheduled_time))||'--:--'}</div></div>`;
+  return `<div class="row rrow">${players(m,0)}${catHtml(m)}<div class="crt">${courtLbl(m.court_no)}</div><div class="tm">${escS(stTime(m.scheduled_time))||'--:--'}</div></div>`;
 }
 const emptyRow=t=>`<div class="row empty">${t}</div>`;
 
@@ -215,7 +231,7 @@ function render(){
 
 // lange Namen bis auf 70 % verkleinern, danach Ellipse
 function fitNames(){
-  document.querySelectorAll('.nm').forEach(el=>{
+  document.querySelectorAll('.nm, .cat span').forEach(el=>{
     el.style.fontSize='';
     if(el.scrollWidth<=el.clientWidth) return;
     const base=parseFloat(getComputedStyle(el).fontSize);
