@@ -15,63 +15,68 @@
   #bg{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;pointer-events:none}
 
   /* Kopf */
-  .hd{position:absolute;left:0;right:0;top:0;height:11vh;display:flex;align-items:center;gap:1.4vw;
+  .hd{position:absolute;left:0;right:0;top:0;height:10vh;display:flex;align-items:center;gap:1.4vw;
     padding:0 1.8vw;background:linear-gradient(180deg,#141b2b,#0f1522);color:#fff;border-bottom:1px solid rgba(255,255,255,.12);box-shadow:0 .6vh 2vh rgba(0,0,0,.45)}
-  .hd-logo{height:10vh;max-width:32vw;object-fit:contain;flex:0 0 auto;image-rendering:auto}
-  .hd-name{font-size:4.6vh;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 0;min-width:0}
-  .hd-name.two{white-space:normal;line-height:1.08;max-height:9.6vh;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
-  .hd-title{font-size:4.6vh;font-weight:900;color:#ff4b5c;white-space:nowrap;letter-spacing:.01em}
-  .hd-clock{font-size:3.4vh;font-weight:900;font-variant-numeric:tabular-nums;color:#fff;
+  .hd-logo{height:8.6vh;max-width:32vw;object-fit:contain;flex:0 0 auto;image-rendering:auto}
+  .hd-name{font-size:4.4vh;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 0;min-width:0}
+  .hd-name.two{white-space:normal;line-height:1.08;max-height:9vh;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+  .hd-title{font-size:4.4vh;font-weight:900;color:#ff4b5c;white-space:nowrap;letter-spacing:.01em}
+  .hd-clock{font-size:3.2vh;font-weight:900;font-variant-numeric:tabular-nums;color:#fff;
     background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:1vh;padding:.4vh 1vw}
 
-  /* Spalten */
-  .body{position:absolute;left:1.2vw;right:1.2vw;top:11.7vh;bottom:.5vh;display:flex;gap:1.4vw}
+  /* Spalten (links etwas breiter: dort stehen Ergebnisse) */
+  .body{position:absolute;left:1vw;right:1vw;top:10.6vh;bottom:.4vh;display:flex;gap:1.2vw}
   .col{flex:1 1 0;min-width:0;display:flex;flex-direction:column}
+  .col:first-child{flex-grow:1.14}
   .sec{font-size:2.1vh;font-weight:900;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);
-    height:2.8vh;line-height:2.8vh;padding-left:.4vw;display:flex;align-items:center;gap:.6vw}
+    height:3vh;line-height:3vh;padding-left:.4vw;display:flex;align-items:center;gap:.6vw;flex:0 0 auto}
   .sec .cnt{color:#fff;opacity:.55;letter-spacing:.05em}
   .sec.live{color:#ff8a8a}
   .rows{display:flex;flex-direction:column}
-  /* Alle Zeilen gleich hoch (links wie rechts); 2-zeilige Kategorie braucht etwas mehr Höhe */
-  .row{height:3.9vh;display:grid;align-items:center;column-gap:.6vw;font-size:2.05vh;font-weight:700;
-    border-bottom:1px solid var(--line);padding:0 .4vw;white-space:nowrap}
+  /* 15 Zeilen je Spalte, alle gleich hoch; Namen groß, bei Bedarf zweizeilig */
+  .row{height:5.5vh;flex:0 0 auto;display:grid;align-items:center;column-gap:.5vw;font-size:2.5vh;font-weight:700;
+    border-bottom:1px solid var(--line);padding:0 .4vw;contain:layout paint}
   .row:nth-child(odd){background:rgba(255,255,255,.035)}
-  .row.empty{color:var(--muted);font-weight:600;font-style:italic;grid-template-columns:1fr !important}
+  .row.empty{color:var(--muted);font-weight:600;font-style:italic;grid-template-columns:1fr !important;font-size:2.1vh}
 
-  /* links: laufend + beendet */
-  .lrow{grid-template-columns:3.4vw 1fr 1fr 12.6vw 8.4vw}
-  /* rechts: angesetzt */
-  .rrow{grid-template-columns:1fr 1fr 8.8vw 3.4vw 3.6vw}
+  /* links: laufend + beendet | rechts: angesetzt */
+  .lrow{grid-template-columns:3.2vw 1fr 1fr 11.4vw 6.4vw}
+  .rrow{grid-template-columns:1fr 1fr 7.2vw 3.4vw 4vw}
 
-  .pl{display:flex;align-items:center;gap:.45vw;min-width:0}
-  .pl.p1{justify-content:flex-end}
-  .pl.p2{justify-content:flex-start}
-  .nm{overflow:hidden;text-overflow:ellipsis;min-width:0}
-  .fl{display:inline-block;width:2.5vh;height:1.7vh;background-size:cover;background-position:center;
+  .pl{display:flex;align-items:center;gap:.4vw;min-width:0;height:100%}
+  .pl.p1{justify-content:flex-end;text-align:right}
+  .pl.p2{justify-content:flex-start;text-align:left}
+  /* Name: einzeilig, sonst Vorname / Nachname untereinander – nie „…“ */
+  .nm{flex:0 1 auto;display:flex;flex-direction:column;justify-content:center;line-height:1.02;min-width:0;white-space:nowrap;overflow:hidden}
+  .nm.two{font-size:2.1vh}
+  .fl{display:inline-block;width:3vh;height:2vh;background-size:cover;background-position:center;
     border-radius:.25vh;box-shadow:0 0 0 1px rgba(255,255,255,.22);flex:0 0 auto}
   .win .nm{color:#fff;font-weight:900}
   .lose .nm{color:#b9c4d3;font-weight:600}
-  .crt{font-weight:900;color:#8fd0ff;font-variant-numeric:tabular-nums;text-align:center;
-    background:rgba(143,208,255,.1);border-radius:.5vh;line-height:2.2vh}
+  .crt{font-weight:900;color:#8fd0ff;font-variant-numeric:tabular-nums;text-align:center;font-size:2.3vh;
+    background:rgba(143,208,255,.1);border-radius:.5vh;line-height:3vh}
   .crt.on{background:var(--live);color:#fff}
-  .cat{display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:0;line-height:1.12;text-align:center}
-  .cat span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .cat .c1{font-size:1.6vh;font-weight:900;color:#8fd0ff}
-  .cat .c2{font-size:1.4vh;font-weight:700;color:#c9def5;opacity:.85}
+  .cat{display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:0;line-height:1.1;text-align:center}
+  .cat span{display:block;max-width:100%;white-space:nowrap}
+  .cat .c1{font-size:1.9vh;font-weight:900;color:#8fd0ff}
+  .cat .c2{font-size:1.6vh;font-weight:700;color:#c9def5;opacity:.85}
   .nm.open{color:var(--muted);font-style:italic;font-weight:600}
   .tm{font-weight:900;font-variant-numeric:tabular-nums;text-align:right}
-  .res{font-variant-numeric:tabular-nums;font-size:1.7vh;font-weight:800;color:#e8eef7;
-    overflow:hidden;text-overflow:ellipsis;text-align:center}
-  .res .x{color:var(--yellow);font-weight:900}
-  .res .gm{display:inline-block;margin:0 .32vw}
+  /* Sätze: max. 3 nebeneinander, Satz 4/5 in Zeile 2 */
+  .res{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;overflow:hidden;
+    font-variant-numeric:tabular-nums;font-size:1.95vh;font-weight:800;color:#e8eef7;line-height:1.15;letter-spacing:-.01em}
+  .res .rl{white-space:nowrap;text-align:center}
+  .res .gm{margin:0 .35vw}
+  .res .x{color:var(--yellow);font-weight:900;margin-left:.3vw}
   .ls{display:flex;align-items:center;justify-content:center;gap:.5vw;font-variant-numeric:tabular-nums}
-  .ls .g{background:#1b1b1b;border:1px solid rgba(255,255,255,.18);border-radius:.4vh;padding:0 .45vw;font-weight:900}
-  .ls .p{color:var(--yellow);font-weight:900;font-size:2vh}
-  .ls .st{font-size:1.45vh;font-weight:900;letter-spacing:.08em;color:var(--muted)}
+  .ls .g{background:#1b1b1b;border:1px solid rgba(255,255,255,.18);border-radius:.4vh;padding:0 .5vw;font-weight:900}
+  .ls .p{color:var(--yellow);font-weight:900;font-size:2.8vh;min-width:3.6vw;text-align:center}
+  .ls .st{font-size:1.7vh;font-weight:900;letter-spacing:.08em;color:var(--muted)}
   .dot{width:.9vh;height:.9vh;border-radius:50%;background:var(--live);animation:bl 1.4s infinite;flex:0 0 auto}
   @keyframes bl{50%{opacity:.25}}
   .mover{position:fixed;left:.6vw;bottom:.3vh;z-index:5;font:700 1.3vh "Segoe UI",Arial,sans-serif;color:rgba(255,255,255,.35);letter-spacing:.04em;pointer-events:none}
   .livebg{background:linear-gradient(90deg,rgba(255,75,75,.16),rgba(255,75,75,.03)) !important}
+  .vcount{position:fixed;right:.6vw;bottom:.3vh}
 </style>
 </head>
 <body>
@@ -106,9 +111,9 @@
 // Match Overview: rechts angesetzte Spiele (Zeit -> Court), links laufende + beendete Spiele.
 // Je Spalte max. 30 Zeilen; links teilen sich laufende und beendete Spiele die 30 Plätze.
 // Versionsnummer der Match Overview – bei jedem Update hochzählen (unten links sichtbar)
-const MO_VERSION='MO 1.5';
+const MO_VERSION='MO 2.0';
 document.getElementById('mover').textContent=MO_VERSION;
-const MAX=21;   // Zeilen je Spalte bei 3,9vh Zeilenhöhe (links teilen sich laufende + beendete Spiele die Plätze)
+const MAX=15;   // Zeilen je Spalte (links teilen sich laufende + beendete Spiele die Plätze, rechts max. 15 nächste Spiele)
 const params=new URLSearchParams(location.search);
 const VENUE=params.get('loc')||null;
 let SET=null, ALL=[], CORDER=[];
@@ -144,7 +149,6 @@ function catHtml(m){
   if(!sub && m.round) sub=String(m.round);
   return `<div class="cat"><span class="c1">${escS(main)}</span>${sub?`<span class="c2">${escS(sub)}</span>`:''}</div>`;
 }
-function nameHtml(n){ const t=String(n==null?'':n).trim(); return t?`<span class="nm">${escS(t)}</span>`:'<span class="nm open">offen</span>'; }
 
 // ---- Satzpause: 15s letzten Stand halten, dann 0:0 (wie liveState() in stream.html) ----
 const BETW={};
@@ -183,35 +187,87 @@ function resultHtml(m){
   if(/walk|^w\.?o/.test(end) || /\bw\.?\s?o\.?\b|walkover/i.test(blob)) tag='w.o.';
   else if(end==='retired' || /\bret/i.test(blob)) tag='ret.';
   else if(end==='conduct' || /\bdisq/i.test(blob)) tag='disq.';
-  const body = games.length ? games.map(g=>`<span class="gm">${escS(g)}</span>`).join('') : escS(txt);   // Sätze als Blöcke -> sauberer Abstand
-  if(!tag) return body;
-  if(!games.length) return `<span class="x">${tag}</span>`;            // z.B. Walkover ohne gespielte Sätze
-  return body+` <span class="x">${tag}</span>`;
+  // max. 3 Sätze je Zeile, Satz 4/5 darunter; Kennzeichen (ret./w.o.) hinten an die letzte Zeile
+  const parts = games.length ? games : (txt ? String(txt).trim().split(/\s+/) : []);
+  const x = tag ? `<span class="x">${tag}</span>` : '';
+  if(!parts.length) return x ? `<div class="rl">${x}</div>` : '';
+  const line = arr => arr.map(g=>`<span class="gm">${escS(g)}</span>`).join('');
+  return `<div class="rl">${line(parts.slice(0,3))}${parts.length<=3?x:''}</div>`
+       + (parts.length>3 ? `<div class="rl">${line(parts.slice(3))}${x}</div>` : '');
 }
 
-// ---- Zeilen ----
+// ---- Zeilen: statischer Teil (Namen/Flaggen/Kategorie) + dynamischer Teil (Spielstand/Ergebnis) ----
+function nameHtml(n){ const t=String(n==null?'':n).trim(); return t?`<span class="nm" data-t="${escS(t)}">${escS(t)}</span>`:'<span class="nm open" data-t="offen">offen</span>'; }
 function players(m, w){
   const c1=w===1?'win':(w===2?'lose':''), c2=w===2?'win':(w===1?'lose':'');
   return `<div class="pl p1 ${c1}">${nameHtml(m.player1_name)}${flagSpan(m.player1_country,m.player1_region)}</div>
     <div class="pl p2 ${c2}">${flagSpan(m.player2_country,m.player2_region)}${nameHtml(m.player2_name)}</div>`;
 }
-function liveRow(m){
-  const s=m.state||{}; let score;
-  if(!s.status || s.status==='warmup'){
-    score=`<div class="ls"><span class="st">WARM-UP</span></div>`;
-  } else {
-    const p=curPts(m);
-    score=`<div class="ls"><span class="g">${s.gamesWon1||0}</span><span class="p">${p.p1}:${p.p2}</span><span class="g">${s.gamesWon2||0}</span>${s.status==='between'?'<span class="st">PAUSE</span>':''}</div>`;
-  }
-  return `<div class="row lrow livebg"><div class="crt on">${courtLbl(m.court_id)}</div>${players(m,0)}${score}${catHtml(m)}</div>`;
+function liveScore(m){
+  const s=m.state||{};
+  if(!s.status || s.status==='warmup') return `<div class="ls"><span class="st">WARM-UP</span></div>`;
+  const p=curPts(m);
+  return `<div class="ls"><span class="g">${s.gamesWon1||0}</span><span class="p">${p.p1}:${p.p2}</span><span class="g">${s.gamesWon2||0}</span>${s.status==='between'?'<span class="st">PAUSE</span>':''}</div>`;
 }
-function doneRow(m){
-  return `<div class="row lrow"><div class="crt">${courtLbl(m.court_id||m.court_no)}</div>${players(m,winnerOf(m))}<div class="res">${resultHtml(m)}</div>${catHtml(m)}</div>`;
+// Zeilentypen: key (Zeilen-ID), cls, stat (ändert sich selten -> Neuaufbau der Zeile), dyn (nur dieses Feld wird aktualisiert)
+const KIND={
+  live:{ cls:'row lrow livebg',
+    stat:m=>`<div class="crt on">${courtLbl(m.court_id)}</div>${players(m,0)}<div class="dyn"></div>${catHtml(m)}`,
+    dyn:liveScore },
+  done:{ cls:'row lrow',
+    stat:m=>`<div class="crt">${courtLbl(m.court_id||m.court_no)}</div>${players(m,winnerOf(m))}<div class="res dyn"></div>${catHtml(m)}`,
+    dyn:resultHtml },
+  sched:{ cls:'row rrow',
+    stat:m=>`${players(m,0)}${catHtml(m)}<div class="crt">${courtLbl(m.court_no)}</div><div class="tm">${escS(stTime(m.scheduled_time))||'--:--'}</div>`,
+    dyn:null },
+};
+function splitName(t){
+  // Platzhalter sinnvoll teilen („Loser 1-2 / Do 29.10. …“, „A. Askar or / S. Ahmed“), Namen möglichst ausgewogen
+  for(const sep of [' - ',' or ',' oder ',' / ']){ const k=t.indexOf(sep); if(k>0) return [t.slice(0,k)+(sep.trim()==='-'?'':' '+sep.trim()), t.slice(k+sep.length)]; }
+  const w=t.split(/\s+/); if(w.length<2) return [t,''];
+  let best=null; for(let k=1;k<w.length;k++){ const a=w.slice(0,k).join(' '), b=w.slice(k).join(' '), sc=Math.max(a.length,b.length); if(!best||sc<best[0]) best=[sc,a,b]; }
+  return [best[1],best[2]];
 }
-function schedRow(m){
-  return `<div class="row rrow">${players(m,0)}${catHtml(m)}<div class="crt">${courtLbl(m.court_no)}</div><div class="tm">${escS(stTime(m.scheduled_time))||'--:--'}</div></div>`;
+function shrinkTo(el,minVh){ let f=parseFloat(getComputedStyle(el).fontSize); const min=window.innerHeight*minVh/100;
+  while(el.scrollWidth>el.clientWidth+.5 && f>min){ f-=.5; el.style.fontSize=f+'px'; } }
+function fitName(el){
+  const t=el.dataset.t||el.textContent;
+  el.classList.remove('two'); el.style.fontSize=''; el.textContent=t;
+  if(el.scrollWidth<=el.clientWidth+.5) return;                          // passt einzeilig
+  const [a,b]=splitName(t);
+  if(b){ el.classList.add('two'); el.innerHTML=`<span>${escS(a)}</span><span>${escS(b)}</span>`; }
+  shrinkTo(el,1.6);                                                     // nur notfalls verkleinern, nie „…“
 }
-const emptyRow=t=>`<div class="row empty">${t}</div>`;
+function fitRow(row){
+  row.querySelectorAll('.nm').forEach(fitName);
+  row.querySelectorAll('.cat span').forEach(el=>{ el.style.fontSize=''; shrinkTo(el,1.2); });
+}
+function fitRes(el){ el.style.fontSize=''; shrinkTo(el,1.4); }
+// Liste abgleichen: vorhandene Zeilen behalten, nur Änderungen schreiben (kein Neuaufbau -> kein Zucken)
+function syncRows(host, items, kind, emptyText){
+  const K=KIND[kind];
+  host._rows=host._rows||new Map();
+  const keep=new Set();
+  let prev=null;
+  items.forEach(m=>{
+    keep.add(m.id);
+    let row=host._rows.get(m.id), fresh=false;
+    const stat=K.stat(m);
+    if(!row){ row=document.createElement('div'); row.className=K.cls; host._rows.set(m.id,row); fresh=true; }
+    // an die richtige Position (nur verschieben, wenn nötig)
+    const want=prev?prev.nextSibling:host.firstChild;
+    if(want!==row) host.insertBefore(row, want);
+    if(fresh || row._stat!==stat){ row.innerHTML=stat; row._stat=stat; row._dyn=null; fitRow(row); }
+    if(K.dyn){ const d=K.dyn(m); if(row._dyn!==d){ const c=row.querySelector('.dyn'); if(c){ c.innerHTML=d; if(kind==='done') fitRes(c); } row._dyn=d; } }
+    prev=row;
+  });
+  host._rows.forEach((row,id)=>{ if(!keep.has(id)){ row.remove(); host._rows.delete(id); } });
+  // Leer-Hinweis
+  let em=host.querySelector(':scope > .empty');
+  if(!items.length && emptyText){ if(!em){ em=document.createElement('div'); em.className='row empty'; host.appendChild(em); } if(em.textContent!==emptyText) em.textContent=emptyText; }
+  else if(em) em.remove();
+}
+function setText(id,t){ const e=document.getElementById(id); if(e && e.textContent!==t) e.textContent=t; }
 
 // ---- Render ----
 function render(){
@@ -226,25 +282,15 @@ function render(){
   const doneVis=done.slice(0,Math.max(0,MAX-liveVis.length));
   const schedVis=sched.slice(0,MAX);
 
-  document.getElementById('live').innerHTML = liveVis.length ? liveVis.map(liveRow).join('') : emptyRow('Aktuell kein Spiel auf dem Court');
-  document.getElementById('done').innerHTML = doneVis.length ? doneVis.map(doneRow).join('') : (liveVis.length<MAX?emptyRow('Noch keine beendeten Spiele'):'');
-  document.getElementById('sched').innerHTML = schedVis.length ? schedVis.map(schedRow).join('') : emptyRow('Keine angesetzten Spiele');
-  document.getElementById('cLive').textContent = live.length?`(${live.length})`:'';
-  document.getElementById('cDone').textContent = done.length?`(${done.length})`:'';
-  document.getElementById('cSched').textContent = sched.length?`(${sched.length})`:'';
-  requestAnimationFrame(fitNames);
+  syncRows(document.getElementById('live'), liveVis, 'live', 'Aktuell kein Spiel auf dem Court');
+  syncRows(document.getElementById('done'), doneVis, 'done', liveVis.length<MAX?'Noch keine beendeten Spiele':'');
+  syncRows(document.getElementById('sched'), schedVis, 'sched', 'Keine angesetzten Spiele');
+  setText('cLive', live.length?`(${live.length})`:'');
+  setText('cDone', done.length?`(${done.length})`:'');
+  setText('cSched', sched.length?(sched.length>MAX?`(${sched.length}) · nächste ${MAX}`:`(${sched.length})`):'');
 }
-
-// lange Namen bis auf 70 % verkleinern, danach Ellipse
-function fitNames(){
-  document.querySelectorAll('.nm, .cat span').forEach(el=>{
-    el.style.fontSize='';
-    if(el.scrollWidth<=el.clientWidth) return;
-    const base=parseFloat(getComputedStyle(el).fontSize);
-    let f=base;
-    while(el.scrollWidth>el.clientWidth && f>base*0.7){ f-=base*0.05; el.style.fontSize=f+'px'; }
-  });
-}
+// Neu einpassen (nach Größenänderung / Schriftladen) – Zeilen bleiben bestehen
+function refitAll(){ document.querySelectorAll('.rows .row:not(.empty)').forEach(fitRow); document.querySelectorAll('.res.dyn').forEach(fitRes); }
 
 // Turniername immer passend: erst einzeilig verkleinern (4,6vh -> 3vh),
 // reicht das nicht, zweizeilig umbrechen und wieder so groß wie möglich (max. 3,8vh, min. 1,9vh).
@@ -301,8 +347,8 @@ async function load(){
   if(_again){ _again=false; load(); }
 }
 document.addEventListener('keydown',e=>{ if(e.key==='f'){ if(!document.fullscreenElement) document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen(); else document.exitFullscreen&&document.exitFullscreen(); } });
-window.addEventListener('resize',()=>requestAnimationFrame(()=>{ fitNames(); fitTitle(); }));
-if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>fitTitle());   // nach dem Laden der Schrift neu messen
+window.addEventListener('resize',()=>requestAnimationFrame(()=>{ refitAll(); fitTitle(); }));
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>{ fitTitle(); refitAll(); });   // nach dem Laden der Schrift neu messen
 // Logo lädt oft erst nach dem Namen -> danach neu anpassen; zusätzlich bei jeder Größenänderung des Namensfelds
 document.getElementById('logo').addEventListener('load',()=>requestAnimationFrame(fitTitle));
 setInterval(()=>{ const el=document.getElementById('tname'); if(titleOverflows()) fitTitle(); },2000);   // Sicherheitsnetz
