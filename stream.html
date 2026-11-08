@@ -177,8 +177,13 @@
   .b-num{font-size:54vh;font-weight:900;line-height:.85;color:#fff;font-variant-numeric:tabular-nums;text-shadow:0 1vh 5vh rgba(0,0,0,.5)}
   .b-srv{position:absolute;top:1.8vh;left:1.8vh;width:6.4vh;height:6.4vh;border-radius:50%;background:#fff;color:#0a1a33;font-size:3.4vh;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 .4vh 1.2vh rgba(0,0,0,.4)}
   .b-box.p2 .b-srv{left:auto;right:1.8vh}
-  .b-sets{position:absolute;left:50%;bottom:6.4vh;transform:translateX(-50%);background:rgba(10,14,24,.92);border:1px solid rgba(255,255,255,.18);border-radius:1.4vh;padding:.7vh 3vw;font-size:3.4vh;font-weight:900}
-  .b-logo{position:absolute;left:50%;bottom:1.2vh;transform:translateX(-50%);height:5vh;object-fit:contain}
+  .b-sets{position:absolute;left:50%;bottom:2.2vh;transform:translateX(-50%);display:flex;align-items:center;gap:1.4vw;white-space:nowrap;
+    background:rgba(10,14,24,.92);border:1px solid rgba(255,255,255,.18);border-radius:1.4vh;padding:.8vh 2.4vw;font-size:4vh;font-weight:900;font-variant-numeric:tabular-nums}
+  .b-sets .b-sg{display:flex;gap:1vw}
+  .b-sets .b-sg span{background:#1f2738;border-radius:.8vh;padding:.1vh 1vw;color:#cfe0ff}
+  .b-sets .b-sg span.w1{color:#8fc0ff}.b-sets .b-sg span.w2{color:#ff9a9a}
+  /* Logo unten rechts, links neben der Versionsnummer */
+  .b-logo{position:absolute;right:3.4vw;bottom:1.2vh;height:7vh;max-width:16vw;object-fit:contain}
   /* Zentrale Einblendung (Satzpause/Aufwärmen/Verletzung bzw. Satz-/Matchball) – groß, für Zuschauer lesbar */
   .b-timer{position:absolute;left:50%;top:55%;transform:translate(-50%,-50%);background:rgba(8,12,20,.95);border:.6vh solid var(--yellow);border-radius:3vh;
     padding:2.4vh 5vw 3vh;text-align:center;z-index:6;box-shadow:0 2vh 10vh rgba(0,0,0,.7);white-space:nowrap;max-width:96vw}
@@ -331,11 +336,11 @@ function upcomingForCourt(){
 }
 function stTime(raw){ if(!raw) return ''; const s=String(raw); const m=s.match(/(\d{1,2}:\d{2})\s*$/)||s.match(/(\d{1,2}:\d{2})/); return m?m[1]:''; }
 // ===== Court-Vollbildanzeige ("Anzeige", view=scoreboard) – 1920x1080 =====
-function dispAds(){
+function dispAds(logoRight){
   const L=(SET&&Array.isArray(SET.adLeft))?SET.adLeft.slice(0,2):[];
   const R=(SET&&Array.isArray(SET.adRight))?SET.adRight.slice(0,2):[];
   const img=u=>`<img class="d-ad" src="${u}" onerror="this.style.display='none'">`;
-  return `<div class="d-adl">${L.map(img).join('')}</div><div class="d-adr">${R.map(img).join('')}</div>`;
+  return `<div class="d-adl">${L.map(img).join('')}</div><div class="d-adr"${logoRight?' style="right:21vw"':''}>${R.map(img).join('')}</div>`;
 }
 function dispNext(){
   const up=upcomingForCourt(); const vis=up.slice(0,6); const more=up.length>6;
@@ -433,9 +438,9 @@ function dispBoard(d){
       <div class="b-box p1">${srv(1)}<span class="b-num">${d.pts1}</span></div>
       <div class="b-box p2">${srv(2)}<span class="b-num">${d.pts2}</span></div>
     </div>
-    <div class="b-sets">Satz ${d.g1} – ${d.g2}</div>
+    <div class="b-sets"><span>Satz ${d.g1} – ${d.g2}</span>${(d.games||[]).length?`<span class="b-sg">${d.games.map(g=>`<span class="w${g.winner||''}">${g.p1}-${g.p2}</span>`).join('')}</span>`:''}</div>
+    ${dispAds(!!logo)}
     ${logo}
-    ${dispAds()}
     ${bDecision(d) || bTimer(d) || bBall(d)}
   </div>`;
 }
