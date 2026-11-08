@@ -161,27 +161,43 @@
   .d-ref b{color:#c7d3e2}
   .d-more{margin-top:1.6vh;text-align:center;font-size:2.4vh;font-weight:900;letter-spacing:.22em;color:#9fb3cc;text-transform:uppercase}
   /* SCOREBOARD */
-  .b-top{position:absolute;top:2vh;left:2.4vw}
-  .b-court{font-size:4vh;font-weight:900;letter-spacing:.04em}
-  .b-sub{font-size:2.1vh;color:#9fb3cc;font-weight:700;margin-top:.2vh}
-  .b-names{position:absolute;top:9.5vh;left:2vw;right:2vw;display:flex;gap:1.6vw}
-  .b-name{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:1.2vw;height:9vh;border-radius:1.4vh;padding:0 2vw;font-size:5vh;font-weight:900;color:#0a1a33}
+  .b-top{position:absolute;top:1.6vh;left:2.4vw;right:2.4vw;display:flex;align-items:baseline;gap:1.6vw;white-space:nowrap;overflow:hidden}
+  .b-court{font-size:4.4vh;font-weight:900;letter-spacing:.04em;flex:0 0 auto}
+  .b-sub{font-size:3vh;color:#9fb3cc;font-weight:800;overflow:hidden;text-overflow:ellipsis}
+  .b-names{position:absolute;top:8.2vh;left:2vw;right:2vw;display:flex;gap:1.6vw}
+  .b-name{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:1.2vw;height:12vh;border-radius:1.6vh;padding:0 1.6vw;font-size:6.4vh;font-weight:900;color:#0a1a33}
   .b-name.p1{background:linear-gradient(90deg,#a9cdff,#7db0ff);justify-content:flex-start}
   .b-name.p2{background:linear-gradient(270deg,#a9cdff,#7db0ff);justify-content:flex-end}
   .b-nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .b-fl{display:inline-block;width:7vh;height:4.7vh;background-size:cover;background-position:center;border-radius:.5vh;box-shadow:0 0 0 1px rgba(0,0,0,.25);flex:0 0 auto}
-  .b-scores{position:absolute;top:20vh;left:2vw;right:2vw;bottom:12vh;display:flex;gap:1.6vw}
+  .b-fl{display:inline-block;width:9vh;height:6vh;background-size:cover;background-position:center;border-radius:.5vh;box-shadow:0 0 0 1px rgba(0,0,0,.25);flex:0 0 auto}
+  .b-scores{position:absolute;top:22vh;left:2vw;right:2vw;bottom:12vh;display:flex;gap:1.6vw}
   .b-box{flex:1 1 0;border-radius:1.8vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
   .b-box.p1{background:radial-gradient(120% 120% at 50% 45%, rgba(40,95,190,.4), rgba(8,16,34,.5));border:.4vh solid #2f6bd6}
   .b-box.p2{background:radial-gradient(120% 120% at 50% 45%, rgba(190,40,50,.4), rgba(30,8,12,.5));border:.4vh solid #d64040}
-  .b-num{font-size:56vh;font-weight:900;line-height:.85;color:#fff;font-variant-numeric:tabular-nums;text-shadow:0 1vh 5vh rgba(0,0,0,.5)}
+  .b-num{font-size:54vh;font-weight:900;line-height:.85;color:#fff;font-variant-numeric:tabular-nums;text-shadow:0 1vh 5vh rgba(0,0,0,.5)}
   .b-srv{position:absolute;top:1.8vh;left:1.8vh;width:6.4vh;height:6.4vh;border-radius:50%;background:#fff;color:#0a1a33;font-size:3.4vh;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 .4vh 1.2vh rgba(0,0,0,.4)}
   .b-box.p2 .b-srv{left:auto;right:1.8vh}
   .b-sets{position:absolute;left:50%;bottom:6.4vh;transform:translateX(-50%);background:rgba(10,14,24,.92);border:1px solid rgba(255,255,255,.18);border-radius:1.4vh;padding:.7vh 3vw;font-size:3.4vh;font-weight:900}
   .b-logo{position:absolute;left:50%;bottom:1.2vh;transform:translateX(-50%);height:5vh;object-fit:contain}
-  .b-timer{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);background:rgba(8,12,20,.94);border:.4vh solid var(--yellow);border-radius:2vh;padding:2vh 4vw;text-align:center;z-index:6;box-shadow:0 2vh 8vh rgba(0,0,0,.6)}
-  .b-tl{font-size:3vh;font-weight:900;letter-spacing:.2em;color:var(--yellow)}
-  .b-tv{font-size:12vh;font-weight:900;font-variant-numeric:tabular-nums;line-height:1}
+  /* Zentrale Einblendung (Satzpause/Aufwärmen/Verletzung bzw. Satz-/Matchball) – groß, für Zuschauer lesbar */
+  .b-timer{position:absolute;left:50%;top:55%;transform:translate(-50%,-50%);background:rgba(8,12,20,.95);border:.6vh solid var(--yellow);border-radius:3vh;
+    padding:2.4vh 5vw 3vh;text-align:center;z-index:6;box-shadow:0 2vh 10vh rgba(0,0,0,.7);white-space:nowrap;max-width:96vw}
+  .b-tl{font-size:5.5vh;font-weight:900;letter-spacing:.2em;color:var(--yellow);line-height:1.1}
+  .b-tv{font-size:26vh;font-weight:900;font-variant-numeric:tabular-nums;line-height:.95;margin-top:.6vh}
+  .b-ball .b-tv{font-size:min(26vh,9.5vw);letter-spacing:.03em}
+  .b-ball.set{border-color:#ffd23f}.b-ball.set .b-tv{color:#ffd23f}
+  .b-ball.match{border-color:#ff4b4b}.b-ball.match .b-tv{color:#ff5a5a}
+  .b-ball .b-tl{color:#fff;letter-spacing:.06em}
+  /* Match beendet: Ergebnis + nächste 3 Spiele (wie im Live-Stream) */
+  .dmo{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:3vh 4vw 10vh;gap:1.6vh}
+  .dmo-logo{height:9vh;object-fit:contain}
+  .dmo-players{font-size:6.4vh;font-weight:900;text-align:center;line-height:1.1;max-width:92vw}
+  .dmo-vs{color:#9fb3cc;font-size:.6em;font-weight:700}
+  .dmo-score{display:flex;align-items:baseline;gap:2vw;font-size:7vh;font-weight:900;font-variant-numeric:tabular-nums}
+  .dmo-sets{font-size:4vh;color:#9fc0ff;font-weight:800;letter-spacing:.04em}
+  .dmo-h{font-size:4.4vh;font-weight:900;margin-top:1vh}
+  .dmo .d-cards{width:min(92vw,1700px)}
+  .dmo-none{font-size:3.4vh;color:#9fb3cc;font-weight:800;margin-top:2vh}
   .b-dec{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);background:#fff;color:#0a1a33;border-radius:2vh;padding:2vh 6vw;font-size:10vh;font-weight:900;letter-spacing:.04em;z-index:7;box-shadow:0 2vh 9vh rgba(0,0,0,.65)}
 
 </style>
@@ -310,7 +326,7 @@ function finishAtOf(){
 function timeStr(m){ return m.scheduled_time ? (String(m.scheduled_time).slice(0,5)+' ') : ''; }
 function upcomingForCourt(){
   const mno=m=>{ const s=String(m.match_no||'').match(/\d+/); return s?parseInt(s[0],10):999999; };
-  return ALL.filter(m => m.status==='scheduled' && m.court_no===COURT && (!VENUE || !m.venue_id || m.venue_id===VENUE))
+  return ALL.filter(m => m.status==='scheduled' && Number(m.court_no)===COURT && (!VENUE || !m.venue_id || m.venue_id===VENUE))
     .sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0) || mno(a)-mno(b));
 }
 function stTime(raw){ if(!raw) return ''; const s=String(raw); const m=s.match(/(\d{1,2}:\d{2})\s*$/)||s.match(/(\d{1,2}:\d{2})/); return m?m[1]:''; }
@@ -365,6 +381,43 @@ function bDecision(d){
   const txt=map[last.type]; if(!txt) return '';
   return `<div class="b-dec">${txt}</div>`;
 }
+// Satz-/Matchball groß in der Mitte (gleiche Schriftgröße wie der Timer)
+function bBall(d){
+  if(d.mstatus!=='playing') return '';
+  const N=11, need=Math.floor((d.bestOf||3)/2)+1;
+  const gb=(me,opp)=>(me+1>=N)&&(me+1-opp>=2);
+  const b1=gb(d.pts1,d.pts2), b2=gb(d.pts2,d.pts1); if(!b1 && !b2) return '';
+  const isMatch=((b1?d.g1:d.g2)+1)>=need, who=b1?d.p1raw:d.p2raw;
+  return `<div class="b-timer b-ball ${isMatch?'match':'set'}"><div class="b-tl">${escS(who)}</div><div class="b-tv">${isMatch?'MATCHBALL':'SATZBALL'}</div></div>`;
+}
+// Match beendet -> Ergebnis + nächste 3 Spiele, bis das nächste Spiel auf den Court gezogen wird
+let LASTDONE=null;   // zuletzt auf diesem Court beendetes Spiel (bleibt nach Bestätigung stehen)
+function dispMatchOver(m){
+  const s=m.state||{}, games=s.games||[];
+  const sets=games.map(g=>`${g.p1}-${g.p2}`).join('  ');
+  const res=(s.gamesWon1!=null&&s.gamesWon2!=null)?(s.gamesWon1+'–'+s.gamesWon2):(m.result||'');
+  const logo=(SET&&SET.logoUrl)?`<img class="dmo-logo" src="${SET.logoUrl}" alt="">`:'';
+  const up=upcomingForCourt().slice(0,3);
+  const cards=up.map((x,i)=>{
+    const t=stTime(x.scheduled_time);
+    const cat=[x.event||x.draw, x.round, x.match_no?('#'+String(x.match_no).replace(/^#+/,'')):''].filter(Boolean).map(escS).join(' · ');
+    return `<div class="d-card${i===0?' first':''}">
+      <div class="d-when"><div class="d-time">${escS(t)||'--:--'}</div><div class="d-lbl">${i===0?'als nächstes':'später'}</div></div>
+      <div class="d-cbody">
+        <div class="d-teams">${flagSpan(x.player1_country,'d-fl','',x.player1_region)}<span class="d-nm">${escS(x.player1_name)}</span><span class="d-vs">vs</span>${flagSpan(x.player2_country,'d-fl','',x.player2_region)}<span class="d-nm">${escS(x.player2_name)}</span></div>
+        ${cat?`<div class="d-meta">${cat}</div>`:''}
+        ${x.referee?`<div class="d-ref"><b>Schiri:</b> ${escS(x.referee)}</div>`:''}
+      </div></div>`;
+  }).join('');
+  return `<div class="disp dmo">
+    ${logo}
+    <div class="dmo-players">${escS(m.player1_name)} <span class="dmo-vs">vs</span> ${escS(m.player2_name)}</div>
+    <div class="dmo-score">${escS(res)}${sets?`<span class="dmo-sets">${escS(sets)}</span>`:''}</div>
+    <div class="dmo-h">Nächste Spiele auf Court ${COURT}</div>
+    ${cards?`<div class="d-cards">${cards}</div>`:`<div class="dmo-none">Keine weiteren Spiele auf diesem Court angesetzt.</div>`}
+    ${dispAds()}
+  </div>`;
+}
 function dispBoard(d){
   const sub=[MATCH.event||MATCH.draw, MATCH.round, 'Bo'+(d.bestOf||MATCH.best_of||5), stTime(MATCH.scheduled_time)].filter(Boolean).map(escS).join(' · ');
   const fl1=flagSpan(d.c1,'b-fl','',d.r1), fl2=flagSpan(d.c2,'b-fl','',d.r2);
@@ -383,13 +436,15 @@ function dispBoard(d){
     <div class="b-sets">Satz ${d.g1} – ${d.g2}</div>
     ${logo}
     ${dispAds()}
-    ${bTimer(d)}
-    ${bDecision(d)}
+    ${bDecision(d) || bTimer(d) || bBall(d)}
   </div>`;
 }
 function viewDisplay(d){
   const active = d && (d.mstatus==='warmup'||d.mstatus==='playing'||d.mstatus==='between');
-  return active ? dispBoard(d) : dispNext();
+  if(active){ LASTDONE=null; return dispBoard(d); }
+  if(d && d.mstatus==='finished'){ LASTDONE=MATCH; return dispMatchOver(MATCH); }   // beendet, noch nicht bestätigt
+  if(!MATCH && LASTDONE) return dispMatchOver(LASTDONE);                             // bestätigt – bis zum nächsten Spiel
+  return dispNext();
 }
 function nextBlock(limit){
   const up=upcomingForCourt(); if(!up.length) return '';
@@ -440,7 +495,8 @@ function paintTimer(){
   const el=document.getElementById('stimer'); if(!el) return;
   const info=timerInfo();
   const hidePsaBreak = (VIEW==='psaline' && MATCH && MATCH.state && MATCH.state.status==='between'); // Satzpause: Timer steckt im zentralen Block
-  if(!info || hidePsaBreak){ el.style.display='none'; return; }
+  // Court-Anzeige (scoreboard): Timer nur groß in der Mitte, kein Banner oben
+  if(!info || hidePsaBreak || VIEW==='scoreboard'){ el.style.display='none'; return; }
   el.style.display='flex';
   el.innerHTML=`<span class="lbl">${info.label}${info.paused?' · Pause':''}</span><span class="clk">${fmtT(info.left)}</span>`;
 }
