@@ -678,7 +678,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='f') goFull(); });
 // ---- Daten / Realtime ----
 async function refreshSettings(){ SET=await Store.getSettings(); setBg(); render(); load(); }
 async function load(){
-  ALL=await Store.listMatches();
+  ALL=LiveFeed.apply(await Store.listMatches());
   MATCH=ALL.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || !m.venue_id || m.venue_id===VENUE))||null;
   render();
 }
@@ -696,14 +696,38 @@ async function pollPublic(){
   try{
     const d=(await rpcPublic('stream_public', { p_tid: TID, p_court: COURT }))||{};
     SET=Object.assign(Store._defaults(), d.app||{}, d.tour||{});
-    ALL=(d.matches||[]).slice().sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
+    ALL=LiveFeed.apply((d.matches||[]).slice().sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0)));
     MATCH=ALL.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || !m.venue_id || m.venue_id===VENUE))||null;
     render();
   }catch(e){ console.warn('[stream] öffentlicher Abruf fehlgeschlagen:', e && (e.message||e)); }
   finally{ _pubBusy=false; }
 }
+// ---- Live-Feed: Punkte direkt vom Tablet (Broadcast), Datenbank als Absicherung ----
+function onLive(p){
+  if(Number(p.court)!==COURT) return;
+  if(VENUE && p.venue && p.venue!==VENUE) return;
+  const next=LiveFeed.patch(ALL,p); if(!next) return;          // Spiel (noch) nicht live in der Datenbank -> ignorieren
+  ALL=next;
+  MATCH=ALL.find(m=>m.court_id===COURT && m.status==='live' && (!VENUE || !m.venue_id || m.venue_id===VENUE))||null;
+  render(); paintLat();
+}
+// Messanzeige: stream.html?...&lat=1 zeigt unten links, wie schnell der letzte Stand ankam
+const SHOW_LAT=params.has('lat');
+function paintLat(){
+  if(!SHOW_LAT) return;
+  let el=document.getElementById('latinfo');
+  if(!el){ el=document.createElement('div'); el.id='latinfo';
+    el.style.cssText='position:fixed;left:8px;bottom:6px;z-index:99;font:700 13px system-ui;color:#9fb3cc;background:rgba(0,0,0,.55);padding:3px 8px;border-radius:6px';
+    document.body.appendChild(el); }
+  const i=MATCH?LiveFeed.info(MATCH.id):null;
+  el.textContent = !LiveFeed.active() ? 'Live-Feed: aus (nur Datenbank)'
+    : (i ? ('Live-Feed: Tablet → Anzeige '+(i.latencyMs!=null?(i.latencyMs+' ms'):'?')+' · vor '+(i.ageMs/1000).toFixed(1)+' s') : 'Live-Feed: verbunden, wartet auf Tablet');
+}
+if(SHOW_LAT) setInterval(paintLat,1000);
+async function startLive(){ let tid=TID; if(!tid){ try{ tid=await Store.ensureActiveTournament(); }catch(e){} } LiveFeed.start(tid, onLive); }
 function startAuthed(){
   Auth.guard('view').then(()=>{
+    startLive();
     Store.subscribeAll(load);
     Store.subscribeSettings(refreshSettings);
     refreshSettings();
@@ -717,6 +741,7 @@ function startAuthed(){
   if(Store.mode!=='supabase' || !TID){ startAuthed(); return; }   // Testmodus / kein Token -> wie bisher (mit Login)
   // Mit Token IMMER öffentlich laden – unabhängig von einer (evtl. alten/fremden) Anmeldung im Browser
   if(sess && sb){ try{ Store.subscribeAll(pollPublic); }catch(e){} }   // angemeldet: Realtime als Sofort-Auslöser
+  startLive();                                                          // Punkte direkt vom Tablet
   await pollPublic();
   setInterval(pollPublic, PUBLIC_POLL_MS);
 })();

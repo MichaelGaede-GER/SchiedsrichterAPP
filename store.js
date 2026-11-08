@@ -706,6 +706,62 @@ const Store = (() => {
 })();
 try { window.Store = Store; } catch (e) {}
 
+// =====================================================================
+//  LIVE-FEED: Spielstand direkt vom Tablet (Supabase-Realtime-Broadcast)
+//  Das Tablet (court.html) sendet bei jeder Eingabe seinen Stand auf dem Kanal
+//  'mgtp-ctrl-<Turnier-ID>' (Event 'tablet'). Anzeigen übernehmen ihn sofort,
+//  ohne auf Datenbank-Schreiben + Neuladen zu warten.
+//  Die Datenbank bleibt maßgeblich:
+//   - übernommen wird nur für Spiele, die laut Datenbank LIVE auf genau diesem Court sind
+//   - sobald die Datenbank denselben oder einen neueren Stand hat (state.lrev >= rev), gilt sie
+//   - ohne neue Nachricht verfällt der Broadcast-Stand nach 10 s
+// =====================================================================
+const LiveFeed = (() => {
+  const OV = {};                 // matchId -> { state, rev, at, court, venue }
+  const TTL = 10000;
+  let ch = null, cb = null, lastAt = 0, curTid = null;
+  function start(tid, onUpdate) {
+    cb = onUpdate || cb;
+    let sb = null; try { sb = Store.client(); } catch (e) {}
+    if (!sb || !sb.channel || !tid) return !!ch;
+    if (ch && curTid === tid) return true;                          // schon verbunden
+    if (ch) { try { sb.removeChannel(ch); } catch (e) {} ch = null; } // Turnier gewechselt -> neu verbinden
+    curTid = tid;
+    try {
+      ch = sb.channel('mgtp-ctrl-' + tid, { config: { broadcast: { self: false } } });
+      ch.on('broadcast', { event: 'tablet' }, (msg) => {
+        const p = msg && msg.payload;
+        if (!p || !p.matchId || !p.state) return;
+        OV[p.matchId] = { state: p.state, rev: Number(p.rev) || 0, at: Date.now(), sentAt: Number(p.at) || 0,
+                          court: Number(p.court), venue: p.venue || '' };
+        lastAt = Date.now();
+        if (cb) { try { cb(p); } catch (e) { console.warn('[livefeed]', e); } }
+      }).subscribe();
+      return true;
+    } catch (e) { ch = null; return false; }
+  }
+  function mergeOne(m) {
+    if (!m || !m.id) return m;
+    const o = OV[m.id]; if (!o) return m;
+    if (Date.now() - o.at > TTL) { delete OV[m.id]; return m; }
+    if (m.status !== 'live' || Number(m.court_id) !== o.court) return m;           // nur laufendes Spiel auf genau diesem Court
+    if (o.venue && m.venue_id && o.venue !== m.venue_id) return m;
+    const dbRev = Number(m.state && m.state.lrev) || 0;
+    if (dbRev && dbRev >= o.rev) { delete OV[m.id]; return m; }                     // Datenbank ist aktuell(er)
+    return Object.assign({}, m, { state: Object.assign({}, m.state || {}, o.state) });
+  }
+  function apply(list) { return (list || []).map(mergeOne); }
+  // Broadcast in eine vorhandene Liste einspielen -> geänderte Liste (oder null, wenn das Spiel nicht live in der Liste ist)
+  function patch(list, p) {
+    const i = (list || []).findIndex(m => m.id === p.matchId); if (i < 0) return null;
+    const merged = mergeOne(list[i]); if (merged === list[i]) return null;
+    const out = list.slice(); out[i] = merged; return out;
+  }
+  function info(id) { const o = OV[id]; return o ? { ageMs: Date.now() - o.at, latencyMs: o.sentAt ? (o.at - o.sentAt) : null } : null; }
+  return { start, apply, mergeOne, patch, info, active: () => !!ch, lastAt: () => lastAt };
+})();
+try { window.LiveFeed = LiveFeed; } catch (e) {}
+
 // Öffentliche RPC ohne supabase-js (reines fetch) – für Anzeigen ohne Login (OBS, TV, Handy)
 async function rpcPublic(fn, args) {
   const c = window.CONFIG || {};

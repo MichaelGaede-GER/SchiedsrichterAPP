@@ -106,7 +106,7 @@
 // Match Overview: rechts angesetzte Spiele (Zeit -> Court), links laufende + beendete Spiele.
 // Je Spalte max. 30 Zeilen; links teilen sich laufende und beendete Spiele die 30 Plätze.
 // Versionsnummer der Match Overview – bei jedem Update hochzählen (unten links sichtbar)
-const MO_VERSION='MO 1.4';
+const MO_VERSION='MO 1.5';
 document.getElementById('mover').textContent=MO_VERSION;
 const MAX=21;   // Zeilen je Spalte bei 3,9vh Zeilenhöhe (links teilen sich laufende + beendete Spiele die Plätze)
 const params=new URLSearchParams(location.search);
@@ -296,7 +296,7 @@ let _loading=false, _again=false;
 async function load(){
   if(_loading){ _again=true; return; }
   _loading=true;
-  try{ ALL=await Store.listMatches(); render(); }catch(e){ console.warn('[matchoverview] load', e); }
+  try{ ALL=LiveFeed.apply(await Store.listMatches()); render(); }catch(e){ console.warn('[matchoverview] load', e); }
   _loading=false;
   if(_again){ _again=false; load(); }
 }
@@ -325,13 +325,22 @@ async function pollPublic(){
     TNAME=String(d.name||'');
     CORDER=(d.courts||[]).map(c=>c.court_no);
     if(!CORDER.length && Array.isArray(SET.courts)) CORDER=SET.courts.map(Number);
-    ALL=(d.matches||[]).slice().sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0));
+    ALL=LiveFeed.apply((d.matches||[]).slice().sort((a,b)=>(a.sort_ts||0)-(b.sort_ts||0)));
     paintHead(); render();
   }catch(e){ console.warn('[matchoverview] öffentlicher Abruf fehlgeschlagen:', e && (e.message||e)); }
   finally{ _pubBusy=false; }
 }
+// ---- Live-Feed: Punkte direkt von den Tablets (Broadcast), Datenbank als Absicherung ----
+let _liveRaf=0;
+function onLive(p){
+  const next=LiveFeed.patch(ALL,p); if(!next) return;
+  ALL=next;
+  if(!_liveRaf) _liveRaf=requestAnimationFrame(()=>{ _liveRaf=0; render(); });   // mehrere Courts gleichzeitig -> einmal zeichnen
+}
+async function startLive(){ let tid=TID; if(!tid){ try{ tid=await Store.ensureActiveTournament(); }catch(e){} } LiveFeed.start(tid, onLive); }
 function startAuthed(){
   Auth.guard('view').then(()=>{
+    startLive();
     Store.subscribeAll(load);
     Store.subscribeSettings(refreshSettings);
     refreshSettings();
@@ -348,6 +357,7 @@ clock(); setInterval(clock,10000);
   if(Store.mode!=='supabase' || !TID){ startAuthed(); return; }   // Testmodus / kein Token -> wie bisher (mit Login)
   // Mit Token IMMER öffentlich laden – unabhängig von einer (evtl. alten/fremden) Anmeldung im Browser
   if(sess && sb){ try{ Store.subscribeAll(pollPublic); }catch(e){} }   // angemeldet: Realtime als Sofort-Auslöser
+  startLive();                                                          // Punkte direkt von den Tablets
   await pollPublic();
   setInterval(pollPublic, PUBLIC_POLL_MS);
 })();

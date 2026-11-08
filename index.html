@@ -947,7 +947,8 @@ async function load(){
   try{
     await loadCourtLayout();
     fillDefLoc();
-    MATCHES = await Store.listMatches();
+    try{ LiveFeed.start(Store.activeTournament(), onLiveFeed); }catch(e){}   // bei Turnierwechsel neu verbinden
+    MATCHES = LiveFeed.apply(await Store.listMatches());
     TIES = TEAM_MODE ? await Store.listTies() : [];
     render();
   }catch(err){
@@ -2551,7 +2552,15 @@ async function importTies(file){
   }catch(e){ console.error(e); toast('Import-Fehler: '+(e.message||e)); }
 }
 
+// Live-Feed: Spielstände direkt von den Tablets (Broadcast) – nur die Court-Kacheln neu zeichnen
+let _liveRaf=0;
+function onLiveFeed(p){
+  const next=LiveFeed.patch(MATCHES,p); if(!next) return;
+  MATCHES=next;
+  if(!_liveRaf) _liveRaf=requestAnimationFrame(()=>{ _liveRaf=0; try{ renderCourts(); }catch(e){} });
+}
 Auth.guard('view').then(()=>{
+  Store.ensureActiveTournament().then(tid=>LiveFeed.start(tid, onLiveFeed)).catch(()=>{});
   Store.subscribeAll(load);
   Store.subscribeTies(load);
   Store.subscribeSettings(onSettingsChanged);
