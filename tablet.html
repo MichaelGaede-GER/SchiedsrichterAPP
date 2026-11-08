@@ -17,9 +17,9 @@
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overscroll-behavior:none;
     font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;overflow:hidden}
   .app{height:100vh;display:flex;flex-direction:column}
-  header{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);
+  header{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid var(--line);
     background:linear-gradient(180deg,#0f1724,#0d1117)}
-  header img.logo{height:52px;max-width:200px;object-fit:contain}
+  header img.logo{height:40px;max-width:160px;object-fit:contain}
   header h1{font-size:clamp(18px,3vh,26px);margin:0;font-weight:900}
   header .sp{flex:1}
   .badge{color:var(--muted);font-size:14px}
@@ -48,6 +48,8 @@
   select.lang{background:#1a2434;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font:inherit}
   .netstat{font-size:14px;font-weight:800;padding:5px 11px;border-radius:999px;white-space:nowrap;background:#0d1b12;border:1px solid #1f6b46;color:#7CFF9B}
   .netstat.off{background:#2a0f12;border-color:#7a2a2f;color:#ff6b6b}
+  .fully{font-size:13px;font-weight:800;padding:5px 11px;border-radius:999px;white-space:nowrap;background:#1a1f2a;border:1px solid #3a4658;color:#9fb3cc}
+  .fully.on{background:#2a2410;border-color:#8a6d1a;color:#ffd54a}
   .ver{font-size:12px;font-weight:800;color:#6b7a90;padding:6px 8px}
   .adcorner{position:fixed;bottom:12px;display:flex;gap:10px;z-index:6;align-items:flex-end}
   .adcorner.adL{left:16px}
@@ -68,6 +70,7 @@
     <span class="badge" id="userBadge"></span>
     <span class="ver" id="verBadge">v…</span>
     <span id="netStatus" class="netstat on">🟢 Online</span>
+    <span id="fullyBadge" class="fully" title="Echte Helligkeitssteuerung (30/50/75 %) nur im Fully Kiosk Browser mit aktivem JavaScript-Interface">☀ Helligkeit: nur optisch</span>
     <span class="sp"></span>
     <select class="lang" data-lang-select onchange="I18N.set(this.value)" title="Sprache / Language">
       <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
@@ -220,6 +223,10 @@ function openCourt(n, venueId){
   const p=new URLSearchParams(); p.set('court', n); if(TID) p.set('t', TID); if(venueId) p.set('loc', venueId);
   location.href='court.html?'+p.toString();
 }
+
+// Prüft, ob die echte Bildschirmhelligkeit steuerbar ist (Fully Kiosk Browser, JavaScript-Interface)
+(function(){ try{ const ok = typeof fully!=='undefined' && fully && typeof fully.setScreenBrightness==='function';
+  const b=document.getElementById('fullyBadge'); if(b){ b.textContent = ok ? '☀ Fully: Helligkeit aktiv' : '☀ Helligkeit: nur optisch'; b.className='fully'+(ok?' on':''); } }catch(e){} })();
 
 // Service-Worker + Kiosk-Gesten
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }

@@ -23,15 +23,17 @@
   .adcorner img{height:42px;max-width:120px;object-fit:contain;background:#fff;border-radius:8px;padding:4px 6px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
   .wrap,.idle,.overlay{position:relative;z-index:1}
   .brandlogo{display:block;margin:0 auto 14px;max-height:110px;max-width:260px;border-radius:10px}
+  #app{height:100%}
   .wrap{display:flex;flex-direction:column;height:100%}
-  .top{display:flex;align-items:center;gap:12px;padding:8px 14px;background:#111;flex:0 0 auto}
+  .top{display:flex;align-items:center;gap:12px;padding:6px 120px 6px 14px;background:#111;flex:0 0 auto}
   .top .court{font-weight:800;letter-spacing:1px;font-size:15px}
   .top .status{font-size:12px;color:var(--muted)}
   .top .right{margin-left:auto;display:flex;gap:8px;align-items:center}
-  .iconbtn{background:#1d1d1d;border:1px solid #333;color:#cfe0ff;border-radius:10px;padding:8px 12px;font-weight:700;font-size:13px;cursor:pointer}
+  .iconbtn{min-height:40px;background:#1d1d1d;border:1px solid #333;color:#cfe0ff;border-radius:10px;padding:8px 12px;font-weight:700;font-size:13px;cursor:pointer}
   .clock{font-variant-numeric:tabular-nums;font-size:13px;color:#cfe0ff;background:#151515;border:1px solid #2a2a2a;border-radius:8px;padding:6px 10px}
 
   .names{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;padding:10px 14px;flex:0 0 auto}
+  .names>div{min-width:0}
   .namepill{display:flex;align-items:center;gap:10px;border-radius:999px;padding:10px 16px;font-weight:800;font-size:clamp(16px,3.4vw,26px);min-width:0;width:100%}
   .seedc{color:#8fd0ff;font-weight:800;font-size:.7em;opacity:.95}
   .hlc{color:#ffd54a;font-weight:800}
@@ -51,48 +53,68 @@
   .center-top{display:flex;flex-direction:column;align-items:center;gap:6px}
   .rbtn{width:86px;height:86px;border-radius:50%;background:#e9edf3;color:#111;border:none;font-weight:900;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 
-  .board{flex:1 1 auto;display:grid;grid-template-columns:1fr auto 1fr;gap:12px;padding:0 14px 8px;min-height:0}
-  .panel{position:relative;border-radius:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden}
-  .panel.left{border:5px solid var(--blue);background:#0b0b0b}
-  .panel.right{border:5px solid var(--red);background:#0b0b0b}
+  /* Spielfeld: oben die beiden Punktekästen, darunter je eine Bedienleiste (Shirt · Aufschlag · LET) */
+  .board{flex:1 1 auto;display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:minmax(0,1fr) auto;
+    gap:10px 12px;padding:0 14px 6px;min-height:0}
+  .panel{position:relative;border-radius:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;
+    min-height:0;container-type:size}
+  .panel.left{grid-column:1;grid-row:1;border:5px solid var(--blue);background:#0b0b0b}
+  .panel.right{grid-column:3;grid-row:1;border:5px solid var(--red);background:#0b0b0b}
   .panel:active{filter:brightness(1.25)}
-  .score{font-weight:800;font-size:clamp(90px,26vh,240px);line-height:1;font-variant-numeric:tabular-nums}
-  .serve{position:absolute;top:14px;width:clamp(60px,10vh,104px);height:clamp(60px,10vh,104px);border-radius:50%;
-    background:#e9edf3;color:#0b0b0b;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    font-weight:900;font-size:clamp(32px,5.6vh,56px);line-height:1;box-shadow:0 0 0 4px rgba(255,255,255,.15);cursor:pointer}
-  .serve .srvltr{line-height:1}
-  .serve .srvarrow{font-size:.42em;color:#c47b00;line-height:1;margin-bottom:1px}
-  .serve.srvchg{background:#ffd23f;animation:srvpulse 1s ease-in-out infinite}
-  @keyframes srvpulse{0%,100%{box-shadow:0 0 0 4px rgba(255,210,63,.35)}50%{box-shadow:0 0 0 12px rgba(255,210,63,.8)}}
-  .panel.left .serve{left:16px}.panel.right .serve{right:16px}
-  .pshirt{position:absolute;bottom:12px;cursor:pointer;z-index:4;line-height:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55))}
-  .ebtn{position:absolute;bottom:14px;width:clamp(70px,12vh,92px);height:clamp(70px,12vh,92px);border-radius:50%;
-    background:#fff;color:#0b0b0b;font-weight:900;font-size:clamp(20px,3.1vh,28px);border:none;cursor:pointer;z-index:5;letter-spacing:.5px;
-    display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.55)}
-  .ebtn:active{background:#e2e2e2}
-  .panel.left .ebtn{left:clamp(78px,13vh,108px)} .panel.right .ebtn{right:clamp(78px,13vh,108px)}
-  .panel.left .pshirt{left:14px}.panel.right .pshirt{right:14px}
-  #warmPhaseLabel.big{font-size:clamp(48px,10vh,120px);color:#ffd54a;font-weight:900;letter-spacing:1px}
-  .swatch{width:56px;height:56px;border-radius:50%;border:3px solid #ffffff22;cursor:pointer}
-  .swatch:active{transform:scale(.92)}
-  .gameball{position:absolute;top:12px;font-size:12px;font-weight:900;letter-spacing:1px;padding:4px 10px;border-radius:999px}
+  /* Spielstand: Fallback in vh, in modernen Browsern relativ zur Kastengröße (so groß wie möglich) */
+  .score{font-weight:800;line-height:1;font-variant-numeric:tabular-nums;font-size:clamp(110px,40vh,400px);font-size:min(80cqh,66cqw)}
+  /* Aufschlag-Kennzeichnung im Kasten (nur Anzeige – Bedienung in der Leiste darunter) */
+  .srvtag{position:absolute;top:12px;display:flex;align-items:center;gap:8px;background:#e9edf3;color:#0b0b0b;border-radius:999px;
+    padding:6px 14px;font-weight:900;font-size:clamp(15px,2.4vh,22px);pointer-events:none;box-shadow:0 0 0 3px rgba(255,255,255,.15)}
+  .srvtag .sl{background:#0b0b0b;color:#fff;border-radius:6px;padding:1px 8px}
+  .panel.left .srvtag{left:14px}.panel.right .srvtag{right:14px}
+  .gameball{position:absolute;top:12px;font-size:clamp(12px,1.8vh,16px);font-weight:900;letter-spacing:1px;padding:5px 12px;border-radius:999px;pointer-events:none}
   .panel.left .gameball{right:14px}.panel.right .gameball{left:14px}
   .gb-game{background:#f2b134;color:#241800}.gb-match{background:#2fbf71;color:#052012}
 
-  .mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-width:78px}
-  .midbtn{width:66px;height:66px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
-  .mid-timer{background:var(--blue);color:#fff}
-  .mid-undo{background:#2b2b2b;color:#fff;font-size:20px;font-weight:800}
-  .mid-label{font-size:10px;color:var(--muted);margin-top:-8px}
+  /* Bedienleiste unter dem Kasten – große Touch-Flächen */
+  .pctrl{display:flex;gap:10px;height:clamp(64px,11vh,96px);min-width:0}
+  .pctrl.left{grid-column:1;grid-row:2}
+  .pctrl.right{grid-column:3;grid-row:2}
+  .cbtn{flex:1 1 0;min-width:0;min-height:56px;border-radius:16px;border:none;cursor:pointer;font:inherit;font-weight:900;
+    font-size:clamp(18px,3vh,30px);display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+  .cbtn:active{transform:scale(.97)}
+  .cbtn.let{flex:1.25 1 0;background:#fff;color:#0b0b0b;letter-spacing:1px}
+  .cbtn.srv{background:#e9edf3;color:#0b0b0b}
+  .cbtn.srv .ar{color:#c47b00;font-size:.85em}
+  .cbtn.srv.srvchg{background:#ffd23f;animation:srvpulse 1s ease-in-out infinite}
+  .cbtn.srv.idle{visibility:hidden}
+  .cbtn.shirt{flex:0 0 auto;aspect-ratio:1/1;height:100%;background:#1b2130;border:1px solid #2a3444;padding:4px}
+  .cbtn.shirt svg{width:82%;height:82%}
+  @keyframes srvpulse{0%,100%{box-shadow:0 0 0 4px rgba(255,210,63,.35)}50%{box-shadow:0 0 0 12px rgba(255,210,63,.8)}}
+  .pshirt{line-height:0}
+  #warmPhaseLabel.big{font-size:clamp(40px,8vh,96px);color:#ffd54a;font-weight:900;letter-spacing:1px}
+  .swatch{width:64px;height:64px;border-radius:50%;border:3px solid #ffffff22;cursor:pointer}
+  .swatch:active{transform:scale(.92)}
 
-  .foot{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px 22px 20px;background:transparent;color:#cfe0ff}
-  .footrow{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px}
-  .footlogo{max-height:clamp(80px,17vh,170px);max-width:min(460px,58vw);opacity:.95}
-  .footrow .refline{justify-self:end;text-align:right;font-size:27px}
-  .setpill{justify-self:center;background:#151515;border:1px solid #2a2a2a;border-radius:999px;padding:14px 46px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;font-size:clamp(30px,4.6vh,50px);cursor:pointer;user-select:none}
-  .games{display:flex;gap:12px;justify-self:start;flex-wrap:wrap}
-  .games .g{background:#151515;border:1px solid #2a2a2a;border-radius:9px;padding:8px 16px;font-size:25px;font-weight:700}
+  .mid{grid-column:2;grid-row:1 / span 2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-width:78px}
+  .midbtn{width:72px;height:72px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+  .mid-timer{background:var(--blue);color:#fff}
+  .mid-undo{background:#2b2b2b;color:#fff;font-size:24px;font-weight:800}
+  .mid-label{font-size:11px;color:var(--muted);margin-top:-8px}
+
+  /* Fußzeile: eine Zeile (Satzergebnisse · Satzstand · kleines Logo) */
+  .foot{flex:0 0 auto;padding:4px 14px 8px;background:transparent;color:#cfe0ff}
+  .footrow{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px}
+  .footlogo{justify-self:end;max-height:clamp(34px,7vh,64px);max-width:min(240px,24vw);object-fit:contain;opacity:.95}
+  .setpill{justify-self:center;background:#151515;border:1px solid #2a2a2a;border-radius:999px;padding:8px 36px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;font-size:clamp(24px,4vh,42px);cursor:pointer;user-select:none}
+  .games{display:flex;gap:10px;justify-self:start;flex-wrap:wrap}
+  .games .g{background:#151515;border:1px solid #2a2a2a;border-radius:9px;padding:6px 14px;font-size:clamp(16px,2.6vh,24px);font-weight:700}
   .refline{color:#cfe0ff}.refline b{color:var(--muted);font-weight:600}
+
+  /* Helligkeit: genau drei Stufen */
+  .brt{display:inline-flex;align-items:center;gap:4px;background:#151515;border:1px solid #2a2a2a;border-radius:12px;padding:3px}
+  .brt .bl{font-size:16px;padding:0 4px 0 6px}
+  .brt button{min-width:54px;min-height:42px;border-radius:9px;border:0;background:#232a36;color:#cfe0ff;font:inherit;font-weight:900;font-size:15px;cursor:pointer}
+  .brt button.on{background:#ffd54a;color:#241800}
+  .brt .opt{font-size:10px;font-weight:800;color:#ffb24a;padding:0 6px;line-height:1.1;text-align:left}
+  .brt.lg button{min-width:64px;min-height:52px;font-size:18px}
+  #dimfx{position:fixed;inset:0;background:#000;pointer-events:none;z-index:8000;opacity:0;transition:opacity .2s}
 
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.96);display:none;align-items:flex-start;justify-content:center;z-index:20;padding:20px;overflow-y:auto}
   .overlay.show{display:flex}
@@ -139,6 +161,105 @@
   .warminfo .wi-cat{margin-top:6px;color:#8fd0ff;font-weight:800;font-size:clamp(14px,2vh,18px)}
   .warminfo .wi-ref{margin-top:2px;color:#9fb3cc;font-weight:700;font-size:clamp(13px,1.8vh,16px)}
   .overlay.branded{background:rgba(0,0,0,.55)}
+  /* ---- Aufwärmen: alles auf einen Bildschirm (Höhen in vh) ---- */
+  #ovWarmup{align-items:center;padding:1.5vh 2vw}
+  .wcard{width:min(900px,96vw);margin:0 auto;padding:1.6vh 22px 1.8vh;display:flex;flex-direction:column;gap:1.1vh}
+  .whead{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px}
+  .whead .bigclock{position:static;justify-self:start;font-size:clamp(28px,6vh,64px);text-shadow:none}
+  .whead .wlogo{max-height:clamp(36px,8vh,80px);max-width:240px;object-fit:contain;border-radius:8px}
+  .whead .wbrt{justify-self:end}
+  .wcard h2{margin:0;font-size:clamp(17px,2.6vh,24px)}
+  .wcard .warminfo{margin-top:0;padding:1vh 14px}
+  #warmPhaseLabel{font-size:clamp(24px,4.6vh,52px);font-weight:900;letter-spacing:.5px;color:#ffd54a;line-height:1.1}
+  #warmPhaseSide{font-size:clamp(16px,2.8vh,30px);font-weight:800;color:#eaf2fb;min-height:1.1em;line-height:1.15}
+  #warmTimers{display:flex;gap:clamp(22px,5vw,64px);justify-content:center;align-items:flex-start}
+  #warmTimers>div{text-align:center}
+  .wcap{font-size:clamp(12px,1.9vh,18px);font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#9fb3c8}
+  .timerbig.wt{font-size:clamp(44px,10.5vh,104px);margin:0;line-height:1.05}
+  .wshirts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .wshirt{display:flex;align-items:center;gap:12px;min-height:clamp(56px,8.5vh,76px);padding:4px 14px;border-radius:14px;
+    background:#171d27;border:2px solid #2a3444;color:#fff;font:inherit;font-weight:800;font-size:clamp(15px,2.3vh,20px);cursor:pointer;text-align:left;min-width:0}
+  .wshirt.p1{border-color:var(--blue)}.wshirt.p2{border-color:var(--red)}
+  .wshirt svg{width:clamp(42px,6.5vh,58px);height:clamp(42px,6.5vh,58px);flex:0 0 auto}
+  .wshirt .wn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wshirt .wc{font-size:.75em;color:#9fb3cc;font-weight:700;white-space:nowrap}
+  .wshirt:active{transform:scale(.98)}
+  .wrow{margin-top:0;gap:12px}
+  .wbig{min-width:220px;min-height:clamp(54px,8vh,70px);font-size:clamp(17px,2.6vh,22px)}
+  #warmServeRow .choice{min-height:clamp(56px,9vh,80px);padding:10px 14px}
+  .wq{margin:0 0 .8vh;font-weight:800}
+  #warmCtrlRow .btn{padding:10px 18px;min-height:48px}
+  /* Satzpause */
+  .restrow{gap:14px;margin-top:16px}
+  .btn-undo{background:#2b2b2b;color:#fff;border:2px solid #ffd54a;min-height:64px;font-size:20px;padding:12px 22px}
+  .btn-next{min-height:64px;font-size:20px}
+
+  /* ---- Handy hochkant: Aufwärmen kompakt ---- */
+  @media (orientation:portrait) and (max-width:700px){
+    #ovWarmup{padding:1vh 2vw}
+    .wcard{width:100%;padding:1.2vh 12px;gap:.9vh}
+    .whead{grid-template-columns:auto 1fr;gap:8px}
+    .whead .wlogo{display:none}
+    .whead .bigclock{font-size:clamp(24px,4.4vh,40px)}
+    .whead .brt button{min-width:48px;min-height:44px;font-size:15px}
+    .whead .brt .opt{display:none}
+    .wcard h2{display:none}
+    .wcard .warminfo{padding:.7vh 10px}
+    .warminfo .wi-top{font-size:clamp(15px,2.2vh,20px);gap:8px}
+    .warminfo .wi-cat{margin-top:2px;font-size:13px}
+    .warminfo .wi-ref{display:none}
+    #warmPhaseLabel{font-size:clamp(20px,3.4vh,32px)}
+    #warmPhaseSide{font-size:clamp(14px,2.1vh,20px)}
+    .timerbig.wt{font-size:clamp(38px,8vh,72px)}
+    .wshirts{grid-template-columns:1fr;gap:8px}
+    .wshirt{min-height:52px}
+    .wrow{gap:8px;flex-wrap:nowrap}
+    .wbig{min-width:0;flex:1;min-height:56px;font-size:16px;padding:10px}
+    #warmServeRow .choice{min-width:0;min-height:58px;font-size:16px}
+    #warmCtrlRow .btn{min-height:44px;padding:8px 14px}
+  }
+  /* ---- Handy quer (flach): Aufwärmen zweispaltig, Satzpause kompakt ---- */
+  @media (orientation:landscape) and (max-height:560px){
+    #ovWarmup{padding:6px 10px;align-items:stretch}
+    .whead{padding-right:96px}            /* Platz für die Sprachauswahl oben rechts */
+    .whead .brt .opt{display:none}
+    .wcard{width:100%;max-width:none;margin:0;padding:8px 14px;display:grid;grid-template-columns:1.1fr 1fr;
+      column-gap:14px;row-gap:6px;align-content:start}
+    .whead{grid-column:1 / -1;grid-row:1}
+    .whead .wlogo{max-height:34px}
+    .whead .bigclock{font-size:28px}
+    .whead .brt button{min-width:48px;min-height:40px;font-size:14px}
+    .wcard h2{display:none}
+    .wcard .warminfo{grid-column:1;grid-row:2;padding:4px 10px}
+    .warminfo .wi-top{font-size:15px;gap:8px}
+    .warminfo .wi-cat{margin-top:1px;font-size:12px}
+    .warminfo .wi-ref{display:none}
+    #warmPhaseLabel{grid-column:1;grid-row:3;font-size:20px}
+    #warmPhaseSide{grid-column:1;grid-row:4;font-size:14px}
+    #warmTimers{grid-column:1;grid-row:5;gap:28px}
+    .wcap{font-size:11px}
+    .timerbig.wt{font-size:clamp(34px,13vh,56px)}
+    .wshirts{grid-column:2;grid-row:2 / span 2;grid-template-columns:1fr;gap:6px;align-self:start}
+    .wshirt{min-height:46px;font-size:14px}
+    .wshirt svg{width:36px;height:36px}
+    #warmStartRow,#warmServeRow{grid-column:2;grid-row:4}
+    #warmCtrlRow{grid-column:2;grid-row:5;align-self:end}
+    .wq{display:none}
+    .wrow{gap:8px;flex-wrap:nowrap;justify-content:stretch}
+    .wbig{min-width:0;flex:1;min-height:48px;font-size:15px;padding:8px}
+    #warmServeRow .choice{min-width:0;min-height:48px;padding:6px 8px;font-size:15px}
+    #warmCtrlRow .btn{min-height:44px;padding:6px 14px}
+    #ovRest{padding:6px 10px;align-items:center}
+    #ovRest .card{margin:0 auto;padding:10px 16px;width:min(760px,96vw)}
+    #restLogo{display:none !important}
+    #ovRest h2{font-size:18px;margin:0}
+    #restClock{font-size:clamp(40px,16vh,64px);margin:0}
+    #restInfo{margin:2px 0 6px;font-size:14px}
+    .restrow{margin-top:4px;flex-wrap:nowrap}
+    .restrow .btn{min-height:52px;font-size:16px;padding:8px 14px}
+    #ovRest .row:last-child{margin-top:8px !important}
+    #ovRest .brt button{min-height:40px}
+  }
   .card h2{margin:0 0 6px;font-size:24px}
   .card p{color:var(--muted);margin:4px 0 18px}
   #doneLogo{max-height:64px;max-width:180px;margin:0 auto 10px;display:none}
@@ -219,33 +340,35 @@
     .namepill{font-size:clamp(14px,4.4vw,22px);padding:8px 12px;gap:6px}
     .namepill .cflag{width:28px;height:19px}
 
-    .board{grid-template-columns:1fr 1fr;grid-template-rows:1fr auto;gap:10px;padding:0 10px 6px}
+    .board{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1fr) auto auto;gap:8px 10px;padding:0 10px 6px}
     .panel.left{grid-column:1;grid-row:1}
     .panel.right{grid-column:2;grid-row:1}
+    .pctrl.left{grid-column:1;grid-row:2}
+    .pctrl.right{grid-column:2;grid-row:2}
     .panel{border-radius:18px}
     .panel.left,.panel.right{border-width:4px}
-    .score{font-size:min(30vw,28vh)}
-    .serve{top:44px;width:min(15vw,70px);height:min(15vw,70px);font-size:min(8vw,38px)}
-    .panel.left .serve{left:10px}.panel.right .serve{right:10px}
-    .gameball{top:8px;left:50% !important;right:auto !important;transform:translateX(-50%);font-size:10px;padding:3px 8px;white-space:nowrap}
-    .pshirt{bottom:8px}
-    .pshirt svg{width:min(13vw,60px);height:min(13vw,60px)}
-    .panel.left .pshirt{left:8px}.panel.right .pshirt{right:8px}
-    .ebtn{bottom:10px;width:min(15vw,72px);height:min(15vw,72px);font-size:min(4.2vw,20px)}
-    .panel.left .ebtn{left:auto;right:10px}.panel.right .ebtn{right:auto;left:10px}   /* LET innen, Trikot außen */
+    .score{font-size:min(30vw,28vh);font-size:min(70cqh,70cqw)}
+    .srvtag{top:8px;font-size:13px;padding:4px 9px;gap:5px}
+    .panel.left .srvtag{left:8px}.panel.right .srvtag{right:8px}
+    .gameball{top:auto;bottom:8px;left:50% !important;right:auto !important;transform:translateX(-50%);font-size:11px;padding:3px 8px;white-space:nowrap}
+    .pctrl{height:auto;flex-wrap:wrap;gap:6px}
+    .cbtn{min-height:56px;font-size:clamp(15px,4vw,22px)}
+    .cbtn.let{flex:1 1 100%;order:-1}
+    .cbtn.shirt{height:56px}
+    .cbtn.srv.idle{display:none}
 
-    .mid{grid-column:1 / -1;grid-row:2;flex-direction:row;gap:22px;min-width:0;padding:2px 0}
-    .midbtn{width:60px;height:60px;font-size:22px}
+    .mid{grid-column:1 / -1;grid-row:3;flex-direction:row;gap:22px;min-width:0;padding:2px 0}
+    .midbtn{width:64px;height:64px;font-size:24px}
     .mid-label{display:none}
 
-    .foot{gap:10px;padding:8px 12px 12px}
+    .foot{padding:6px 12px 10px}
     .footrow{grid-template-columns:1fr;gap:8px;justify-items:center}
-    .footrow .games,.footrow .setpill,.footrow .refline{justify-self:center}
-    .footrow .refline{text-align:center;font-size:16px}
+    .footrow .games,.footrow .setpill,.footrow .footlogo{justify-self:center}
     .setpill{font-size:clamp(22px,6.4vw,36px);padding:10px 30px}
     .games{justify-content:center;gap:8px}
     .games .g{font-size:15px;padding:5px 10px}
-    .footlogo{max-height:11vh;max-width:70vw}
+    .footlogo{max-height:7vh;max-width:50vw}
+    .top .brt .opt{display:none}
   }
 
   /* ===== HANDY QUERFORMAT (flache Höhe) – Tablets im Querformat bleiben unverändert ===== */
@@ -264,32 +387,29 @@
     .namepill{font-size:clamp(14px,5vh,22px);padding:5px 14px}
     .namepill .cflag{width:28px;height:19px}
 
-    .board{gap:8px;padding:0 10px 4px}
+    .board{gap:6px 8px;padding:0 10px 4px}
     .panel{border-radius:16px}
     .panel.left,.panel.right{border-width:4px}
-    .score{font-size:min(44vh,20vw)}
-    /* Ecken: außen oben Aufschlag, innen oben Satzball, außen unten Trikot, innen unten LET */
-    .serve{top:8px;width:min(15vh,64px);height:min(15vh,64px);font-size:min(8vh,34px)}
-    .panel.left .serve{left:8px}.panel.right .serve{right:8px}
-    .gameball{top:8px;font-size:10px;padding:3px 8px}
+    .score{font-size:min(44vh,20vw);font-size:min(84cqh,64cqw)}
+    .srvtag{top:6px;font-size:12px;padding:3px 8px;gap:5px}
+    .panel.left .srvtag{left:6px}.panel.right .srvtag{right:6px}
+    .gameball{top:6px;font-size:10px;padding:3px 8px}
     .panel.left .gameball{right:8px;left:auto}.panel.right .gameball{left:8px;right:auto}
-    .pshirt{bottom:6px}
-    .pshirt svg{width:min(14vh,58px);height:min(14vh,58px)}
-    .panel.left .pshirt{left:8px}.panel.right .pshirt{right:8px}
-    .ebtn{bottom:8px;width:min(16vh,66px);height:min(16vh,66px);font-size:min(4.6vh,19px)}
-    .panel.left .ebtn{left:auto;right:8px}.panel.right .ebtn{right:auto;left:8px}
+    .pctrl{height:min(15vh,58px);gap:6px}
+    .cbtn{min-height:44px;font-size:min(5vh,20px);border-radius:12px}
 
     .mid{gap:10px;min-width:60px}
     .midbtn{width:min(13vh,56px);height:min(13vh,56px);font-size:20px}
     .mid-label{display:none}
 
-    .foot{gap:0;padding:4px 12px 6px}
+    .foot{padding:2px 12px 4px}
     .footrow{gap:10px}
-    .setpill{font-size:clamp(18px,6vh,28px);padding:5px 24px}
+    .setpill{font-size:clamp(18px,6vh,28px);padding:4px 24px}
     .games{gap:6px}
     .games .g{font-size:14px;padding:3px 9px}
-    .footrow .refline{font-size:15px}
     .footlogo{display:none}
+    .top .brt .opt{display:none}
+    .brt button{min-width:46px;min-height:40px;font-size:13px}
   }
 </style>
 </head>
@@ -301,6 +421,7 @@
   style="position:fixed;top:8px;right:8px;z-index:50;background:rgba(20,28,40,.85);color:#e7edf5;border:1px solid #2a3444;border-radius:9px;padding:6px 8px;font:inherit;cursor:pointer">
   <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
 <div id="app"></div>
+<div id="dimfx"></div>
 <div id="tieStrip" class="tiestrip" style="display:none"></div>
 <div id="ovTie" class="overlay"><div class="card" style="width:min(880px,94vw);max-width:none;text-align:left">
   <img id="tieLogo" class="brandlogo" style="display:none" alt="">
@@ -314,40 +435,37 @@
   <div id="bigBannerText" style="font-size:clamp(52px,13vh,150px);font-weight:900;color:#ffd54a;text-align:center;letter-spacing:2px;text-transform:uppercase;padding:0 20px"></div>
 </div>
 
-<div id="ovWarmup" class="overlay"><div id="bigClock" class="bigclock">--:--</div><div class="card">
-  <img id="warmLogo" class="brandlogo" style="display:none" alt="">
+<div id="ovWarmup" class="overlay"><div class="card wcard">
+  <div class="whead">
+    <div id="bigClock" class="bigclock">--:--</div>
+    <img id="warmLogo" class="wlogo" style="display:none" alt="">
+    <div class="wbrt" data-brt="lg"></div>
+  </div>
   <h2 id="warmTitle">Nächstes Spiel auf Court</h2>
-  <div id="warmPhaseLabel" style="font-size:clamp(30px,5.4vh,60px);font-weight:900;letter-spacing:.5px;margin:-2px 0 4px;color:#ffd54a">Aufwärmen</div>
-  <div id="warmPhaseSide" style="font-size:clamp(20px,3.4vh,38px);font-weight:800;margin:0 0 14px;color:#eaf2fb;min-height:1.1em">&nbsp;</div>
-  <div id="warmTimers" style="display:flex;gap:clamp(22px,5vw,64px);justify-content:center;align-items:flex-start;flex-wrap:wrap">
-    <div style="text-align:center">
-      <div style="font-size:clamp(13px,2.2vh,20px);font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#9fb3c8">Gesamt</div>
-      <div id="warmClock" class="timerbig" style="color:#cbd5e1">5:00</div>
-    </div>
-    <div style="text-align:center">
-      <div id="warmPhaseCap" style="font-size:clamp(13px,2.2vh,20px);font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#9fb3c8">Phase&nbsp;1&nbsp;/&nbsp;3</div>
-      <div id="warmPhaseClock" class="timerbig" style="color:#7fe08a">2:00</div>
-    </div>
+  <div id="warmInfo" class="warminfo" style="display:none"></div>
+  <div id="warmPhaseLabel">Aufwärmen</div>
+  <div id="warmPhaseSide">&nbsp;</div>
+  <div id="warmTimers">
+    <div><div class="wcap">Gesamt</div><div id="warmClock" class="timerbig wt" style="color:#cbd5e1">5:00</div></div>
+    <div><div id="warmPhaseCap" class="wcap">Phase&nbsp;1&nbsp;/&nbsp;3</div><div id="warmPhaseClock" class="timerbig wt" style="color:#7fe08a">2:00</div></div>
   </div>
-  <div class="row" id="warmCtrlRow" style="margin-top:16px;gap:10px">
-    <button class="btn btn-gray" onclick="Timer.reset('warmup')">Reset</button>
-    <button id="btnBackTie" class="btn btn-gray" style="display:none" onclick="backToTiePicker()">↩ Anderes Einzel wählen</button>
+  <div id="warmShirts" class="wshirts"></div>
+  <div id="warmStartRow" class="row wrow">
+    <button id="btnStartWarm" class="btn btn-green wbig" onclick="startWarm()">▶ Aufwärmen starten</button>
+    <button class="btn btn-blue wbig" onclick="askServer()">Wer schlägt auf?</button>
   </div>
-  <div id="warmStartRow" class="row" style="margin-top:22px;gap:12px;flex-wrap:wrap;justify-content:center">
-    <button id="btnStartWarm" class="btn btn-green" style="min-width:230px;font-size:20px" onclick="startWarm()">▶ Aufwärmen starten</button>
-    <button class="btn btn-blue" style="min-width:200px;font-size:20px" onclick="askServer()">Wer schlägt auf?</button>
-  </div>
-  <div id="warmServeRow" style="display:none;margin-top:22px">
-    <p style="margin:0 0 10px;font-weight:800">Wer hat Aufschlag?</p>
-    <div class="row">
+  <div id="warmServeRow" style="display:none">
+    <p class="wq">Wer hat Aufschlag?</p>
+    <div class="row wrow">
       <button id="warmP1" class="choice blue" onclick="startPlay(1)">Spieler 1</button>
       <button id="warmP2" class="choice red" onclick="startPlay(2)">Spieler 2</button>
     </div>
-    <div class="row" style="margin-top:12px">
-      <button class="btn btn-gray" onclick="warmBackToStart()">↩ Zurück</button>
-    </div>
   </div>
-  <div id="warmInfo" class="warminfo" style="display:none"></div>
+  <div class="row wrow" id="warmCtrlRow">
+    <button class="btn btn-gray" onclick="Timer.reset('warmup')">Reset</button>
+    <button id="btnWarmBack" class="btn btn-gray" style="display:none" onclick="warmBackToStart()">↩ Zurück</button>
+    <button id="btnBackTie" class="btn btn-gray" style="display:none" onclick="backToTiePicker()">↩ Anderes Einzel wählen</button>
+  </div>
 </div></div>
 
 <div id="ovMsg" class="overlay"><div class="card" style="width:min(560px,96vw)">
@@ -358,6 +476,7 @@
 
 <div id="ovShirt" class="overlay"><div class="card">
   <h2 id="shirtTitle">Shirt-Farbe</h2>
+  <p id="shirtWarm" class="note" style="display:none;margin:0 0 10px">Aufwärmen läuft weiter · <b id="shirtClock">–</b></p>
   <div id="shirtPalette" style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;max-width:440px;margin:6px auto 0"></div>
   <div class="row" style="margin-top:20px">
     <button class="btn btn-gray" onclick="hide('ovShirt')">Schließen</button>
@@ -502,9 +621,11 @@
   <h2>Satzpause</h2>
   <div id="restClock" class="timerbig">1:30</div>
   <p id="restInfo"></p>
-  <div class="row">
-    <button class="btn btn-green" onclick="startNextGame()">Nächsten Satz starten</button>
+  <div class="row restrow">
+    <button class="btn btn-undo" onclick="undoFromRest()">↶ Zurück · letzten Punkt rückgängig</button>
+    <button class="btn btn-green btn-next" onclick="startNextGame()">Nächsten Satz starten</button>
   </div>
+  <div class="row" style="margin-top:14px"><div data-brt="lg"></div></div>
 </div></div>
 
 <div id="ovConfirm" class="overlay"><div class="card" style="width:min(640px,96vw)">
@@ -736,7 +857,7 @@ const Timer={ sec:0,running:false,label:'',_iv:null,onEnd:null,onTick:null,_anno
   snapshot(){ return { label:this.label, running:this.running, sec:this.sec,
     endsAt: this.running ? Date.now()+this.sec*1000 : null }; },
   _paint(){ const t=this.fmt(this.sec);
-    setText('warmClock',t); setText('restClock',t); setText('tMenuClock',t); setText('injClock',t);
+    setText('warmClock',t); setText('restClock',t); setText('tMenuClock',t); setText('injClock',t); setText('shirtClock',t);
     if(this.onTick===warmTick){ try{ paintWarmPhase(this.sec); }catch(e){} }   // Phasentimer synchron halten
     setText('matchClock', this.running||this.sec>0 ? (this.label+' '+t) : '—'); } };
 
@@ -835,9 +956,10 @@ function buildLocal(){       // aktuellen Stand lokal festhalten (überlebt Offl
   st.battery = BATTERY;                                                                        // Akkustand des Tablets
   st.physio = PHYSIO;                                                                          // Physio-Anforderung
   st.message = LEADMSG;                                                                         // Nachricht der Turnierleitung (bis bestätigt)
+  const _rev=((OFF&&OFF.rev)||0)+1; st.lrev=_rev;                                               // lokale Revision (Reihenfolge der Stände)
   OFF = { matchId:match.id, record:recordSnapshot(match), state:st,
     finished:(M.status==='finished'?{result:M.resultString(),winner:M.matchWinner,score_text:M.setScores(),ending:M.ending||null}:null),
-    rev:((OFF&&OFF.rev)||0)+1, savedAt:Date.now(), pending:true };
+    rev:_rev, savedAt:Date.now(), pending:true };
   offSave();
   try{ sendMirror(); }catch(e){}
 }
@@ -949,8 +1071,7 @@ async function onCtrlCmd(c, src){
       else {
         const wasFinished=(M.status==='finished');
         if(finishLocked || wasFinished){ resetFinishState(); refConfirmed=false; }   // Turnierleitung darf auch nach Matchende zurücknehmen
-        if(M.undo()){
-          hide('ovDone'); hide('ovConfirm'); hide('ovRest'); afterChange();
+        if(undoCore()){
           if(wasFinished && M.status!=='finished'){   // bereits gemeldetes Endergebnis im Dashboard wieder entfernen
             try{ await Store.updateMatch(match.id,{result:null, winner:null, score_text:null, ending:null}); }catch(e){}
           }
@@ -975,18 +1096,27 @@ function render(){
   if(srv) _lastSrv=srv;
   const srvChg = s.status==='playing' && _srvChgAt && (Date.now()-_srvChgAt<4000);
   clearTimeout(_srvChgTO); if(srvChg) _srvChgTO=setTimeout(()=>{ if(match&&M) render(); },4100);
-  const serveBox = side => `<div class="serve${srvChg?' srvchg':''}" onclick="event.stopPropagation();toggleServeSide()" title="Aufschlagseite wechseln (R/L)">${srvChg?'<span class="srvarrow">⇄</span>':''}<span class="srvltr">${side}</span></div>`;
+  const sideLabel=d=>d==='R'?'Rechts':'Links';
+  // Aufschlag-Kennzeichnung im Kasten (nur Anzeige)
+  const srvTag = side => `<div class="srvtag">● Aufschlag <span class="sl">${side}</span></div>`;
+  // Bedienleiste unter dem Kasten: Shirt · Aufschlagseite (nur beim Aufschläger) · LET
+  const ctrlRow = (p, serving) => {
+    const shirt=`<button class="cbtn shirt" onclick="pickShirt(${p})" title="Shirt-Farbe Spieler ${p}">${shirtSVG(p===1?M.shirt1:M.shirt2)}</button>`;
+    const srvB = serving
+      ? `<button class="cbtn srv${srvChg?' srvchg':''}" onclick="toggleServeSide()" title="Aufschlagseite wechseln">${srvChg?'<span class="ar">⇄</span>':'⇄'} ${sideLabel(s.side)}</button>`
+      : `<button class="cbtn srv idle" tabindex="-1" aria-hidden="true">–</button>`;
+    const let_=`<button class="cbtn let" onclick="openDecide(${p})" title="LET / Entscheidung">LET</button>`;
+    return `<div class="pctrl ${p===1?'left':'right'}">${p===1 ? (shirt+srvB+let_) : (let_+srvB+shirt)}</div>`;
+  };
   const gb1=s.status==='playing'?(s.matchBall(1)?'match':(s.gameBall(1)?'game':'')):'';
   const gb2=s.status==='playing'?(s.matchBall(2)?'match':(s.gameBall(2)?'game':'')):'';
-  const sideLabel=d=>d==='R'?'Rechts':'Links';
-  const decLetter='LET';
   app.innerHTML=`
   <div class="wrap">
     <div class="top">
       <div><div class="court">COURT ${COURT}</div>
-        <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}</div></div>
+        <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}${match.referee?` · <span class="refline"><b>Schiri:</b> ${escC(match.referee)}</span>`:''}</div></div>
       <div class="right"><span class="ver">v${(window.CONFIG&&window.CONFIG.APP_VERSION)||''}</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
-        <span id="matchClock" class="clock">—</span>
+        <span id="matchClock" class="clock">—</span>${brtHtml(false)}
         <button class="iconbtn" onclick="backToLauncher()" title="Turnier/Court wechseln">⟵ Court</button></div>
     </div>
     <div class="names">
@@ -996,23 +1126,21 @@ function render(){
     </div>
     <div class="board">
       <div class="panel left" onclick="point(1)">
-        ${serving1?serveBox(s.side):''}
+        ${serving1?srvTag(s.side):''}
         ${gb1?`<div class="gameball ${gb1==='match'?'gb-match':'gb-game'}">${gb1==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p1}</div>
-        <div class="pshirt" onclick="event.stopPropagation();pickShirt(1)" title="Shirt-Farbe Spieler 1">${shirtSVG(M.shirt1)}</div>
-        <button class="ebtn" onclick="event.stopPropagation();openDecide(1)" title="LET / Entscheidung">${decLetter}</button>
       </div>
       <div class="mid">
         <button class="midbtn mid-undo" onclick="undo()">↶</button><div class="mid-label">Undo</div>
         <button class="midbtn mid-timer" onclick="show('ovTimer')">⏱</button>
       </div>
       <div class="panel right" onclick="point(2)">
-        ${serving2?serveBox(s.side):''}
+        ${serving2?srvTag(s.side):''}
         ${gb2?`<div class="gameball ${gb2==='match'?'gb-match':'gb-game'}">${gb2==='match'?'MATCHBALL':'SATZBALL'}</div>`:''}
         <div class="score">${s.g.p2}</div>
-        <div class="pshirt" onclick="event.stopPropagation();pickShirt(2)" title="Shirt-Farbe Spieler 2">${shirtSVG(M.shirt2)}</div>
-        <button class="ebtn" onclick="event.stopPropagation();openDecide(2)" title="LET / Entscheidung">${decLetter}</button>
       </div>
+      ${ctrlRow(1, serving1)}
+      ${ctrlRow(2, serving2)}
     </div>
     <div class="foot">
       <div class="footrow">
@@ -1022,9 +1150,8 @@ function render(){
             ? 'Satz '+s.games.map(g=>g.p1+'-'+g.p2).join('  ')
             : 'Satz '+s.gamesWon(1)+' – '+s.gamesWon(2)
         }</span>
-        <span class="refline">${match.referee?`<b>Schiri:</b> ${match.referee}`:''}</span>
+        ${(SETTINGS&&SETTINGS.logoUrl)?`<img class="footlogo" src="${SETTINGS.logoUrl}" alt="">`:'<span></span>'}
       </div>
-      ${(SETTINGS&&SETTINGS.logoUrl)?`<img class="footlogo" src="${SETTINGS.logoUrl}" alt="">`:''}
     </div>
   </div>`;
   setTimeout(()=>{ const a=document.getElementById('letP1'),b=document.getElementById('letP2');
@@ -1202,6 +1329,7 @@ function pickShirt(p){
   if(!M) return; shirtEditing=p;
   const name=(p===1?match.player1_name:match.player2_name)||('Spieler '+p);
   setText('shirtTitle','Shirt-Farbe – '+name);
+  const sw=document.getElementById('shirtWarm'); if(sw) sw.style.display=(M.status==='warmup')?'':'none';
   const cur=(p===1?M.shirt1:M.shirt2);
   const pal=document.getElementById('shirtPalette');
   pal.innerHTML = SHIRT_COLORS.map(c=>
@@ -1212,9 +1340,37 @@ function pickShirt(p){
 }
 function applyShirt(color){
   if(!M) return; if(shirtEditing===1) M.shirt1=color||null; else M.shirt2=color||null;
-  hide('ovShirt'); render(); sync();
+  hide('ovShirt'); render(); renderWarmShirts(); sync();   // Timer bleibt unberührt (läuft weiter)
 }
-function undo(){ if(finishLocked) return; if(!M) return; if(M.undo()){ refConfirmed=false; hide('ovConfirm'); hide('ovDone'); hide('ovRest'); afterChange(); } }
+// Gemeinsamer Undo-Kern: stellt den Stand vor der letzten Eingabe wieder her.
+// War dadurch eine Satzpause entstanden (versehentliches Satzende), wird sie samt Timer beendet.
+function shirtName(c){ const n={'#e23b3b':'Rot','#2f6bff':'Blau','#22c55e':'Grün','#eab308':'Gelb','#f97316':'Orange','#a855f7':'Lila',
+  '#ec4899':'Pink','#06b6d4':'Türkis','#0e1116':'Schwarz','#f1f5f9':'Weiß','#64748b':'Grau','#7c3f1d':'Braun'}; return c?(n[c]||'Farbe'):'keine Farbe'; }
+function renderWarmShirts(){
+  const el=document.getElementById('warmShirts'); if(!el) return;
+  if(!match||!M){ el.innerHTML=''; return; }
+  const b=p=>{ const c=p===1?M.shirt1:M.shirt2, nm=escC((p===1?match.player1_name:match.player2_name)||('Spieler '+p));
+    return `<button class="wshirt p${p}" onclick="pickShirt(${p})">${shirtSVG(c)}<span class="wn">${nm}</span><span class="wc">${shirtName(c)} ✎</span></button>`; };
+  el.innerHTML=b(1)+b(2);
+}
+function undoCore(){
+  if(!M) return false;
+  const wasBetween=(M.status==='between');
+  if(!M.undo()) return false;
+  refConfirmed=false; hide('ovConfirm'); hide('ovDone');
+  if(wasBetween && M.status!=='between'){
+    Timer.stop(); hide('ovRest'); hideBigBanner();
+    try{ const t=document.getElementById('ctoast'); if(t){ t.style.display='none'; } }catch(e){}
+  } else hide('ovRest');
+  afterChange();
+  return { wasBetween };
+}
+function undo(){ if(finishLocked) return; undoCore(); }
+function undoFromRest(){
+  if(finishLocked || !M || M.status!=='between') return;
+  const r=undoCore();
+  if(r && M.status==='playing') toast('Satzende zurückgenommen · '+M.g.p1+' – '+M.g.p2, 3500);
+}
 function letDecide(what){ hide('ovLet'); if(what==='let') return; point(what); }
 // ===== Entscheidungsmenü (Namensklick) – aus Sicht des fragenden Spielers =====
 let decidePlayer=1;
@@ -1272,6 +1428,45 @@ function setWakeBadge(on){
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') requestWake(); });
 ['click','touchstart'].forEach(ev=>window.addEventListener(ev, ()=>{ if(!wakeLock) requestWake(); }, {passive:true}));
 requestWake();
+// ===== Bildschirmhelligkeit: genau drei Stufen (30 / 50 / 75 %) =====
+// Echte Helligkeit nur im Fully Kiosk Browser (Android, JavaScript-Interface aktiv): fully.setScreenBrightness(0–255).
+// Normale Browser/PWA können die Hintergrundbeleuchtung NICHT steuern -> dort nur optische Abdunklung,
+// deutlich als „nur Anzeige“ gekennzeichnet (keine echte Helligkeitsregelung, keine gesicherte Stromersparnis).
+const BRT_LEVELS=[30,50,75], BRT_DEFAULT=30, BRT_KEY='squash_brt_c'+COURT+(VENUE?('_'+VENUE):'');
+function brtNative(){ try{ return typeof fully!=='undefined' && fully && typeof fully.setScreenBrightness==='function'; }catch(e){ return false; } }
+function brtLoad(){ try{ return JSON.parse(localStorage.getItem(BRT_KEY)||'null'); }catch(e){ return null; } }
+let BRT=(brtLoad()||{}).level; if(BRT_LEVELS.indexOf(BRT)<0) BRT=BRT_DEFAULT;
+function brtApply(){
+  const dim=document.getElementById('dimfx');
+  if(brtNative()){
+    try{ fully.setScreenBrightness(Math.round(BRT/100*255)); }catch(e){}
+    if(dim) dim.style.opacity='0';
+  } else if(dim){ dim.style.opacity=String((100-BRT)/100*0.85); }   // nur optisch
+  renderBrt();
+}
+function setBrightness(lv, matchId){
+  if(BRT_LEVELS.indexOf(lv)<0) return;
+  BRT=lv;
+  try{ localStorage.setItem(BRT_KEY, JSON.stringify({ level:lv, matchId:(matchId!==undefined?matchId:(match?match.id:null)) })); }catch(e){}
+  brtApply();
+}
+// Neues Match auf dem Tablet -> wieder 30 %. Gleiches Match (Reload, Phasenwechsel) -> Stufe bleibt.
+function brtForMatch(id){
+  const st=brtLoad();
+  if(!st || st.matchId!==id) setBrightness(BRT_DEFAULT, id); else brtApply();
+}
+function brtHtml(big){
+  const nat=brtNative();
+  return `<div class="brt${big?' lg':''}" title="${nat?'Bildschirmhelligkeit':'Nur optische Abdunklung – echte Helligkeit nur im Fully Kiosk Browser'}">
+    <span class="bl">☀</span>${BRT_LEVELS.map(l=>`<button class="${l===BRT?'on':''}" onclick="event.stopPropagation();setBrightness(${l})">${l}%</button>`).join('')}
+    ${nat?'':'<span class="opt">nur<br>Anzeige</span>'}</div>`;
+}
+function renderBrt(){
+  document.querySelectorAll('[data-brt]').forEach(el=>{ el.innerHTML=brtHtml(el.getAttribute('data-brt')==='lg'); });
+  document.querySelectorAll('#app .top .brt button').forEach(b=>{ b.classList.toggle('on', b.textContent===BRT+'%'); });
+}
+brtApply();
+
 // ============ VERHALTENSSTRAFEN ============
 const CONDUCT_ORDER=['warning','stroke','game','match'];
 function nextConduct(list){ let hi=-1; (list||[]).forEach(e=>{const i=CONDUCT_ORDER.indexOf(e.type); if(i>hi)hi=i;}); return CONDUCT_ORDER[Math.min(hi+1,3)]; }
@@ -1488,6 +1683,13 @@ async function loadCourtCore(){
   if(_im && _im.at && _im.at!==_lastMsgShown){ _lastMsgShown=_im.at; LEADMSG={text:_im.text, at:_im.at}; showLeadMsg(_im.text); }
   else if(!_im && LEADMSG){ LEADMSG=null; }
 
+  // VERSPÄTETES ECHO: Server liefert einen älteren Stand DIESES Tablets (lrev kleiner), während ein neuerer
+  // lokaler Stand noch gesendet wird (z. B. direkt nach Undo in der Satzpause) -> lokalen Stand behalten
+  if(!isNew && M && OFF && OFF.matchId===live.id && OFF.pending && live.state && live.state.lrev!=null
+     && Number(live.state.lrev) < Number(OFF.rev)){
+    applyFrom(live, null, false); flush(); return;
+  }
+
   // KONFLIKT: lokaler (noch nicht gepushter) Stand ist gleich weit oder weiter -> lokal behalten
   if(OFF && OFF.matchId===live.id && OFF.pending && progress(OFF.state) >= progress(live.state)){
     applyFrom(live, OFF.state, isNew);
@@ -1518,6 +1720,7 @@ function applyFrom(record, state, isNew){
       p1:{name:record.player1_name,country:record.player1_country},
       p2:{name:record.player2_name,country:record.player2_country} });
     if(state) M.hydrate(state);
+    if(isNew) brtForMatch(record.id);
     matchStartedAtTs = (state && state.matchStartedAt) || (isNew?null:matchStartedAtTs) || null;
     PHYSIO = (state && state.physio && !state.physio.ack) ? state.physio : (isNew?null:PHYSIO);
     injuryActive = !!(state && state.injury && state.injury.startedAt);
@@ -1595,6 +1798,7 @@ function onWarmDone(){
 function showWarmup(){
   warmPhase=0;
   ['warmClock','warmCtrlRow'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display=''; });  // ggf. aus Aufschlag-Modus zurück
+  const wb=document.getElementById('btnWarmBack'); if(wb) wb.style.display='none';
   const lg=document.getElementById('warmLogo');
   if(lg){ if(SETTINGS&&SETTINGS.logoUrl){ lg.src=SETTINGS.logoUrl; lg.style.display='block'; } else lg.style.display='none'; }
   setText('warmTitle','Nächstes Spiel auf Court '+COURT);
@@ -1620,6 +1824,8 @@ function showWarmup(){
     } else wi.style.display='none';
   }
   document.getElementById('warmPhaseLabel').classList.remove('big');
+  renderWarmShirts();          // T-Shirt-Farben schon während des Aufwärmens wählbar
+  renderBrt();
   primeWarmPhase();            // Phase 1 bereit (pausiert) – Schiri startet
   show('ovWarmup');
 }
@@ -1628,14 +1834,15 @@ function warmBackToStart(){
   const qr=document.getElementById('warmServeRow'); if(qr) qr.style.display='none';
   const b=document.getElementById('btnStartWarm'); if(b) b.style.display='';
   const lbl=document.getElementById('warmPhaseLabel'); if(lbl){ lbl.classList.remove('big'); setText('warmPhaseLabel','Aufwärmen'); }
+  const wb=document.getElementById('btnWarmBack'); if(wb) wb.style.display='none';
+  renderWarmShirts();
 }
 function warmServeView(){
   // Aufschlagwahl anzeigen – Timer/Steuerung/Logo/Info bleiben sichtbar (wie vorher)
   const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='none';  // Start-Button -> Aufschlagwahl
   const qr=document.getElementById('warmServeRow'); if(qr) qr.style.display='block';
-  const ov=document.getElementById('ovWarmup'); if(ov) ov.scrollTop=0;               // Overlay ist der Scroll-Container
-  const c=document.querySelector('#ovWarmup .card'); if(c) c.scrollTop=0;
-  if(qr) setTimeout(()=>{ try{ qr.scrollIntoView({block:'center',behavior:'smooth'}); }catch(e){} }, 60);
+  const wb=document.getElementById('btnWarmBack'); if(wb) wb.style.display='';
+  const ov=document.getElementById('ovWarmup'); if(ov) ov.scrollTop=0;               // passt ohne Scrollen auf den Bildschirm
 }
 function askServer(){
   if(!Timer.running && Timer.sec>0) Timer.toggle();   // Aufwärm-Timer starten
