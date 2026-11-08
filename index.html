@@ -1259,7 +1259,10 @@ function resultRowHtml(m,isSent){
       <div class="win">🏆 ${winName||'—'} ${m.ending?`<span class="endbadge ${m.ending}">${m.ending==='walkover'?'W.O.':'RETIRED'}</span>`:''}</div>
       <label class="tpcheck"><input type="checkbox" ${isSent?'checked':''}
         onchange="toggleTransfer('${m.id}',this.checked)"> Übertrag TP-Software</label>
-      <button class="btn-ghost btn-sm" onclick="openEdit('${m.id}')">✎ Ergebnis bearbeiten</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+        ${(m.state && ((m.state.games||[]).length || m.state.status==='finished')) ? `<button class="btn-ghost btn-sm manage-only" onclick="generateRefForm('${m.id}')" title="Schiedsrichter-Protokoll öffnen (Drucken / als PDF speichern)">📋 Formular</button>` : ''}
+        <button class="btn-ghost btn-sm" onclick="openEdit('${m.id}')">✎ Ergebnis bearbeiten</button>
+      </div>
     </div>`;
 }
 function renderDone(){
