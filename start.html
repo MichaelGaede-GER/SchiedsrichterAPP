@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<script>
+  // Supabase-Passwort-Reset: Recovery-Link -> Reset-Seite
+  if(location.hash && /type=recovery/.test(location.hash)){ location.replace('reset-password.html'+location.hash); }
+</script>
+<script src="i18n.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Squash · Turniere</title>
+<style>
+  :root{--bg:#0f1419;--panel:#1a2230;--panel2:#232d3d;--line:#31405a;--ink:#eef3fb;
+    --muted:#8aa0bf;--blue:#2f6bff;--green:#2fbf71;--amber:#f2b134;--live:#ff4b4b}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 22px;background:linear-gradient(90deg,#161d29,#0f1419);border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:22px;font-weight:900}
+  header .sp{flex:1}
+  .mode{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  main{max-width:1180px;margin:0 auto;padding:10px 22px 60px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin:28px 0 12px;font-weight:700}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  .hint{font-size:13px;color:var(--muted);line-height:1.5}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input[type=text],input[type=number]{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:inherit}
+  button,.btn{border:0;border-radius:9px;padding:10px 14px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+  .btn-primary{background:var(--blue);color:#fff}.btn-green{background:var(--green);color:#08130c}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .btn-ghost:hover{color:var(--ink)}
+  .btn-sm{padding:6px 10px;font-size:13px}
+
+  /* Turnier-Kacheln */
+  .tours{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
+  .tour{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+  .tour.mine{border-color:#2f6bff;box-shadow:0 0 0 1px rgba(47,107,255,.35) inset}
+  .tour .nm{font-size:20px;font-weight:900;line-height:1.2}
+  .tour .meta{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .chip.loc{color:#8fd0ff;border-color:#244a6e;background:#0e2036}
+  .chip.live{color:#fff;background:var(--live);border-color:var(--live)}
+  .chip.dev{color:#cfe0ff;border-color:#2f6bff}
+  .tour .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+  .newtour{border-style:dashed;justify-content:center}
+
+  /* Anlagen */
+  .ven{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line)}
+  .ven:last-child{border-bottom:0}
+  .ven .vn{flex:1;min-width:200px;font-weight:800}
+  .ven .vn small{color:var(--muted);font-weight:600}
+
+  .links .lrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 0}
+  .links .tag{min-width:260px;color:var(--ink);font-weight:700}
+  .links code{flex:1;min-width:200px;background:#131a26;border:1px solid var(--line);border-radius:6px;padding:5px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#232d3d;border:1px solid var(--line);padding:11px 18px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎾 Squash · Turniere</h1>
+  <span class="sp"></span>
+  <span class="mode" id="userBadge"></span>
+  <button class="btn-ghost btn-sm" onclick="Auth.signOut&&Auth.signOut()">Abmelden</button>
+</header>
+
+<main>
+  <h2>Turnier wählen</h2>
+  <p class="hint" style="margin-top:-4px">Jedes Turnier läuft für sich: eigene Spiele, Courts, Einstellungen, Tablets und Anzeigen.
+    Mehrere Turniere gleichzeitig? Einfach jedes in einem eigenen Tab bzw. auf einem eigenen Rechner öffnen.</p>
+  <div class="tours" id="tours"><div class="hint">Lade…</div></div>
+
+  <h2>🏟 Squash-Anlagen (für alle Turniere)</h2>
+  <div class="card">
+    <div class="hint" style="margin-bottom:8px">Anlagen einmal mit ihrer Court-Anzahl anlegen. Im Turnier (⚙️ Einstellungen → Anlagen &amp; Courts) wählst du dann, welche Anlage(n) und Courts das Turnier nutzt.</div>
+    <div id="venues"><div class="hint">Lade…</div></div>
+    <div class="row" style="margin-top:12px">
+      <input type="text" id="venName" placeholder="Anlagenname (z. B. Squash Park Alzenau)" style="flex:1;min-width:220px">
+      <input type="text" id="venCity" placeholder="Ort" style="width:150px">
+      <input type="number" id="venCount" min="0" placeholder="Courts" style="width:100px">
+      <button class="btn-green" onclick="addVenue()">Anlage anlegen</button>
+    </div>
+  </div>
+
+  <h2>📱 Geräte einrichten (gilt für alle Turniere)</h2>
+  <div class="card links" id="devLinks"></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="store.js"></script>
+<script src="auth.js"></script>
+<script>
+// Startseite: Turnierauswahl + turnierübergreifende Stammdaten (Anlagen) + Geräte-Links.
+// Ein Turnier öffnet die Verwaltung mit index.html?t=<id> – dieser Tab gehört dann fest zu diesem Turnier.
+const $=id=>document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2400); }
+function base(){ return location.href.replace(/[?#].*$/,'').replace(/[^/]*$/,''); }
+function deviceTour(){ try{ return localStorage.getItem('squash_active_tournament')||''; }catch(e){ return ''; } }
+
+// ---------- Turniere ----------
+let TOURS=[];
+async function loadTours(){
+  const host=$('tours');
+  try{ TOURS=await Store.listTournaments(); }
+  catch(e){ host.innerHTML='<div class="hint" style="color:#ff8a8a">Turniere konnten nicht geladen werden: '+esc(e.message||e)+'</div>'; return; }
+  const dev=deviceTour();
+  // neueste zuerst
+  const list=TOURS.slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  host.innerHTML = list.map(t=>`<div class="tour${t.id===dev?' mine':''}" id="tour_${esc(t.id)}">
+      <div class="nm">🏆 ${esc(t.name)}</div>
+      <div class="meta" data-meta="${esc(t.id)}">${t.id===dev?'<span class="chip dev">zuletzt auf diesem Gerät</span>':''}</div>
+      <div class="acts">
+        <button class="btn-primary" data-open="${esc(t.id)}">▶ Turnier öffnen</button>
+        <button class="btn-ghost btn-sm" data-tab="${esc(t.id)}" title="In neuem Tab öffnen – z. B. um zwei Turniere parallel zu betreuen">↗ Neuer Tab</button>
+        <button class="btn-ghost btn-sm" data-ren="${esc(t.id)}">Umbenennen</button>
+      </div></div>`).join('')
+    + `<div class="tour newtour">
+        <div class="nm" style="font-size:17px">＋ Neues Turnier</div>
+        <div class="row"><input type="text" id="newTour" placeholder="z. B. German Junior Open 2027" style="flex:1;min-width:180px"
+          onkeydown="if(event.key==='Enter')createTour()">
+        <button class="btn-green" onclick="createTour()">Anlegen &amp; öffnen</button></div>
+      </div>`;
+  host.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openTour(b.dataset.open,false));
+  host.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>openTour(b.dataset.tab,true));
+  host.querySelectorAll('[data-ren]').forEach(b=>b.onclick=()=>renameTour(b.dataset.ren));
+  list.forEach(t=>fillMeta(t.id));
+}
+// Locations + Anzahl laufender Spiele je Turnier (nachgeladen)
+async function fillMeta(tid){
+  const el=document.querySelector(`[data-meta="${CSS.escape(tid)}"]`); if(!el) return;
+  let html=el.innerHTML;
+  try{ const vs=await Store.getTournamentVenues(tid); vs.forEach(v=>{ html+=`<span class="chip loc">🏟 ${esc(v.name)}${v.city?(' · '+esc(v.city)):''}</span>`; }); }catch(e){}
+  try{
+    const sb=Store.client&&Store.client();
+    if(sb){ const r=await sb.from('matches').select('status',{count:'exact',head:true}).eq('tournament_id',tid).eq('status','live');
+      if(r && r.count) html+=`<span class="chip live">● ${r.count} live</span>`; }
+  }catch(e){}
+  el.innerHTML=html;
+}
+async function openTour(id, newTab){
+  await Store.setActiveTournament(id);               // Vorgabe dieses Geräts (z. B. für neue Tabs)
+  const url='index.html?t='+encodeURIComponent(id);
+  if(newTab) window.open(url,'_blank','noopener'); else location.href=url;
+}
+async function createTour(){
+  const name=($('newTour').value||'').trim(); if(!name){ toast('Bitte einen Turniernamen eingeben'); return; }
+  try{ const t=await Store.createTournament(name); toast('Turnier angelegt'); openTour(t.id,false); }
+  catch(e){ toast('Fehler: '+(e.message||e)); }
+}
+async function renameTour(id){
+  const t=TOURS.find(x=>x.id===id); const n=prompt('Neuer Name:', t?t.name:''); if(!n||!n.trim()) return;
+  try{ await Store.renameTournament(id,n.trim()); await loadTours(); toast('Umbenannt'); }catch(e){ toast('Fehler: '+(e.message||e)); }
+}
+
+// ---------- Anlagen-Katalog ----------
+let VENUES=[];
+async function loadVenues(){
+  try{ VENUES=await Store.listVenues(); }catch(e){ VENUES=[]; $('venues').innerHTML='<div class="hint" style="color:#ff8a8a">Anlagen konnten nicht geladen werden: '+esc(e.message||e)+'</div>'; return; }
+  $('venues').innerHTML = VENUES.length ? VENUES.map(v=>`<div class="ven">
+      <span class="vn">🏟 ${esc(v.name)} ${v.city?('<small>· '+esc(v.city)+'</small>'):''}</span>
+      <span class="hint">Courts</span>
+      <input type="number" min="0" value="${Number(v.courtCount)||0}" style="width:90px" data-cnt="${esc(v.id)}">
+      <button class="btn-ghost btn-sm" data-del="${esc(v.id)}">Löschen</button></div>`).join('')
+    : '<div class="hint">Noch keine Anlagen angelegt.</div>';
+  document.querySelectorAll('[data-cnt]').forEach(i=>i.onchange=()=>setCount(i.dataset.cnt,i.value));
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>delVenue(b.dataset.del));
+}
+async function addVenue(){
+  const name=$('venName').value.trim(); if(!name){ toast('Anlagenname fehlt'); return; }
+  const city=$('venCity').value.trim(), n=parseInt($('venCount').value,10)||0;
+  try{ await Store.createVenue(name,city,n); $('venName').value=''; $('venCity').value=''; $('venCount').value=''; await loadVenues(); toast('Anlage angelegt'); }
+  catch(e){ toast('Fehler: '+(e.message||e)); }
+}
+async function setCount(id,v){ try{ await Store.setVenueCourtCount(id,v); await loadVenues(); toast('Gespeichert'); }catch(e){ toast('Fehler: '+(e.message||e)); } }
+async function delVenue(id){
+  const v=VENUES.find(x=>x.id===id);
+  if(!confirm('Anlage „'+(v?v.name:'')+'" löschen? Turniere, die diese Anlage nutzen, verlieren die Zuordnung.')) return;
+  try{ await Store.deleteVenue(id); await loadVenues(); toast('Gelöscht'); }catch(e){ toast('Fehler: '+(e.message||e)); }
+}
+
+// ---------- Geräte-Links ----------
+function renderDevLinks(){
+  const b=base();
+  const row=(tag,url,hint)=>`<div class="lrow"><span class="tag">${tag}</span><code title="${esc(url)}">${esc(url)}</code>
+    <button class="btn-ghost btn-sm" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(url)}').then(()=>toast('Link kopiert'))">Kopieren</button>
+    <a class="btn-ghost btn-sm" href="${esc(url)}" target="_blank" rel="noopener">Öffnen</a></div>${hint?`<div class="hint" style="margin:-2px 0 6px">${hint}</div>`:''}`;
+  $('devLinks').innerHTML =
+      row('🎾 Schiedsrichter-Tablet', b+'tablet.html', 'Auf jedem Court-Tablet: Login → Turnier → Court.')
+    + row('📺 Courtanzeige', b+'anzeige.html', 'Auf jedem TV/Monitor: Login → Turnier → Court → Ansicht.')
+    + row('📺 Courtanzeige · Autostart', b+'anzeige.html?auto=1', 'Start-URL für Fully Kiosk: öffnet direkt die zuletzt gewählte Anzeige.');
+}
+
+// ---------- Start ----------
+Auth.guard('view').then(()=>{
+  try{ if(Auth.user && Auth.user()) $('userBadge').textContent='👤 '+(Auth.user().email||''); }catch(e){}
+  renderDevLinks();
+  loadTours();
+  loadVenues();
+  try{ Store.subscribeTournaments(loadTours); }catch(e){}
+});
+</script>
+</body>
+</html>
