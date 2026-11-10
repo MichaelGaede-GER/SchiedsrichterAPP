@@ -307,10 +307,8 @@
   <img id="logo" class="logo" alt="" style="display:none">
   <a href="start.html" class="navlink" title="Zur Turnierauswahl" style="margin-left:0;margin-right:4px">🏠 Turniere</a>
   <h1 id="appTitle">🎾 Squash&nbsp;·&nbsp;Turnierverwaltung</h1>
-  <select id="tourPick" onchange="onTourPick(this.value)" title="Aktives Turnier wählen"
-    style="margin-left:auto;background:var(--panel2,#1a2230);color:var(--ink,#e7edf5);border:1px solid var(--line,#2a3444);border-radius:9px;padding:8px 10px;font:inherit;font-weight:700;cursor:pointer;max-width:340px"></select>
   <select data-lang-select onchange="I18N.set(this.value)" title="Sprache / Language"
-    style="margin-left:10px;background:var(--panel2,#1a2230);color:var(--ink,#e7edf5);border:1px solid var(--line,#2a3444);border-radius:9px;padding:7px 9px;font:inherit;cursor:pointer">
+    style="margin-left:auto;background:var(--panel2,#1a2230);color:var(--ink,#e7edf5);border:1px solid var(--line,#2a3444);border-radius:9px;padding:7px 9px;font:inherit;cursor:pointer">
     <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
   <span id="moLinks" style="display:contents"></span>
   <a id="lnkKontrolle" class="navlink manage-only" href="kontrolle.html" target="_blank" rel="noopener" style="margin-left:10px" title="Alle Tablets live sehen und steuern">📟 Tablet-Kontrolle</a>
@@ -2209,6 +2207,7 @@ async function applyBranding(){
     const tours=await Store.listTournaments();
     const act=Store.activeTournament();
     const t=tours.find(x=>x.id===act);
+    window.__tourName = t?t.name:'';
     const el=document.getElementById('activeTour');
     el.textContent = t?('Turnier: '+t.name) : 'Kein Turnier aktiv';
     el.style.color = t?'#8fd0ff':'#ffd08a';
@@ -2702,7 +2701,7 @@ async function tsReceiveImport(d, src){
   const open=recs.filter(r=>!r.played).length;
   const noId=recs.filter(r=>!r.played && r.ext_key.startsWith('tsslot:')).length;
   tsImpPending={d,recs};
-  const tName=(document.getElementById('tourPick')&&document.getElementById('tourPick').selectedOptions[0]||{}).textContent||'';
+  const tName=window.__tourName||'';
   document.getElementById('tsImpInfo').innerHTML=
     `<b>${recs.length} Spiele</b> von ${escH(d.source||'turnier.de')} erhalten:<br>`+
     `${open} offen · ${recs.length-open} bereits gespielt – deren Ergebnis wird bei vorhandenen Spielen übernommen (→ „Übertragene Ergebnisse“)`+
