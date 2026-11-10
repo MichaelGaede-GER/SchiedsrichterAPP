@@ -108,7 +108,7 @@
   <label class="tg"><input type="checkbox" id="showIdle" onchange="render()"> auch Tablets ohne Spiel</label>
   <select id="sizeSel" onchange="setSize(this.value)" title="Kartengröße">
     <option value="340">klein</option><option value="420" selected>mittel</option><option value="560">groß</option></select>
-  <a class="btn" href="index.html">← Verwaltung</a>
+  <a class="btn" id="lnkBack" href="index.html">← Verwaltung</a>
 </header>
 <main>
   <p class="hint">Zeigt jedes Tablet so, wie der Schiedsrichter es gerade sieht – live vom Tablet, inklusive Punkten, die noch nicht im Dashboard gespeichert sind.
@@ -435,6 +435,7 @@ let _rT=null; function renderSoon(){ if(_rT) return; _rT=setTimeout(()=>{ _rT=nu
   await Auth.guard('manage');
   ME=(Auth.user&&Auth.user()&&Auth.user().email)||'';
   TID=await Store.ensureActiveTournament();
+  try{ const b=document.getElementById('lnkBack'); if(b&&TID) b.setAttribute('href','index.html?t='+encodeURIComponent(TID)); }catch(e){}
   try{ const ts=await Store.listTournaments(); const t=ts.find(x=>x.id===TID); setChip('tourChip','', 'Turnier: '+(t?t.name:'— keins gewählt —')); }catch(e){}
   if(!TID){ document.getElementById('grid').innerHTML='<div class="empty">Kein Turnier aktiv. Bitte in der Verwaltung ein Turnier wählen.</div>'; return; }
   try{ VENUES=await Store.getTournamentVenues(TID); }catch(e){ VENUES=[]; }

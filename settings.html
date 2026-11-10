@@ -61,7 +61,7 @@
 <header>
   <img id="logo" class="logo" alt="" style="display:none">
   <h1>⚙️ Einstellungen</h1>
-  <a href="index.html">← Zur Verwaltung</a>
+  <a id="lnkBack" href="index.html">← Zur Verwaltung</a>
   <select data-lang-select onchange="I18N.set(this.value)" title="Sprache / Language"
     style="margin-left:12px;background:#1a2230;color:#e7edf5;border:1px solid #2a3444;border-radius:9px;padding:7px 9px;font:inherit;cursor:pointer">
     <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
@@ -557,10 +557,14 @@ async function renderLinks(){
   if(tid){ try{ venues=await Store.getTournamentVenues(); }catch(e){} try{ tcourts=await Store.getTournamentCourts(); }catch(e){} }
 
   const ll=document.getElementById('liveLink');
+  // Launcher (Login -> Turnier -> Court): unabhängig vom aktiven Turnier, ein Link für alle Geräte
+  const launch = linkRow('📺 Courtanzeige-Launcher (Login → Turnier → Court)', base+'anzeige.html')
+               + linkRow('📺 Courtanzeige · Autostart (Fully Kiosk Start-URL)', base+'anzeige.html?auto=1')
+               + linkRow('🎾 Schiedsrichter-Launcher (Login → Turnier → Court)', base+'tablet.html');
 
   if(tid && venues.length && tcourts.length){
     // Live-Anzeige je Location (oben)
-    if(ll){ ll.innerHTML = hint + venues.map(v=>{
+    if(ll){ ll.innerHTML = launch + hint + venues.map(v=>{
       const locq='loc='+encodeURIComponent(v.venue_id);
       const url=base+wq('live.html',[locq]);
       return linkRow('Live-Anzeige · '+escS(v.name), url)
@@ -590,7 +594,7 @@ async function renderLinks(){
   }
 
   // ---- Fallback: einfache Court-Liste (ohne Location) ----
-  if(ll){ const url=base+wq('live.html'); ll.innerHTML=hint+linkRow('Live-Anzeige'+(tname?(' · '+tname):''), url)
+  if(ll){ const url=base+wq('live.html'); ll.innerHTML=launch+hint+linkRow('Live-Anzeige'+(tname?(' · '+tname):''), url)
     + linkRow('Match Overview'+(tname?(' · '+tname):''), base+wq('matchoverview.html')); }
   const list=($('courts').value||'').split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
   const rows=list.map(n=>{
@@ -859,12 +863,23 @@ async function loadTours(){
   sel.innerHTML='<option value="">— Kein Turnier (Altdaten) —</option>'+
     TOURS.map(t=>`<option value="${t.id}" ${t.id===active?'selected':''}>${t.name}</option>`).join('');
   const at=TOURS.find(t=>t.id===active); window.__activeTourName = at?at.name:'';
+  syncTourUrl();
   renderLinks();
   try{ if(typeof initVenues==='function') initVenues(); }catch(e){}
+}
+// Turnier dieses Tabs in Adresszeile + Rück-Link (?t=)
+async function syncTourUrl(){
+  try{ await Store.ensureActiveTournament(); }catch(e){}   // erst laden, sonst würde ?t= fälschlich entfernt
+  const tid=(Store.activeTournament&&Store.activeTournament())||'';
+  try{ const u=new URL(location.href);
+    if(tid) u.searchParams.set('t',tid); else u.searchParams.delete('t');
+    if(u.href!==location.href) history.replaceState(null,'',u.pathname+u.search+u.hash); }catch(e){}
+  const b=document.getElementById('lnkBack'); if(b) b.setAttribute('href','index.html'+(tid?('?t='+encodeURIComponent(tid)):''));
 }
 async function onTourSelect(){
   const id=$('tourSelect').value||null;
   await Store.setActiveTournament(id);
+  syncTourUrl();
   const t=(TOURS||[]).find(x=>x.id===id); window.__activeTourName = t?t.name:'';
   try{ if(typeof Auth!=='undefined' && Auth.refreshRole) await Auth.refreshRole(); }catch(e){}
   toast(id?('Turnier aktiv: '+(t?t.name:'')):'Kein Turnier aktiv');

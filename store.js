@@ -31,11 +31,35 @@ const Store = (() => {
     catch (e) { sb = null; console.warn('[store] supabase-js nicht verfügbar:', e && (e.message || e)); }
   }
 
+  // Realtime-Abo, gefiltert auf ein Turnier.
+  // INSERT/UPDATE werden serverseitig auf tournament_id gefiltert; DELETE-Ereignisse lassen sich
+  // bei Supabase nicht filtern und werden daher ungefiltert (selten) mitgehört.
+  let RT_SEQ = 0;
+  function rtSub(prefix, tables, callback) {
+    const tid = tables[0][1];
+    const ch = sb.channel(prefix + '-' + (tid || 'none') + '-' + (++RT_SEQ));
+    tables.forEach(([table, t]) => {
+      if (t) {
+        const f = 'tournament_id=eq.' + t;
+        ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table, filter: f }, () => callback());
+        ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table, filter: f }, () => callback());
+        ch.on('postgres_changes', { event: 'DELETE', schema: 'public', table }, () => callback());
+      } else {
+        ch.on('postgres_changes', { event: '*', schema: 'public', table }, () => callback());
+      }
+    });
+    ch.subscribe();
+    return () => sb.removeChannel(ch);
+  }
+
   // ---------------- SUPABASE-BACKEND ----------------
   const SupabaseStore = {
     mode: 'supabase',
-    async listMatches() {
-      const { data, error } = await sb.from('matches').select('*');
+    async listMatches(tid) {
+      // nur das eigene Turnier laden (tid === undefined -> alle, null -> Altdaten ohne Turnier)
+      let q = sb.from('matches').select('*');
+      if (tid) q = q.eq('tournament_id', tid); else if (tid === null) q = q.is('tournament_id', null);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []).slice().sort((a, b) => (a.sort_ts || 0) - (b.sort_ts || 0));
     },    async getMatch(id) {
@@ -64,16 +88,13 @@ const Store = (() => {
     async deleteAll() {
       await sb.from('matches').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     },
-    subscribeAll(callback) {
-      const ch = sb.channel('matches-all')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' },
-            () => callback()).subscribe();
-      return () => sb.removeChannel(ch);
-    },
+    subscribeAll(callback, tid) { return rtSub('matches', [['matches', tid]], callback); },
 
     // ---- Begegnungen (Teamturnier) ----
-    async listTies() {
-      const { data, error } = await sb.from('ties').select('*');
+    async listTies(tid) {
+      let q = sb.from('ties').select('*');
+      if (tid) q = q.eq('tournament_id', tid); else if (tid === null) q = q.is('tournament_id', null);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []).slice().sort((a, b) => (a.sort_ts || 0) - (b.sort_ts || 0));
     },
@@ -101,13 +122,7 @@ const Store = (() => {
       if (error) throw error;
       return (data || []).slice().sort((a, b) => (a.tie_pos || 0) - (b.tie_pos || 0));
     },
-    subscribeTies(callback) {
-      const ch = sb.channel('ties-all')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'ties' }, () => callback())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => callback())
-        .subscribe();
-      return () => sb.removeChannel(ch);
-    },
+    subscribeTies(callback, tid) { return rtSub('ties', [['ties', tid], ['matches', tid]], callback); },
 
     async getSettingsRaw() {
       const { data, error } = await sb.from('app_settings').select('data').eq('id', 'app').maybeSingle();
@@ -126,11 +141,14 @@ const Store = (() => {
       const { error } = await sb.from('tournaments').update({ settings: obj }).eq('id', tid);
       if (error) throw error;
     },
-    subscribeSettings(callback) {
-      const ch = sb.channel('settings-all')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => callback())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, () => callback())
-        .subscribe();
+    subscribeSettings(callback, tid) {
+      const name = 'settings-' + (tid || 'none') + '-' + (++RT_SEQ);
+      const ch = sb.channel(name)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => callback());
+      // nur Änderungen am eigenen Turnier (andere Turniere lösen kein Neuladen aus)
+      ch.on('postgres_changes', tid ? { event: '*', schema: 'public', table: 'tournaments', filter: 'id=eq.' + tid }
+                                    : { event: '*', schema: 'public', table: 'tournaments' }, () => callback());
+      ch.subscribe();
       return () => sb.removeChannel(ch);
     },
     async listTournaments() {
@@ -481,17 +499,23 @@ const Store = (() => {
 
   let ACTIVE; // undefined = noch nicht geladen, null = kein aktives Turnier, sonst id
   const ACTIVE_KEY = 'squash_active_tournament';
+  // Reihenfolge: 1) URL ?t=  2) dieser Browser-Tab (sessionStorage)  3) Gerät (localStorage)  4) alte globale Einstellung
+  // -> in zwei Tabs desselben Browsers können zwei verschiedene Turniere laufen.
   async function ensureActive() {
     if (ACTIVE === undefined) {
-      // 1) Turnier aus der URL (?t=<id>) hat Vorrang – macht court/live/stream turnier-spezifisch
+      // 1) Turnier aus der URL (?t=<id>) hat Vorrang – gilt nur für diesen Tab, ändert nicht das Geräte-Turnier
       let fromUrl = null;
       try { fromUrl = new URLSearchParams(location.search).get('t'); } catch (e) {}
       if (fromUrl) {
         ACTIVE = fromUrl;
-        try { localStorage.setItem(ACTIVE_KEY, fromUrl); } catch (e) {}
+        try { sessionStorage.setItem(ACTIVE_KEY, fromUrl); } catch (e) {}
         return ACTIVE;
       }
-      // 2) Sonst pro Gerät gespeichertes Turnier
+      // 2) Turnier dieses Tabs (z. B. nach Neuladen)
+      let tv = null;
+      try { tv = sessionStorage.getItem(ACTIVE_KEY); } catch (e) {}
+      if (tv) { ACTIVE = tv; return ACTIVE; }
+      // 3) Sonst pro Gerät gespeichertes Turnier
       let v = null;
       try { v = localStorage.getItem(ACTIVE_KEY); } catch (e) {}
       if (v !== null) {
@@ -506,13 +530,29 @@ const Store = (() => {
     return ACTIVE;
   }
 
+  // Realtime-Abos merken, damit sie bei einem Turnierwechsel im selben Tab neu (gefiltert) verbunden werden
+  const SUBS = [];
+  function bindSub(sub) {
+    try { if (sub.off) sub.off(); } catch (e) {}
+    sub.off = null;
+    const tid = ACTIVE || null;
+    sub.off = backend[sub.kind](sub.cb, tid);
+  }
+  function liveSub(kind, cb) {
+    const sub = { kind, cb, off: null, dead: false };
+    SUBS.push(sub);
+    ensureActive().then(() => { if (!sub.dead) bindSub(sub); }).catch(() => { if (!sub.dead) bindSub(sub); });
+    return () => { sub.dead = true; try { if (sub.off) sub.off(); } catch (e) {} const i = SUBS.indexOf(sub); if (i >= 0) SUBS.splice(i, 1); };
+  }
+  function rebindSubs() { SUBS.forEach(s => { if (!s.dead) bindSub(s); }); }
+
   return {
     mode: backend.mode,
     ready: useSupabase,
     client: () => (useSupabase ? sb : null),
     async listMatches() {
       await ensureActive();
-      const all = await backend.listMatches();
+      const all = await backend.listMatches(ACTIVE || null);
       return ACTIVE ? all.filter(m => m.tournament_id === ACTIVE)
                     : all.filter(m => !m.tournament_id);
     },
@@ -530,15 +570,15 @@ const Store = (() => {
     async deleteAll() { await ensureActive(); return backend.deleteMatchesOfTournament(ACTIVE || null); },
     async deleteMatch(id) { return backend.deleteMatch(id); },
     async setAllBestOf(bestOf) { await ensureActive(); return backend.setAllBestOf(bestOf, ACTIVE || null); },
-    subscribeAll: (...a) => backend.subscribeAll(...a),
-    subscribeCourt: (courtId, cb) => backend.subscribeAll(cb),
-    subscribeSettings: (...a) => backend.subscribeSettings(...a),
+    subscribeAll: (cb) => liveSub('subscribeAll', cb),
+    subscribeCourt: (courtId, cb) => liveSub('subscribeAll', cb),
+    subscribeSettings: (cb) => liveSub('subscribeSettings', cb),
     subscribeTournaments: (...a) => backend.subscribeTournaments(...a),
 
     // ---- Begegnungen (Teamturnier) ----
     async listTies() {
       await ensureActive();
-      const all = await backend.listTies();
+      const all = await backend.listTies(ACTIVE || null);
       return ACTIVE ? all.filter(t => t.tournament_id === ACTIVE)
                     : all.filter(t => !t.tournament_id);
     },
@@ -552,7 +592,7 @@ const Store = (() => {
     updateTie: (...a) => backend.updateTie(...a),
     deleteTie: (...a) => backend.deleteTie(...a),
     matchesByTie: (...a) => backend.matchesByTie(...a),
-    subscribeTies: (...a) => backend.subscribeTies(...a),
+    subscribeTies: (cb) => liveSub('subscribeTies', cb),
     // Einzel wieder freigeben (Admin): zurück auf "scheduled", Court frei
     async releaseRubber(id) { return backend.updateMatch(id, { status: 'scheduled', court_id: null }); },
     // reine Helfer (auch für court.html / index.html)
@@ -570,8 +610,11 @@ const Store = (() => {
     activeTournament() { return ACTIVE || null; },
     ensureActiveTournament() { return ensureActive(); },
     async setActiveTournament(id) {
+      const changed = (ACTIVE || null) !== (id || null);
       ACTIVE = id || null;
-      try { localStorage.setItem(ACTIVE_KEY, ACTIVE || ''); } catch (e) {}
+      try { sessionStorage.setItem(ACTIVE_KEY, ACTIVE || ''); } catch (e) {}   // dieser Tab
+      try { localStorage.setItem(ACTIVE_KEY, ACTIVE || ''); } catch (e) {}     // Vorgabe für neue Tabs/Geräte-Start
+      if (changed) rebindSubs();                                               // Realtime auf das neue Turnier umhängen
     },
     async adoptOrphans() { await ensureActive(); if (!ACTIVE) throw new Error('Kein aktives Turnier ausgewählt.'); await backend.adoptOrphans(ACTIVE); },
 

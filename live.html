@@ -301,6 +301,19 @@ Auth.guard('view').then(()=>{
   Store.subscribeTournaments(load);
   load();
 });
+// ---- Zurück zum Anzeige-Launcher (nur wenn über anzeige.html gestartet: ?launcher=1) ----
+// 3 s lange drücken (Touch/Maus) oder Esc -> anzeige.html?pick=1 (Auswahl statt Autostart). OBS-Links bleiben unberührt.
+(function(){
+  if(new URLSearchParams(location.search).get('launcher')!=='1') return;
+  let tm=null, sx=0, sy=0;
+  const back=()=>{ location.href='anzeige.html?pick=1'; };
+  const cancel=()=>{ clearTimeout(tm); tm=null; };
+  document.addEventListener('pointerdown', e=>{ sx=e.clientX; sy=e.clientY; cancel(); tm=setTimeout(back,3000); });
+  document.addEventListener('pointermove', e=>{ if(tm && Math.hypot(e.clientX-sx,e.clientY-sy)>30) cancel(); });
+  ['pointerup','pointercancel'].forEach(ev=>document.addEventListener(ev, cancel));
+  document.addEventListener('contextmenu', e=>e.preventDefault());
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') back(); });
+})();
 </script>
 </body>
 </html>

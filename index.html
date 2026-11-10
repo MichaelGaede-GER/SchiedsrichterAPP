@@ -308,8 +308,8 @@
     style="margin-left:10px;background:var(--panel2,#1a2230);color:var(--ink,#e7edf5);border:1px solid var(--line,#2a3444);border-radius:9px;padding:7px 9px;font:inherit;cursor:pointer">
     <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
   <span id="moLinks" style="display:contents"></span>
-  <a class="navlink manage-only" href="kontrolle.html" target="_blank" rel="noopener" style="margin-left:10px" title="Alle Tablets live sehen und steuern">📟 Tablet-Kontrolle</a>
-  <a class="navlink" href="settings.html" style="margin-left:10px">⚙️ Einstellungen</a>
+  <a id="lnkKontrolle" class="navlink manage-only" href="kontrolle.html" target="_blank" rel="noopener" style="margin-left:10px" title="Alle Tablets live sehen und steuern">📟 Tablet-Kontrolle</a>
+  <a id="lnkSettings" class="navlink" href="settings.html" style="margin-left:10px">⚙️ Einstellungen</a>
   <span id="mode" class="mode">…</span>
   <span id="activeTour" class="mode" style="display:none"></span>
 </header>
@@ -2178,7 +2178,19 @@ async function renderMoLinks(){
     ? tv.map(v=>mk(v.venue_id,'Match Overview · '+escH(v.name||''))).join('')
     : mk(null,'Match Overview');
 }
+// Turnier dieses Tabs in der Adresszeile (?t=) und in den Links -> mehrere Turniere parallel in mehreren Tabs,
+// Neuladen/Lesezeichen bleiben beim richtigen Turnier
+function syncTourUrl(){
+  const tid=(Store.activeTournament&&Store.activeTournament())||'';
+  try{ const u=new URL(location.href);
+    if(tid) u.searchParams.set('t',tid); else u.searchParams.delete('t');
+    if(u.href!==location.href) history.replaceState(null,'',u.pathname+u.search+u.hash); }catch(e){}
+  const q=tid?('?t='+encodeURIComponent(tid)):'';
+  const k=document.getElementById('lnkKontrolle'); if(k) k.setAttribute('href','kontrolle.html'+q);
+  const st=document.getElementById('lnkSettings'); if(st) st.setAttribute('href','settings.html'+q);
+}
 async function applyBranding(){
+  try{ await Store.ensureActiveTournament(); syncTourUrl(); }catch(e){}
   try{ await renderMoLinks(); }catch(e){}
   const s=await Store.getSettings();
   const bgel=document.getElementById('bgfx');
@@ -2205,7 +2217,7 @@ function applyRoleUI(){
   const settings = (typeof Auth==='undefined') || Auth.can('settings');
   document.body.classList.toggle('role-readonly', !manage);
   // Einstellungen nur für Admin/Director
-  const setLink=document.querySelector('a.navlink[href="settings.html"]');
+  const setLink=document.getElementById('lnkSettings');
   if(setLink) setLink.style.display = settings ? '' : 'none';
   // Benutzer-Badge + Logout in den Kopf
   if(typeof Auth!=='undefined' && Auth.user()){
