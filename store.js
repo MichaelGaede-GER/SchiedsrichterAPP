@@ -691,8 +691,11 @@ const Store = (() => {
       if (ACTIVE && backend.getTournamentSettings) {
         try { t = await backend.getTournamentSettings(ACTIVE) || {}; } catch (e) { t = {}; }
       }
+      // Leere Bild-Felder im Turnier (z. B. Logo nie eingetragen) überschreiben das allgemeine Logo nicht
+      t = Object.assign({}, t || {});
+      ['logoUrl', 'backgroundUrl'].forEach(k => { if (t[k] == null || String(t[k]).trim() === '') delete t[k]; });
       // Reihenfolge: Standardwerte < globale Settings < Turnier-Settings
-      return Object.assign(this._defaults(), g || {}, t || {});
+      return Object.assign(this._defaults(), g || {}, t);
     },
     async saveSettings(patch) {
       patch = patch || {};

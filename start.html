@@ -16,6 +16,8 @@
   body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
   header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 22px;background:linear-gradient(90deg,#161d29,#0f1419);border-bottom:1px solid var(--line)}
   header h1{margin:0;font-size:22px;font-weight:900}
+  header img.logo{height:46px;max-width:220px;object-fit:contain}
+  .tour .tlogo{height:44px;max-width:180px;object-fit:contain;align-self:flex-start}
   header .sp{flex:1}
   .mode{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
   main{max-width:1180px;margin:0 auto;padding:10px 22px 60px}
@@ -58,6 +60,7 @@
 </head>
 <body>
 <header>
+  <img id="logo" class="logo" alt="" style="display:none">
   <h1>🎾 Squash · Turniere</h1>
   <span class="sp"></span>
   <span class="mode" id="userBadge"></span>
@@ -109,14 +112,16 @@ async function loadTours(){
   const dev=deviceTour();
   // neueste zuerst
   const list=TOURS.slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
-  host.innerHTML = list.map(t=>`<div class="tour${t.id===dev?' mine':''}" id="tour_${esc(t.id)}">
+  host.innerHTML = list.map(t=>{ const lg=(t.settings&&t.settings.logoUrl)||'';
+    return `<div class="tour${t.id===dev?' mine':''}" id="tour_${esc(t.id)}">
+      ${lg?`<img class="tlogo" src="${esc(lg)}" alt="" onerror="this.style.display='none'">`:''}
       <div class="nm">🏆 ${esc(t.name)}</div>
       <div class="meta" data-meta="${esc(t.id)}">${t.id===dev?'<span class="chip dev">zuletzt auf diesem Gerät</span>':''}</div>
       <div class="acts">
         <button class="btn-primary" data-open="${esc(t.id)}">▶ Turnier öffnen</button>
         <button class="btn-ghost btn-sm" data-tab="${esc(t.id)}" title="In neuem Tab öffnen – z. B. um zwei Turniere parallel zu betreuen">↗ Neuer Tab</button>
         <button class="btn-ghost btn-sm" data-ren="${esc(t.id)}">Umbenennen</button>
-      </div></div>`).join('')
+      </div></div>`; }).join('')
     + `<div class="tour newtour">
         <div class="nm" style="font-size:17px">＋ Neues Turnier</div>
         <div class="row"><input type="text" id="newTour" placeholder="z. B. German Junior Open 2027" style="flex:1;min-width:180px"
@@ -193,11 +198,20 @@ function renderDevLinks(){
     + row('📺 Courtanzeige · Autostart', b+'anzeige.html?auto=1', 'Start-URL für Fully Kiosk: öffnet direkt die zuletzt gewählte Anzeige.');
 }
 
+// ---------- Logo ----------
+// Globales Logo (Einstellungen ohne Turnier) – sonst das Logo des zuletzt auf diesem Gerät genutzten Turniers
+async function renderLogo(){
+  let url='';
+  try{ const s=await Store.getSettings(); url=(s&&s.logoUrl)||''; }catch(e){}
+  if(!url){ const t=(TOURS||[]).find(x=>x.settings&&x.settings.logoUrl); if(t) url=t.settings.logoUrl; }
+  const l=$('logo'); if(url){ l.src=url; l.style.display='block'; } else l.style.display='none';
+}
+
 // ---------- Start ----------
 Auth.guard('view').then(()=>{
   try{ if(Auth.user && Auth.user()) $('userBadge').textContent='👤 '+(Auth.user().email||''); }catch(e){}
   renderDevLinks();
-  loadTours();
+  loadTours().then(renderLogo);
   loadVenues();
   try{ Store.subscribeTournaments(loadTours); }catch(e){}
 });
