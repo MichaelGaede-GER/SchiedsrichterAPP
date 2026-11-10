@@ -164,7 +164,7 @@ function launch(page, o){
 async function loadTournaments(){
   const g=document.getElementById('tourGrid');
   let ts=null;
-  try{ ts=await Store.listTournaments(); }
+  try{ ts=(await Store.listTournaments()).filter(t=>!(t.settings&&t.settings.archived)); }
   catch(e){ g.innerHTML='<div class="empty">Turniere konnten nicht geladen werden.<br><br><b style="color:#ff8a8a">'+esc(e&&e.message||e)+'</b></div>'; return; }
   if(!ts||!ts.length){ g.innerHTML='<div class="empty">Keine Turniere für dieses Konto. Bitte in der Verwaltung unter „Mitglieder & Rollen" diesem Konto ein Turnier zuweisen.</div>'; return; }
   g.innerHTML=ts.map(t=>`<div class="tile" data-id="${esc(t.id)}" data-name="${esc(t.name)}"><div class="t">🏆 ${esc(t.name)}</div><div class="s">Turnier wählen</div></div>`).join('');

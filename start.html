@@ -44,6 +44,13 @@
   .chip.dev{color:#cfe0ff;border-color:#2f6bff}
   .tour .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
   .newtour{border-style:dashed;justify-content:center}
+  .btn-danger{background:transparent;border:1px solid #7a2a2f;color:#ff8a8a}
+  .btn-danger:hover{background:#2a0f12;color:#ffd0d3}
+  .tour.arch{opacity:.8;border-style:dashed}
+  .chip.arch{color:#ffd08a;border-color:#7a5a12;background:#2a1f08}
+  details.archive{margin-top:22px}
+  details.archive summary{cursor:pointer;color:var(--muted);font-weight:800;font-size:14px;letter-spacing:.06em;padding:6px 0}
+  details.archive .tours{margin-top:12px}
 
   /* Anlagen */
   .ven{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line)}
@@ -72,6 +79,10 @@
   <p class="hint" style="margin-top:-4px">Jedes Turnier läuft für sich: eigene Spiele, Courts, Einstellungen, Tablets und Anzeigen.
     Mehrere Turniere gleichzeitig? Einfach jedes in einem eigenen Tab bzw. auf einem eigenen Rechner öffnen.</p>
   <div class="tours" id="tours"><div class="hint">Lade…</div></div>
+  <details class="archive" id="archiveBox" style="display:none">
+    <summary>🗄 Archiv (<span id="archCount">0</span>)</summary>
+    <div class="tours" id="archTours"></div>
+  </details>
 
   <h2>🏟 Squash-Anlagen (für alle Turniere)</h2>
   <div class="card">
@@ -110,8 +121,9 @@ async function loadTours(){
   try{ TOURS=await Store.listTournaments(); }
   catch(e){ host.innerHTML='<div class="hint" style="color:#ff8a8a">Turniere konnten nicht geladen werden: '+esc(e.message||e)+'</div>'; return; }
   const dev=deviceTour();
-  // neueste zuerst
-  const list=TOURS.slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  // neueste zuerst; archivierte separat
+  const sorted=TOURS.slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const list=sorted.filter(t=>!Store.isArchived(t)), arch=sorted.filter(t=>Store.isArchived(t));
   host.innerHTML = list.map(t=>{ const lg=(t.settings&&t.settings.logoUrl)||'';
     return `<div class="tour${t.id===dev?' mine':''}" id="tour_${esc(t.id)}">
       ${lg?`<img class="tlogo" src="${esc(lg)}" alt="" onerror="this.style.display='none'">`:''}
@@ -121,6 +133,8 @@ async function loadTours(){
         <button class="btn-primary" data-open="${esc(t.id)}">▶ Turnier öffnen</button>
         <button class="btn-ghost btn-sm" data-tab="${esc(t.id)}" title="In neuem Tab öffnen – z. B. um zwei Turniere parallel zu betreuen">↗ Neuer Tab</button>
         <button class="btn-ghost btn-sm" data-ren="${esc(t.id)}">Umbenennen</button>
+        <button class="btn-ghost btn-sm" data-arch="${esc(t.id)}" title="Aus der Auswahl nehmen – Daten bleiben erhalten">🗄 Archivieren</button>
+        <button class="btn-danger btn-sm" data-del="${esc(t.id)}">🗑 Löschen</button>
       </div></div>`; }).join('')
     + `<div class="tour newtour">
         <div class="nm" style="font-size:17px">＋ Neues Turnier</div>
@@ -130,7 +144,22 @@ async function loadTours(){
       </div>`;
   host.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openTour(b.dataset.open,false));
   host.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>openTour(b.dataset.tab,true));
-  host.querySelectorAll('[data-ren]').forEach(b=>b.onclick=()=>renameTour(b.dataset.ren));
+  // Archiv
+  const ab=$('archiveBox'); ab.style.display=arch.length?'':'none'; $('archCount').textContent=arch.length;
+  $('archTours').innerHTML=arch.map(t=>{ const d=t.settings&&t.settings.archivedAt?new Date(t.settings.archivedAt).toLocaleDateString('de-DE'):'';
+    return `<div class="tour arch">
+      <div class="nm">🏆 ${esc(t.name)}</div>
+      <div class="meta"><span class="chip arch">🗄 archiviert${d?(' am '+esc(d)):''}</span></div>
+      <div class="acts">
+        <button class="btn-ghost btn-sm" data-unarch="${esc(t.id)}">↩ Wiederherstellen</button>
+        <button class="btn-ghost btn-sm" data-tab="${esc(t.id)}" title="Nur ansehen">↗ Öffnen</button>
+        <button class="btn-danger btn-sm" data-del="${esc(t.id)}">🗑 Löschen</button>
+      </div></div>`; }).join('');
+  document.querySelectorAll('#tours [data-ren]').forEach(b=>b.onclick=()=>renameTour(b.dataset.ren));
+  document.querySelectorAll('[data-arch]').forEach(b=>b.onclick=()=>archiveTour(b.dataset.arch,true));
+  document.querySelectorAll('[data-unarch]').forEach(b=>b.onclick=()=>archiveTour(b.dataset.unarch,false));
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>deleteTour(b.dataset.del));
+  $('archTours').querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>openTour(b.dataset.tab,true));
   list.forEach(t=>fillMeta(t.id));
 }
 // Locations + Anzahl laufender Spiele je Turnier (nachgeladen)
@@ -154,6 +183,28 @@ async function createTour(){
   const name=($('newTour').value||'').trim(); if(!name){ toast('Bitte einen Turniernamen eingeben'); return; }
   try{ const t=await Store.createTournament(name); toast('Turnier angelegt'); openTour(t.id,false); }
   catch(e){ toast('Fehler: '+(e.message||e)); }
+}
+async function archiveTour(id,on){
+  const t=TOURS.find(x=>x.id===id); const n=t?t.name:'';
+  if(on && !confirm(`Turnier „${n}" archivieren?\n\nEs verschwindet aus der Turnierauswahl (Startseite, Tablets, Anzeigen). Alle Spiele und Ergebnisse bleiben erhalten – du kannst es im Archiv jederzeit wiederherstellen.`)) return;
+  if(!on && !confirm(`Turnier „${n}" wiederherstellen?`)) return;
+  try{ await Store.setTournamentArchived(id,on); await loadTours(); toast(on?'Turnier archiviert':'Turnier wiederhergestellt'); }
+  catch(e){ toast('Fehler: '+(e.message||e)); }
+}
+async function deleteTour(id){
+  const t=TOURS.find(x=>x.id===id); const n=t?String(t.name):'';
+  // Live-Spiele zählen -> deutliche Warnung
+  let live=0; try{ const sb=Store.client&&Store.client(); if(sb){ const r=await sb.from('matches').select('id',{count:'exact',head:true}).eq('tournament_id',id).eq('status','live'); live=r&&r.count||0; } }catch(e){}
+  if(!confirm(`Turnier „${n}" ENDGÜLTIG löschen?\n\nAlle Spiele, Ergebnisse und Einstellungen dieses Turniers werden gelöscht. Das kann nicht rückgängig gemacht werden.`+(live?`\n\n⚠ Achtung: ${live} Spiel(e) laufen gerade auf einem Court!`:'')+`\n\nTipp: „Archivieren" behält alle Daten.`)) return;
+  const typed=prompt(`Zur Sicherheit bitte den Turniernamen eingeben:\n\n${n}`);
+  if(typed==null) return;
+  if(typed.trim()!==n.trim()){ toast('Name stimmt nicht – nichts gelöscht'); return; }
+  try{
+    await Store.deleteTournament(id);
+    try{ if(localStorage.getItem('squash_active_tournament')===id) localStorage.setItem('squash_active_tournament',''); }catch(e){}
+    try{ if(sessionStorage.getItem('squash_active_tournament')===id) sessionStorage.removeItem('squash_active_tournament'); }catch(e){}
+    await loadTours(); toast('Turnier gelöscht');
+  }catch(e){ toast('Fehler: '+(e.message||e)); }
 }
 async function renameTour(id){
   const t=TOURS.find(x=>x.id===id); const n=prompt('Neuer Name:', t?t.name:''); if(!n||!n.trim()) return;

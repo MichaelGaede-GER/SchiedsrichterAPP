@@ -158,7 +158,7 @@ function renderAds(s){
 async function loadTournaments(){
   const g=document.getElementById('tourGrid');
   let ts=null, err=null;
-  try{ ts=await Store.listTournaments(); setNet(true); }
+  try{ ts=(await Store.listTournaments()).filter(t=>!(t.settings&&t.settings.archived)); setNet(true); }
   catch(e){ err=e; }
   if(ts){ safeSet('squash_tablet_tours', JSON.stringify(ts)); }          // Zwischenspeichern (nicht kritisch)
   if(err){                                                                 // echter Ladefehler

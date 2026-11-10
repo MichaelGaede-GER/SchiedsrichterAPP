@@ -607,6 +607,13 @@ const Store = (() => {
     async createTournament(name) { const t = await backend.createTournament(name); return t; },
     renameTournament: (...a) => backend.renameTournament(...a),
     deleteTournament: (...a) => backend.deleteTournament(...a),
+    // Archivieren: Kennzeichen in den Turnier-Einstellungen (settings.archived) – Daten bleiben vollständig erhalten
+    async setTournamentArchived(id, on) {
+      let t = {}; try { t = await backend.getTournamentSettings(id) || {}; } catch (e) { t = {}; }
+      t = Object.assign({}, t); if (on) { t.archived = true; t.archivedAt = new Date().toISOString(); } else { delete t.archived; delete t.archivedAt; }
+      await backend.saveTournamentSettings(id, t);
+    },
+    isArchived(t) { return !!(t && t.settings && t.settings.archived); },
     activeTournament() { return ACTIVE || null; },
     ensureActiveTournament() { return ensureActive(); },
     async setActiveTournament(id) {
