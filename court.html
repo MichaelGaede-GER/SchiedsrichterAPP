@@ -307,6 +307,7 @@
   /* Idle / Vorschau */
   .idle{display:flex;flex-direction:column;align-items:center;height:100%;padding:24px 16px;overflow:auto}
   .idle .cn{font-size:clamp(56px,16vw,150px);font-weight:900;color:#1f6fff;line-height:1}
+  .idle .cnm{font-size:clamp(22px,4.5vw,44px);font-weight:900;color:#cfe0ff;margin-top:6px;letter-spacing:.02em}
   .idle .msg{color:var(--muted);font-size:17px;margin:6px 0 22px}
   .queue{width:min(680px,96vw)}
   .queue h3{font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:0 0 10px;text-align:left}
@@ -669,6 +670,9 @@ document.addEventListener('contextmenu', e=>e.preventDefault());
 let _lastTap=0; document.addEventListener('touchend', e=>{ const t=Date.now(); if(t-_lastTap<300){ e.preventDefault(); } _lastTap=t; }, {passive:false});
 function backToLauncher(){ if(confirm('Turnier/Court wechseln? Das aktuelle Spiel bleibt gespeichert.')) location.href='tablet.html'; }
 document.title = 'Court ' + COURT;
+// Court-Name aus den Turnier-Einstellungen (Startseite → ✏️ Courts benennen)
+function courtText(){ return courtLabel(COURT, VENUE, SETTINGS||{}); }              // „Glascourt“ bzw. „Court 3“
+function courtHead(){ const n=courtName(COURT, VENUE, SETTINGS||{}); return n ? (n+' · C'+COURT) : ('COURT '+COURT); }
 
 // echte Flaggenbilder (Windows zeigt Emoji-Flaggen nur als Buchstaben)
 function flagUrlC(code){
@@ -828,7 +832,7 @@ function showDoneOverlay(){
   const logo=document.getElementById('doneLogo');
   if(SETTINGS&&SETTINGS.logoUrl){ logo.src=SETTINGS.logoUrl; logo.style.display='block'; } else logo.style.display='none';
   document.getElementById('donePreview').innerHTML=
-    `<h3 style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:6px 0 10px">Nächste Spiele auf Court ${COURT}</h3>`+
+    `<h3 style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:6px 0 10px">Nächste Spiele auf ${escC(courtText())}</h3>`+
     `<div class="queue" style="text-align:left">${queueCardsHtml(3)}</div>`;
   show('ovDone');
 }
@@ -1113,7 +1117,7 @@ function render(){
   app.innerHTML=`
   <div class="wrap">
     <div class="top">
-      <div><div class="court">COURT ${COURT}</div>
+      <div><div class="court">${escC(courtHead())}</div>
         <div class="status">${match.event||match.draw||''} · ${match.round||''} · Bo${s.bestOf}${match.scheduled_time?(' · '+shortTime(match.scheduled_time)):''}${match.highlight?` · <span class="hlc">★ ${String(match.highlight).replace(/</g,'&lt;')}</span>`:''}${match.referee?` · <span class="refline"><b>Schiri:</b> ${escC(match.referee)}</span>`:''}</div></div>
       <div class="right"><span class="ver">v${(window.CONFIG&&window.CONFIG.APP_VERSION)||''}</span><span id="netStatus" class="netstat ${ONLINE?'on':'off'}">${ONLINE?'🟢 Online':'🔴 Offline'}</span><span id="wakeBadge" class="clock" title="Bildschirm bleibt an">🔆 Display an</span>
         <span id="matchClock" class="clock">—</span>${brtHtml(false)}
@@ -1200,7 +1204,7 @@ function showTiePicker(t){
   const rubbers=ALLMATCHES.filter(m=>m.tie_id===t.id).sort((a,b)=>(a.tie_pos||0)-(b.tie_pos||0));
   const sc=Store.computeTieScore(rubbers, TEAMPTS||Store.DEFAULT_TEAM_POINTS);
   const allDone = rubbers.length>0 && !rubbers.some(m=>m.status==='scheduled'||m.status==='live');
-  setText('tieTitle', allDone ? ('Begegnung beendet · Court '+COURT) : ('Begegnung auf Court '+COURT));
+  setText('tieTitle', allDone ? ('Begegnung beendet · '+courtText()) : ('Begegnung auf '+courtText()));
   const lg=document.getElementById('tieLogo');
   if(lg){ if(SETTINGS&&SETTINGS.logoUrl){ lg.src=SETTINGS.logoUrl; lg.style.display='block'; } else lg.style.display='none'; }
   document.getElementById('tieHead').innerHTML=
@@ -1301,10 +1305,10 @@ function renderIdle(app){
   const logo=(SETTINGS&&SETTINGS.logoUrl)?`<img class="brandlogo" src="${SETTINGS.logoUrl}" alt="">`:'';
   app.innerHTML=`<div class="idle">
     ${logo}
-    <div class="cn">${COURT}</div>
+    <div class="cn">${COURT}</div>${courtName(COURT,VENUE,SETTINGS||{})?`<div class="cnm">${escC(courtName(COURT,VENUE,SETTINGS||{}))}</div>`:''}
     <div class="msg">Warte auf Spiel…<br><small style="opacity:.6">${Store.ready?'Supabase verbunden':'Lokaler Testmodus'}</small></div>
     <div class="queue">
-      <h3>Nächste Spiele auf Court ${COURT}</h3>
+      <h3>Nächste Spiele auf ${escC(courtText())}</h3>
       ${queueCardsHtml()}
     </div>
   </div>`;
@@ -1801,7 +1805,7 @@ function showWarmup(){
   const wb=document.getElementById('btnWarmBack'); if(wb) wb.style.display='none';
   const lg=document.getElementById('warmLogo');
   if(lg){ if(SETTINGS&&SETTINGS.logoUrl){ lg.src=SETTINGS.logoUrl; lg.style.display='block'; } else lg.style.display='none'; }
-  setText('warmTitle','Nächstes Spiel auf Court '+COURT);
+  setText('warmTitle','Nächstes Spiel auf '+courtText());
   const b1=document.getElementById('warmP1'), b2=document.getElementById('warmP2');
   if(b1) b1.textContent=match?match.player1_name:'Spieler 1';
   if(b2) b2.textContent=match?match.player2_name:'Spieler 2';
@@ -1867,7 +1871,7 @@ function askServer(){
 }
 function hideAll(){ ['ovWarmup','ovLet','ovDecide','ovTimer','ovRest','ovConfirm','ovDone','ovPenalty','ovInjury','ovShirt','ovTie'].forEach(hide); }
 
-async function refreshSettings(){ SETTINGS=await Store.getSettings(); applyBranding(); loadCourt(); }
+async function refreshSettings(){ SETTINGS=await Store.getSettings(); try{ document.title=courtText(); }catch(e){} applyBranding(); loadCourt(); }
 Auth.guard('score').then(()=>{
   try{ initCtrl(); }catch(e){}
   Store.subscribeAll(loadCourt);

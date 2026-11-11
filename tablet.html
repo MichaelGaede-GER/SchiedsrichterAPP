@@ -41,6 +41,7 @@
     display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:120px;gap:6px}
   .courttile:active{transform:scale(.97);border-color:var(--blue)}
   .courttile .cn{font-size:clamp(30px,6vh,54px);font-weight:900;line-height:1}
+  .courttile .cn.nm{font-size:clamp(22px,3.6vh,34px);text-align:center;line-height:1.1;word-break:break-word}
   .courttile.center{border-color:var(--gold)}.courttile.semi{border-color:#8fd0ff}
   .cfn{font-size:12px;font-weight:800;padding:2px 8px;border-radius:999px}
   .cfn.center{background:#3a2f0c;color:var(--gold)}.cfn.semi{background:#0e2036;color:#8fd0ff}
@@ -106,7 +107,7 @@
 <script src="ranking.js"></script>
 <script src="auth.js"></script>
 <script>
-let TID=null, TNAME='';
+let TID=null, TNAME='', CNSET={};   // CNSET = Turnier-Einstellungen mit Court-Namen
 const LASTKEY='squash_tablet_last';
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function showStep(n){ document.getElementById('step1').style.display=n===1?'':'none'; document.getElementById('step2').style.display=n===2?'':'none'; }
@@ -130,7 +131,7 @@ function renderResume(){
   if(!last){ bar.innerHTML=''; return; }
   const loc=last.venueName?(' · '+esc(last.venueName)):'';
   bar.className='resumebar';
-  bar.innerHTML=`<div class="info"><b>Fortsetzen: Court ${esc(String(last.court))}</b>
+  bar.innerHTML=`<div class="info"><b>Fortsetzen: ${esc(last.courtName||('Court '+last.court))}</b>
       <div class="sub">${esc(last.tname||'')}${loc}</div></div>
     <button class="btn green" onclick="resumeLast()" style="font-size:18px;padding:14px 22px">▶ Zum Court</button>`;
 }
@@ -191,8 +192,10 @@ async function loadCourts(){
   const g=document.getElementById('courtGrid'); g.innerHTML='<div class="empty">Lade…</div>';
   let venues=[], courts=[], ok=false;
   try{ venues=await Store.getTournamentVenues(TID); courts=await Store.getTournamentCourts(TID); ok=true; setNet(true);
-    safeSet('squash_tablet_courts_'+TID, JSON.stringify({venues,courts})); }
-  catch(e){ setNet(false); try{ const c=JSON.parse(localStorage.getItem('squash_tablet_courts_'+TID)||'null'); if(c){ venues=c.venues||[]; courts=c.courts||[]; ok=true; } }catch(_){} }
+    let s={}; try{ s=await Store.getSettings(); }catch(_){}
+    CNSET={ courtNames:s.courtNames||{}, courtNamesByNo:s.courtNamesByNo||{} };
+    safeSet('squash_tablet_courts_'+TID, JSON.stringify({venues,courts,cn:CNSET})); }
+  catch(e){ setNet(false); try{ const c=JSON.parse(localStorage.getItem('squash_tablet_courts_'+TID)||'null'); if(c){ venues=c.venues||[]; courts=c.courts||[]; CNSET=c.cn||{}; ok=true; } }catch(_){} }
   window.__venueName={}; venues.forEach(v=>window.__venueName[v.venue_id]=v.name);
   if(ok && courts.length){
     const order = venues.length ? venues : [...new Set(courts.map(c=>c.venue_id))].map(id=>({venue_id:id,name:''}));
@@ -215,11 +218,14 @@ async function loadCourts(){
 function courtTile(n, venueId, fn){
   const cls='courttile'+(fn==='center'?' center':fn==='semi'?' semi':'');
   const tag=fn==='center'?'<span class="cfn center">Center · Finale</span>':fn==='semi'?'<span class="cfn semi">Halbfinale</span>':'';
-  return `<div class="${cls}" onclick="openCourt(${n},'${venueId||''}')"><div class="cn">${n}</div><div class="s">Court</div>${tag}</div>`;
+  const nm=courtName(n, venueId, CNSET);
+  return `<div class="${cls}" onclick="openCourt(${n},'${venueId||''}')">`+(nm
+    ? `<div class="cn nm">${esc(nm)}</div><div class="s">Court ${n}</div>`
+    : `<div class="cn">${n}</div><div class="s">Court</div>`)+`${tag}</div>`;
 }
 function openCourt(n, venueId){
   const venueName=(window.__venueName&&venueId)?window.__venueName[venueId]:'';
-  saveLast({ tid:TID, tname:TNAME, court:n, venue:venueId||'', venueName:venueName||'' });
+  saveLast({ tid:TID, tname:TNAME, court:n, courtName:courtName(n,venueId,CNSET)||'', venue:venueId||'', venueName:venueName||'' });
   const p=new URLSearchParams(); p.set('court', n); if(TID) p.set('t', TID); if(venueId) p.set('loc', venueId);
   location.href='court.html?'+p.toString();
 }

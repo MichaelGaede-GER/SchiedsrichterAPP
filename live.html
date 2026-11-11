@@ -124,7 +124,9 @@ function abbrevName(full){
   if(parts.length<=1) return full||'';
   return parts[0].charAt(0).toUpperCase()+'. '+parts.slice(1).join(' ');
 }
-function courtLabel(m){ return 'COURT '+(m.court_id||m.court_no||'—'); }
+// Court-Badge: vergebener Court-Name (Startseite → ✏️ Courts benennen) oder „COURT 3“
+function courtBadge(m){ const n=m.court_id||m.court_no; if(!n) return 'COURT —';
+  const nm=courtName(n, m.venue_id||VENUE, SET||{}); return nm ? nm.toUpperCase() : ('COURT '+n); }
 
 // ---- Daten laden & gruppieren ----
 const VENUE = new URLSearchParams(location.search).get('loc') || null;
@@ -149,7 +151,7 @@ function liveCard(m){
   const sh1=m.state&&m.state.shirt1, sh2=m.state&&m.state.shirt2;
   return `<div class="card${m.highlight?' hl':''}">
     <div class="top">
-      <span class="courtbadge">${esc(courtLabel(m))}</span>${hlb(m)}
+      <span class="courtbadge">${esc(courtBadge(m))}</span>${hlb(m)}
       <span class="metaline">Satz ${gw1}–${gw2} · Bo${m.best_of||5}</span>
     </div>
     <div class="prow">
@@ -169,7 +171,7 @@ function liveCard(m){
   </div>`;
 }
 function prepCard(m){
-  const court = m.court_no?('Court '+m.court_no):'';
+  const court = m.court_no?courtLabel(m.court_no, m.venue_id||VENUE, SET||{}):'';
   return `<div class="card${m.highlight?' hl':''}">
     <div class="top">
       ${hlb(m)}<span class="courtbadge prep">${esc(m.scheduled_time||court||'geplant')}</span>
@@ -284,6 +286,7 @@ async function applyBranding(){
   if(VENUE){ try{ const vs=await Store.getTournamentVenues(); const v=(vs||[]).find(x=>x.venue_id===VENUE);
     if(v && v.name){ document.getElementById('appTitle').textContent += ' · ' + v.name; } }catch(e){} }
   renderSponsors();
+  renderAll();
   applyMode();
 }
 function tickClock(){ const d=new Date();

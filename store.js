@@ -214,6 +214,13 @@ const Store = (() => {
     async deleteVenue(venueId) {
       const { error } = await sb.from('venues').delete().eq('id', venueId); if (error) throw error;
     },
+    // Court-Namen einer Anlage setzen: list = [{court_no, name}] – leerer Name = Standard („Court X“)
+    async setVenueCourtNames(venueId, list) {
+      const res = await Promise.all((list || []).map(c => sb.from('venue_courts')
+        .update({ name: (c.name != null && String(c.name).trim()) || null })
+        .eq('venue_id', venueId).eq('court_no', c.court_no)));
+      const bad = res.find(r => r && r.error); if (bad) throw bad.error;
+    },
     // ---- Turnier <-> Location ----
     async getTournamentVenues(tid) {
       const { data, error } = await sb.from('tournament_venues')
@@ -377,7 +384,8 @@ const Store = (() => {
     },
     async getVenueCourts(venueId) {
       let vs = []; try { vs = JSON.parse(localStorage.getItem('squash_venues') || '[]'); } catch (e) {}
-      const v = vs.find(x => x.id === venueId); return v ? (v.courts || []).map(c => ({ court_no: c, name: null })) : [];
+      const v = vs.find(x => x.id === venueId); const nm = (v && v.courtNames) || {};
+      return v ? (v.courts || []).map(c => ({ court_no: c, name: nm[c] || null })) : [];
     },
     async createVenue(name, city, courtCount) {
       let vs = []; try { vs = JSON.parse(localStorage.getItem('squash_venues') || '[]'); } catch (e) {}
@@ -399,6 +407,14 @@ const Store = (() => {
       let vs = []; try { vs = JSON.parse(localStorage.getItem('squash_venues') || '[]'); } catch (e) {}
       localStorage.setItem('squash_venues', JSON.stringify(vs.filter(v => v.id !== venueId)));
       if (bc) bc.postMessage({ t: 'venues' });
+    },
+    async setVenueCourtNames(venueId, list) {
+      let vs = []; try { vs = JSON.parse(localStorage.getItem('squash_venues') || '[]'); } catch (e) {}
+      const v = vs.find(x => x.id === venueId); if (!v) return;
+      v.courtNames = Object.assign({}, v.courtNames || {});
+      (list || []).forEach(c => { const n = (c.name != null && String(c.name).trim()) || '';
+        if (n) v.courtNames[c.court_no] = n; else delete v.courtNames[c.court_no]; });
+      localStorage.setItem('squash_venues', JSON.stringify(vs)); if (bc) bc.postMessage({ t: 'venues' });
     },
     // ---- Turnier <-> Location ----
     async getTournamentVenues(tid) {
@@ -631,6 +647,34 @@ const Store = (() => {
     createVenue(name, city, courtCount) { return backend.createVenue(name, city, courtCount); },
     setVenueCourtCount(venueId, n) { return backend.setVenueCourtCount(venueId, n); },
     deleteVenue(venueId) { return backend.deleteVenue(venueId); },
+    setVenueCourtNames(venueId, list) { return backend.setVenueCourtNames(venueId, list); },
+    // Court-Namen der genutzten Courts in die Turnier-Einstellungen spiegeln.
+    // So kennen alle Anzeigen (auch ohne Login, z. B. OBS/TV) die Namen über die normalen Turnier-Settings.
+    //  courtNames:      { '<venueId>|<courtNo>': 'Glascourt' }
+    //  courtNamesByNo:  { '<courtNo>': 'Glascourt' }   (für Seiten ohne loc=)
+    async syncCourtNames(tid) {
+      tid = tid || (await ensureActive()); if (!tid) return;
+      let tv = [], tc = [];
+      try { tv = await backend.getTournamentVenues(tid); } catch (e) {}
+      try { tc = await backend.getTournamentCourts(tid); } catch (e) {}
+      const byKey = {}, byNo = {};
+      for (const v of tv.slice().sort((a, b) => (a.sort || 0) - (b.sort || 0))) {
+        let vc = []; try { vc = await backend.getVenueCourts(v.venue_id); } catch (e) {}
+        const used = new Set(tc.filter(c => c.venue_id === v.venue_id).map(c => Number(c.court_no)));
+        vc.forEach(c => {
+          const no = Number(c.court_no), nm = (c.name != null && String(c.name).trim()) || '';
+          if (!nm || !used.has(no)) return;
+          byKey[v.venue_id + '|' + no] = nm;
+          if (!(no in byNo)) byNo[no] = nm;
+        });
+      }
+      // nur schreiben, wenn sich etwas geändert hat (sonst laden alle Anzeigen unnötig neu)
+      let cur = {}; try { cur = await backend.getTournamentSettings(tid) || {}; } catch (e) {}
+      const same = (a, b) => JSON.stringify(a || {}, Object.keys(a || {}).sort()) === JSON.stringify(b || {}, Object.keys(b || {}).sort());
+      if (same(cur.courtNames, byKey) && same(cur.courtNamesByNo, byNo)) return false;
+      await this.saveSettings({ courtNames: byKey, courtNamesByNo: byNo }, tid);
+      return true;
+    },
     async getTournamentVenues(tid) { tid = tid || (await ensureActive()); if (!tid) return []; return backend.getTournamentVenues(tid); },
     async setTournamentVenues(ids, tid) { tid = tid || (await ensureActive()); if (!tid) throw new Error('Kein aktives Turnier.'); return backend.setTournamentVenues(tid, ids); },
     async getTournamentCourts(tid) { tid = tid || (await ensureActive()); if (!tid) return []; return backend.getTournamentCourts(tid); },
@@ -984,6 +1028,16 @@ function courtToNo(label) {
   const m = s.match(/\d+/);
   return m ? parseInt(m[0], 10) : null;
 }
+
+// Court-Name aus den Turnier-Einstellungen (s = Store.getSettings()-Ergebnis).
+//  courtName(3, venueId, s) -> 'Glascourt' oder '' (kein eigener Name vergeben)
+//  courtLabel(3, venueId, s) -> 'Glascourt' bzw. 'Court 3'
+function courtName(no, venueId, s) {
+  s = s || {}; const n = Number(no); if (!n && n !== 0) return '';
+  if (venueId && s.courtNames && s.courtNames[venueId + '|' + n]) return s.courtNames[venueId + '|' + n];
+  return (s.courtNamesByNo && s.courtNamesByNo[n]) || '';
+}
+function courtLabel(no, venueId, s) { return courtName(no, venueId, s) || ('Court ' + no); }
 
 // "Vorname Nachname (Country)[seed]" -> {name, country, seed}
 function parsePlayer(raw) {

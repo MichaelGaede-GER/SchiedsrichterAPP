@@ -93,6 +93,7 @@
     padding:12px;min-height:132px;transition:border-color .15s,background .15s;position:relative}
   .court.drop{border-color:var(--blue);background:#14203a;border-style:dashed}
   .court .cnum{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:1px}
+  .court .cnum .cnno{opacity:.6;font-weight:600;margin-left:4px}
   .court .empty{color:var(--muted);font-size:13px;margin-top:26px;text-align:center}
   .court .empty small{display:block;margin-top:5px;opacity:.7}
   .court.free{cursor:pointer}.court.free:hover{border-color:var(--blue)}
@@ -985,11 +986,15 @@ let COURT_LAYOUT = null;        // [{venue_id,name,courts:[{no,fn}]}] oder null=
 let TOURNAME = '';              // Turniername für Protokoll-Kopf
 let MISS_CHECK = 20;            // Anzahl geprüfter nächster Spiele für „Fehlende Spieler"-Warnung
 let COURTS_FALLBACK = null;     // pro-Turnier Court-Liste (Settings) als Fallback
+let CNSET = {};                 // Turnier-Einstellungen mit Court-Namen (Startseite → ✏️ Courts benennen)
+function cHead(cid, venueId){ const n=courtName(cid, venueId, CNSET); return n ? (escH(n)+' <span class="cnno">C'+cid+'</span>') : ('COURT '+cid); }
+function cBtn(cid, venueId){ return escH(courtLabel(cid, venueId, CNSET)); }
 let TVENUES_IDX = [];           // Locations des aktiven Turniers [{venue_id,name}]
 async function loadCourtLayout(){
   try{
     let st={}; try{ st=await Store.getSettings(); }catch(e){}
     COURTS_FALLBACK = Array.isArray(st.courts) ? st.courts : null;
+    CNSET = { courtNames:st.courtNames||{}, courtNamesByNo:st.courtNamesByNo||{} };
     TOURNAME = st.tournamentName || TOURNAME || '';
     MISS_CHECK = (st.missingCheckCount!=null ? Number(st.missingCheckCount) : 20);
     HLABELS = Array.isArray(st.highlightLabels)&&st.highlightLabels.length ? st.highlightLabels : ['Halbfinale','Finale'];
@@ -1025,7 +1030,7 @@ function courtCard(cid, venueId, fn){
   div.className='court'+(live?'':' free')+((fn&&fn!=='normal')?' court-'+fn:'')+((live&&live.highlight)?' hl':''); div.dataset.court=cid; if(venueId) div.dataset.venue=venueId;
   const tag = (fn&&fn!=='normal') ? ` <span class="cfn ${fn}">${FN_LABEL[fn]||fn}</span>` : '';
   if(!live){
-    div.innerHTML=`<div class="cnum">COURT ${cid}${tag}</div><div class="empty">frei<small>Spiel hierher ziehen</small></div>`;
+    div.innerHTML=`<div class="cnum">${cHead(cid,venueId)}${tag}</div><div class="empty">frei<small>Spiel hierher ziehen</small></div>`;
     div.addEventListener('dragover',e=>{e.preventDefault();div.classList.add('drop');});
     div.addEventListener('dragleave',()=>div.classList.remove('drop'));
     div.addEventListener('drop',e=>{e.preventDefault();div.classList.remove('drop');
@@ -1062,7 +1067,7 @@ function courtCard(cid, venueId, fn){
                    : brk ? brkSpan
                    : warm ? warmSpan
                          : `Satz ${g1}–${g2} · Bo${live.best_of}`;
-    div.innerHTML=`<div class="cnum">COURT ${cid}${tag}${hlBadge(live)}${batBadge(s.battery)}${durBadge(s)}</div>
+    div.innerHTML=`<div class="cnum">${cHead(cid,venueId)}${tag}${hlBadge(live)}${batBadge(s.battery)}${durBadge(s)}</div>
       <div class="live">
         ${physAlert(live,s)}
         ${batLow?`<div class="batalert">🪫 AKKU FAST LEER: ${s.battery.level}% – Tablet laden!<button class="btn-ghost btn-sm" onclick="ackBattery('${live.id}')">OK</button></div>`:''}
@@ -1226,8 +1231,8 @@ function renderSched(){
         ? `<span style="color:var(--muted);font-size:11px">${m.court_label||(m.court_no?('C'+m.court_no):'')}</span>`
         : (m.court_no
         ? (busy
-          ? `<button class="assignbtn busy" disabled title="Court ${m.court_no} belegt: ${escH(busyTxt)}${busyFin?' – Spiel beendet, Ergebnis noch nicht bestätigt':' – Spiel läuft'}">▶ Court ${m.court_no}<span class="busyby">${busyFin?'⏳ bestätigen: ':'belegt: '}${escH(busyTxt)}</span></button>`
-          : `<button class="assignbtn" onclick="assign('${m.id}',${m.court_no})">▶ Court ${m.court_no}</button>`)
+          ? `<button class="assignbtn busy" disabled title="Court ${m.court_no} belegt: ${escH(busyTxt)}${busyFin?' – Spiel beendet, Ergebnis noch nicht bestätigt':' – Spiel läuft'}">▶ ${cBtn(m.court_no,m.venue_id)}<span class="busyby">${busyFin?'⏳ bestätigen: ':'belegt: '}${escH(busyTxt)}</span></button>`
+          : `<button class="assignbtn" onclick="assign('${m.id}',${m.court_no})">▶ ${cBtn(m.court_no,m.venue_id)}</button>`)
         : `<span style="color:var(--muted);font-size:11px">ziehen</span>`)}</div>`;
     row.addEventListener('dragstart',e=>e.dataTransfer.setData('text/id',m.id));
     row.querySelector('.ev').addEventListener('click',()=>toggleSel(m.id));

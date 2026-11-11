@@ -61,6 +61,16 @@
   .links .lrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 0}
   .links .tag{min-width:260px;color:var(--ink);font-weight:700}
   .links code{flex:1;min-width:200px;background:#131a26;border:1px solid var(--line);border-radius:6px;padding:5px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+  .ven .cn{font-size:12px;color:var(--muted)}
+  /* Pop-up: Courts benennen */
+  .modal{position:fixed;inset:0;background:rgba(5,8,12,.72);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 16px;overflow:auto}
+  .modal.open{display:flex}
+  .modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:100%;max-width:560px;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .modal h3{margin:0 0 4px;font-size:19px}
+  .cnlist{display:grid;gap:8px;margin:14px 0;max-height:60vh;overflow:auto;padding-right:4px}
+  .cnrow{display:flex;align-items:center;gap:10px}
+  .cnrow .no{min-width:84px;font-weight:800}
+  .cnrow input{flex:1}
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#232d3d;border:1px solid var(--line);padding:11px 18px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none}
   .toast.show{opacity:1}
 </style>
@@ -99,6 +109,18 @@
   <h2>📱 Geräte einrichten (gilt für alle Turniere)</h2>
   <div class="card links" id="devLinks"></div>
 </main>
+<div class="modal" id="cnModal" onclick="if(event.target===this)closeCourtNames()">
+  <div class="box">
+    <h3>✏️ Courts benennen</h3>
+    <div class="hint" id="cnVenue"></div>
+    <div class="hint" style="margin-top:6px">Leeres Feld = Standardname „Court X“. Die Namen erscheinen in den Turnier-Einstellungen, in der Verwaltung und auf den Anzeigen.</div>
+    <div class="cnlist" id="cnList"></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn-ghost" onclick="closeCourtNames()">Abbrechen</button>
+      <button class="btn-green" id="cnSave" onclick="saveCourtNames()">Speichern</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -219,9 +241,13 @@ async function loadVenues(){
       <span class="vn">🏟 ${esc(v.name)} ${v.city?('<small>· '+esc(v.city)+'</small>'):''}</span>
       <span class="hint">Courts</span>
       <input type="number" min="0" value="${Number(v.courtCount)||0}" style="width:90px" data-cnt="${esc(v.id)}">
+      <button class="btn-ghost btn-sm" data-cn="${esc(v.id)}" ${Number(v.courtCount)?'':'disabled'}>✏️ Courts benennen</button>
+      <span class="cn" data-cninfo="${esc(v.id)}"></span>
       <button class="btn-ghost btn-sm" data-del="${esc(v.id)}">Löschen</button></div>`).join('')
     : '<div class="hint">Noch keine Anlagen angelegt.</div>';
   document.querySelectorAll('[data-cnt]').forEach(i=>i.onchange=()=>setCount(i.dataset.cnt,i.value));
+  document.querySelectorAll('[data-cn]').forEach(b=>b.onclick=()=>openCourtNames(b.dataset.cn));
+  VENUES.forEach(v=>fillCourtInfo(v.id));
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>delVenue(b.dataset.del));
 }
 async function addVenue(){
@@ -235,6 +261,43 @@ async function delVenue(id){
   const v=VENUES.find(x=>x.id===id);
   if(!confirm('Anlage „'+(v?v.name:'')+'" löschen? Turniere, die diese Anlage nutzen, verlieren die Zuordnung.')) return;
   try{ await Store.deleteVenue(id); await loadVenues(); toast('Gelöscht'); }catch(e){ toast('Fehler: '+(e.message||e)); }
+}
+
+// ---------- Courts benennen (Pop-up) ----------
+let CN_VENUE=null;
+async function fillCourtInfo(id){
+  const el=document.querySelector(`[data-cninfo="${CSS.escape(id)}"]`); if(!el) return;
+  try{ const cs=await Store.getVenueCourts(id); const n=cs.filter(c=>c.name&&String(c.name).trim()).length;
+    el.textContent=n?('· '+n+' benannt'):''; }catch(e){}
+}
+async function openCourtNames(id){
+  const v=VENUES.find(x=>x.id===id); if(!v) return;
+  CN_VENUE=id;
+  $('cnVenue').textContent='🏟 '+v.name+(v.city?(' · '+v.city):'')+' – '+(v.courtCount||0)+' Courts';
+  $('cnList').innerHTML='<div class="hint">Lade…</div>';
+  $('cnModal').classList.add('open');
+  let cs=[]; try{ cs=await Store.getVenueCourts(id); }catch(e){ $('cnList').innerHTML='<div class="hint" style="color:#ff8a8a">Fehler: '+esc(e.message||e)+'</div>'; return; }
+  $('cnList').innerHTML=cs.map(c=>`<div class="cnrow"><span class="no">Court ${Number(c.court_no)}</span>
+    <input type="text" maxlength="40" data-cno="${Number(c.court_no)}" value="${esc(c.name||'')}" placeholder="Court ${Number(c.court_no)}"></div>`).join('')
+    || '<div class="hint">Diese Anlage hat noch keine Courts – erst die Anzahl eintragen.</div>';
+  const first=$('cnList').querySelector('input'); if(first) first.focus();
+  $('cnList').querySelectorAll('input').forEach(i=>i.onkeydown=e=>{ if(e.key==='Enter') saveCourtNames(); });
+}
+function closeCourtNames(){ $('cnModal').classList.remove('open'); CN_VENUE=null; }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && CN_VENUE) closeCourtNames(); });
+async function saveCourtNames(){
+  const id=CN_VENUE; if(!id) return;
+  const list=[...$('cnList').querySelectorAll('input[data-cno]')].map(i=>({ court_no:parseInt(i.dataset.cno,10), name:i.value.trim() }));
+  const btn=$('cnSave'); btn.disabled=true;
+  try{
+    await Store.setVenueCourtNames(id,list);
+    // Namen in alle Turniere übernehmen, die diese Anlage nutzen (für Verwaltung & Anzeigen)
+    for(const t of TOURS){
+      try{ const vs=await Store.getTournamentVenues(t.id); if(vs.some(x=>x.venue_id===id)) await Store.syncCourtNames(t.id); }catch(e){}
+    }
+    closeCourtNames(); fillCourtInfo(id); toast('Court-Namen gespeichert');
+  }catch(e){ toast('Fehler: '+(e.message||e)); }
+  finally{ btn.disabled=false; }
 }
 
 // ---------- Geräte-Links ----------

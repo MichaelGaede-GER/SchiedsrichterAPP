@@ -123,7 +123,9 @@
 <script src="auth.js"></script>
 <script>
 // ===================== Daten =====================
-let TID=null, MATCHES=[], VENUES=[], ME='';
+let TID=null, MATCHES=[], VENUES=[], ME='', CNSET={};
+// Court-Name (Startseite → ✏️ Courts benennen): „Glascourt · C3“ bzw. „Court 3“
+function cTitle(court,venue){ const n=courtName(court, venue, CNSET); return n ? (n+' · C'+court) : ('Court '+court); }
 const MIRROR={};          // key -> {p: Payload vom Tablet, rx: Empfangszeit}
 const CMD={};             // key -> {id,type,sentAt,res,resAt}
 const OPEN=new Set();     // geöffnete Steuer-Panels
@@ -243,7 +245,7 @@ function tabletHtml(c,a){
   const r=a.record, st=a.state;
   const net = a.fresh ? (a.mi.p.online ? '<span class="t-net">🟢 Online</span>' : '<span class="t-net off">🔴 Offline</span>') : '';
   if(!r){
-    return `<div class="tab"><div class="t-top"><div class="t-court">COURT ${c.court}</div><div class="t-right">${net}</div></div>
+    return `<div class="tab"><div class="t-top"><div class="t-court">${esc(cTitle(c.court,c.venue).toUpperCase())}</div><div class="t-right">${net}</div></div>
       <div class="t-idle">Warte auf Spiel…</div></div>`;
   }
   const s=st||{status:'warmup',games:[],cur:{p1:0,p2:0},gamesWon1:0,gamesWon2:0,bestOf:r.best_of||3};
@@ -271,7 +273,7 @@ function tabletHtml(c,a){
   const batTxt=bat&&bat.level!=null?`<span title="Akku">${bat.charging?'⚡':'🔋'}${bat.level}%</span>`:'';
   return `<div class="tab">
     <div class="t-top">
-      <div class="t-court">COURT ${c.court}</div>
+      <div class="t-court">${esc(cTitle(c.court,c.venue).toUpperCase())}</div>
       <div class="t-status">${esc(r.event||r.draw||'')} · ${esc(r.round||'')} · Bo${s.bestOf||r.best_of||3}</div>
       <div class="t-right">${batTxt}${net}<span class="t-clock">${tt?ts:'—'}</span></div>
     </div>
@@ -318,7 +320,7 @@ function render(){
     const metaDb=c.db?`Dashboard gespeichert vor ${agoSpan(Date.parse(c.db.updated_at||'')||0)}`:'nicht im Dashboard';
     const metaTab=a.mi?`Tablet-Signal vor ${agoSpan(a.mi.rx)}${a.mi.p.ver?' · v'+esc(a.mi.p.ver):''}${a.mi.p.user?' · '+esc(a.mi.p.user):''}`:'kein Tablet-Signal';
     html+=`<div class="card ${a.level==='bad'?'alert':(a.level==='warn'?'warnc':'')}">
-      <div class="chead"><b>Court ${c.court}</b>${c.venue&&!multiVenue?` · ${esc(venueName(c.venue))}`:''}
+      <div class="chead"><b>${esc(cTitle(c.court,c.venue))}</b>${c.venue&&!multiVenue?` · ${esc(venueName(c.venue))}`:''}
         <span class="chip">${esc(statusText(a.state))}</span>
         <span class="chip ${a.src==='tablet'?'ok':''}">${a.src==='tablet'?'Quelle: Tablet live':'Quelle: Dashboard'}</span>
         <span class="sp"></span></div>
@@ -376,9 +378,9 @@ async function cmd(k, type, extra){
   const c=buildCards().find(x=>x.key===key); if(!c) return;
   const a=analyse(c);
   const who=extra&&extra.who, r=a.record||{};
-  if(type==='point' && !confirm(`Court ${c.court}: Punkt für ${who===2?r.player2_name:r.player1_name} am Tablet eintragen?`)) return;
-  if(type==='undo' && !confirm(`Court ${c.court}: Letzten Punkt am Tablet zurücknehmen?`+(a.state&&a.state.status==='finished'?'\n\nDas Match ist beendet – das Endergebnis wird dadurch wieder aufgehoben.':''))) return;
-  if(type==='reload' && !confirm(`Court ${c.court}: Tablet-Seite neu laden? Der Spielstand bleibt erhalten.`)) return;
+  if(type==='point' && !confirm(`${cTitle(c.court,c.venue)}: Punkt für ${who===2?r.player2_name:r.player1_name} am Tablet eintragen?`)) return;
+  if(type==='undo' && !confirm(`${cTitle(c.court,c.venue)}: Letzten Punkt am Tablet zurücknehmen?`+(a.state&&a.state.status==='finished'?'\n\nDas Match ist beendet – das Endergebnis wird dadurch wieder aufgehoben.':''))) return;
+  if(type==='reload' && !confirm(`${cTitle(c.court,c.venue)}: Tablet-Seite neu laden? Der Spielstand bleibt erhalten.`)) return;
   const id=newId();
   const payload=Object.assign({id, type, court:c.court, venue:c.venue||'', matchId:a.matchId||null, at:Date.now(), by:ME}, extra||{});
   CMD[key]={id, type, sentAt:Date.now(), res:null, viaDb:false};
@@ -400,7 +402,7 @@ async function cmd(k, type, extra){
 }
 async function sendMsg(k){
   const key=findKey(k); const c=buildCards().find(x=>x.key===key); if(!c||!c.db) return;
-  const text=prompt('Nachricht an das Tablet auf Court '+c.court+':'); if(text==null) return;
+  const text=prompt('Nachricht an das Tablet auf '+cTitle(c.court,c.venue)+':'); if(text==null) return;
   const t=String(text).trim(); if(!t) return;
   try{
     let m=c.db; try{ m=await Store.getMatch(c.db.id) || m; }catch(e){}
@@ -439,6 +441,8 @@ let _rT=null; function renderSoon(){ if(_rT) return; _rT=setTimeout(()=>{ _rT=nu
   try{ const ts=await Store.listTournaments(); const t=ts.find(x=>x.id===TID); setChip('tourChip','', 'Turnier: '+(t?t.name:'— keins gewählt —')); }catch(e){}
   if(!TID){ document.getElementById('grid').innerHTML='<div class="empty">Kein Turnier aktiv. Bitte in der Verwaltung ein Turnier wählen.</div>'; return; }
   try{ VENUES=await Store.getTournamentVenues(TID); }catch(e){ VENUES=[]; }
+  try{ CNSET=await Store.getSettings(); }catch(e){ CNSET={}; }
+  try{ Store.subscribeSettings(async()=>{ try{ CNSET=await Store.getSettings(); render(); }catch(e){} }); }catch(e){}
   if(VENUES.length>1){ const s=document.getElementById('venueSel'); s.style.display='';
     s.innerHTML='<option value="">Alle Locations</option>'+VENUES.map(v=>`<option value="${esc(v.venue_id)}">🏟 ${esc(v.name)}</option>`).join(''); }
   initChannel();

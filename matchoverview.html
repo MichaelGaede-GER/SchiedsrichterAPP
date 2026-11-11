@@ -42,6 +42,11 @@
   /* links: laufend + beendet | rechts: angesetzt */
   .lrow{grid-template-columns:3.2vw 1fr 1fr 11.4vw 6.4vw}
   .rrow{grid-template-columns:1fr 1fr 7.2vw 3.4vw 4vw}
+  /* Court-Namen vergeben -> breitere Court-Spalte, Name einzeilig (wird bei Bedarf verkleinert) */
+  body.cnames .lrow{grid-template-columns:6.4vw 1fr 1fr 11.4vw 6.4vw}
+  body.cnames .rrow{grid-template-columns:1fr 1fr 7.2vw 6.4vw 4vw}
+  .crt{white-space:nowrap;overflow:hidden;padding:0 .3vw}
+  .crt .cnm{font-size:.9em;letter-spacing:-.01em}
 
   .pl{display:flex;align-items:center;gap:.4vw;min-width:0;height:100%}
   .pl.p1{justify-content:flex-end;text-align:right}
@@ -111,7 +116,7 @@
 // Match Overview: rechts angesetzte Spiele (Zeit -> Court), links laufende + beendete Spiele.
 // Je Spalte max. 30 Zeilen; links teilen sich laufende und beendete Spiele die 30 Plätze.
 // Versionsnummer der Match Overview – bei jedem Update hochzählen (unten links sichtbar)
-const MO_VERSION='MO 2.1';
+const MO_VERSION='MO 2.2';
 document.getElementById('mover').textContent=MO_VERSION;
 const MAX=15;   // Zeilen je Spalte (links teilen sich laufende + beendete Spiele die Plätze, rechts max. 15 nächste Spiele)
 const params=new URLSearchParams(location.search);
@@ -139,7 +144,11 @@ function stTime(raw){ if(!raw) return ''; const s=String(raw); const m=s.match(/
 function mno(m){ const s=String(m.match_no||'').match(/\d+/); return s?parseInt(s[0],10):999999; }
 function inVenue(m){ return !VENUE || !m.venue_id || m.venue_id===VENUE; }
 function courtRank(n){ const i=CORDER.indexOf(n); return i>=0?i:1000+(Number(n)||0); }
-function courtLbl(n){ return n==null||n===''?'–':('C'+String(n).padStart(2,'0')); }
+function courtLbl(n,m){ if(n==null||n==='') return '–';
+  const nm=courtName(n, (m&&m.venue_id)||VENUE, SET||{});            // Court-Name (Startseite → ✏️ Courts benennen)
+  return nm ? `<span class="cnm">${escS(nm)}</span>` : ('C'+String(n).padStart(2,'0')); }
+// Sind Court-Namen vergeben? -> Court-Spalte breiter
+function hasCourtNames(){ const o=(SET&&SET.courtNamesByNo)||{}; return Object.keys(o).length>0; }
 function catOf(m){ return m.event||m.draw||''; }
 // Kategorie zweizeilig: oben Konkurrenz („Herren B“), unten Gruppe/Runde („Qualifikation“, „P17 -21“, „Round of 16“)
 function catHtml(m){
@@ -212,13 +221,13 @@ function liveScore(m){
 // Zeilentypen: key (Zeilen-ID), cls, stat (ändert sich selten -> Neuaufbau der Zeile), dyn (nur dieses Feld wird aktualisiert)
 const KIND={
   live:{ cls:'row lrow livebg',
-    stat:m=>`<div class="crt on">${courtLbl(m.court_id)}</div>${players(m,0)}<div class="dyn"></div>${catHtml(m)}`,
+    stat:m=>`<div class="crt on">${courtLbl(m.court_id,m)}</div>${players(m,0)}<div class="dyn"></div>${catHtml(m)}`,
     dyn:liveScore },
   done:{ cls:'row lrow',
-    stat:m=>`<div class="crt">${courtLbl(m.court_id||m.court_no)}</div>${players(m,winnerOf(m))}<div class="res dyn"></div>${catHtml(m)}`,
+    stat:m=>`<div class="crt">${courtLbl(m.court_id||m.court_no,m)}</div>${players(m,winnerOf(m))}<div class="res dyn"></div>${catHtml(m)}`,
     dyn:resultHtml },
   sched:{ cls:'row rrow',
-    stat:m=>`${players(m,0)}${catHtml(m)}<div class="crt">${courtLbl(m.court_no)}</div><div class="tm">${escS(stTime(m.scheduled_time))||'--:--'}</div>`,
+    stat:m=>`${players(m,0)}${catHtml(m)}<div class="crt">${courtLbl(m.court_no,m)}</div><div class="tm">${escS(stTime(m.scheduled_time))||'--:--'}</div>`,
     dyn:null },
 };
 function splitName(t){
@@ -241,6 +250,7 @@ function fitName(el){
 function fitRow(row){
   row.querySelectorAll('.nm').forEach(fitName);
   row.querySelectorAll('.cat span').forEach(el=>{ el.style.fontSize=''; shrinkTo(el,1.2); });
+  row.querySelectorAll('.crt').forEach(el=>{ el.style.fontSize=''; shrinkTo(el,1.1); });
 }
 function fitRes(el){ el.style.fontSize=''; shrinkTo(el,1.4); }
 // Liste abgleichen: vorhandene Zeilen behalten, nur Änderungen schreiben (kein Neuaufbau -> kein Zucken)
@@ -271,6 +281,7 @@ function setText(id,t){ const e=document.getElementById(id); if(e && e.textConte
 
 // ---- Render ----
 function render(){
+  document.body.classList.toggle('cnames', hasCourtNames());
   const ms=ALL.filter(inVenue);
   const live=ms.filter(m=>m.status==='live' && !isFinished(m))
     .sort((a,b)=>courtRank(a.court_id)-courtRank(b.court_id));

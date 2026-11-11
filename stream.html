@@ -221,6 +221,10 @@ const COURT=Number(params.get('court'))||1;
 const VENUE=params.get('loc')||null;
 let VIEW=params.get('view')||'scoreboard';
 let SET=null, MATCH=null, ALL=[];
+// Court-Name aus den Turnier-Einstellungen (Startseite → ✏️ Courts benennen)
+function cName(){ return courtName(COURT, VENUE, SET||{}); }
+function cText(){ return courtLabel(COURT, VENUE, SET||{}); }                 // „Glascourt“ / „Court 3“
+function cUpper(){ const n=cName(); return n ? n.toUpperCase() : ('COURT '+COURT); }
 document.title='Court '+COURT+' – '+VIEW;
 
 // Flaggenbild (echte Bilder statt Emoji – wichtig für OBS/Windows)
@@ -288,7 +292,7 @@ function render(){
   setBg();
   const stage=document.getElementById('stage');
   const d=liveState();
-  if(VIEW==='scoreboard'){ stage.innerHTML=viewDisplay(d); document.title='Court '+COURT; return; }
+  if(VIEW==='scoreboard'){ stage.innerHTML=viewDisplay(d); document.title=cText(); return; }
   // Match beendet -> Match-Over-Anzeige (0-10s), danach Endstatus + nächste Spiele
   if(d && d.mstatus==='finished'){
     const at=finishAtOf();
@@ -301,7 +305,7 @@ function render(){
     } else {
       stage.innerHTML = viewMatchOver(d);
     }
-    document.title='Court '+COURT+' – Match Over';
+    document.title=cText()+' – Match Over';
     paintTimer(); return;
   }
   if(!d){
@@ -309,7 +313,7 @@ function render(){
     stage.innerHTML = viewUpcoming();
     paintTimer(); return;
   }
-  document.title='Court '+COURT+' – '+VIEW;
+  document.title=cText()+' – '+VIEW;
   if(VIEW==='psaline'){ renderPsaLayers(d); paintTimer(); return; }
   else if(VIEW==='fullscore') stage.innerHTML=viewFull(d);
   else if(VIEW==='modern') stage.innerHTML=viewModern(d);
@@ -361,7 +365,7 @@ function dispNext(){
   }).join('');
   return `<div class="disp d-nextwrap">
     ${logo}
-    <div class="d-h">NEXT ON COURT ${COURT}</div>
+    <div class="d-h">NEXT ON ${escS(cUpper())}</div>
     <div class="d-cards">${cards}</div>
     ${more?`<div class="d-more">MORE MATCHES WILL FOLLOW</div>`:''}
     ${dispAds()}
@@ -418,7 +422,7 @@ function dispMatchOver(m){
     ${logo}
     <div class="dmo-players">${escS(m.player1_name)} <span class="dmo-vs">vs</span> ${escS(m.player2_name)}</div>
     <div class="dmo-score">${escS(res)}${sets?`<span class="dmo-sets">${escS(sets)}</span>`:''}</div>
-    <div class="dmo-h">Nächste Spiele auf Court ${COURT}</div>
+    <div class="dmo-h">Nächste Spiele auf ${escS(cText())}</div>
     ${cards?`<div class="d-cards">${cards}</div>`:`<div class="dmo-none">Keine weiteren Spiele auf diesem Court angesetzt.</div>`}
     ${dispAds()}
   </div>`;
@@ -429,7 +433,7 @@ function dispBoard(d){
   const logo=(SET&&SET.logoUrl)?`<img class="b-logo" src="${SET.logoUrl}" alt="">`:'';
   const srv=(who)=> d.server===who ? `<span class="b-srv">${d.side==='L'?'L':'R'}</span>` : '';
   return `<div class="disp d-board">
-    <div class="b-top"><div class="b-court">COURT ${COURT}</div>${sub?`<div class="b-sub">${sub}</div>`:''}</div>
+    <div class="b-top"><div class="b-court">${escS(cUpper())}</div>${sub?`<div class="b-sub">${sub}</div>`:''}</div>
     <div class="b-names">
       <div class="b-name p1">${fl1}<span class="b-nm">${escS(d.p1raw)}</span></div>
       <div class="b-name p2"><span class="b-nm">${escS(d.p2raw)}</span>${fl2}</div>
@@ -475,15 +479,15 @@ function viewMatchOver(d){
     ${logo}
     <div class="mo-players">${escS(d.p1raw)} <span class="mo-vs2">vs</span> ${escS(d.p2raw)}</div>
     <div class="mo-score">${d.g1}–${d.g2}${sets?`<span class="mo-sets">${escS(sets)}</span>`:''}</div>
-    <div class="mo-heading">Nächste Spiele auf Court ${COURT}</div>
+    <div class="mo-heading">Nächste Spiele auf ${escS(cText())}</div>
     ${nextBlock(3)}
   </div></div>`;
 }
 function viewUpcoming(){
   const up=upcomingForCourt();
-  if(!up.length) return `<div class="idle">Court ${COURT}</div>`;
+  if(!up.length) return `<div class="idle">${escS(cText())}</div>`;
   const logo=(SET&&SET.logoUrl)?`<img class="mo-logo" src="${SET.logoUrl}" alt="">`:'';
-  return `<div class="mo"><div class="mo-frame">${logo}<div class="mo-heading">Nächste Spiele auf Court ${COURT}</div>${nextBlock(4)}</div></div>`;
+  return `<div class="mo"><div class="mo-frame">${logo}<div class="mo-heading">Nächste Spiele auf ${escS(cText())}</div>${nextBlock(4)}</div></div>`;
 }
 
 // ---- Timer-Anzeige (aus den Spieldaten, lokal heruntergezählt) ----
@@ -639,7 +643,7 @@ function viewFull(d){
   const title=(SET&&SET.tournamentName)||'';
   return `<div class="fs">
     <div class="title"><span>${[title,d.event,d.round].filter(Boolean).join(' — ')}</span>
-      <span class="r">Court: ${COURT}&nbsp;&nbsp;${clock()}</span></div>
+      <span class="r">${cName()?escS(cName()):('Court: '+COURT)}&nbsp;&nbsp;${clock()}</span></div>
     <div class="rowline"><div class="frow">
       ${flagDiv(d.c1,'flagcell flagimg','',d.r1)}
       <div class="name"><span class="t">${d.p1} <span class="nat">[${nat(d.c1)}]</span></span>${d.server===1?'<span class="dot"></span>':''}</div>
