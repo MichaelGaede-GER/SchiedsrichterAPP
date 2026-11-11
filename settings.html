@@ -69,26 +69,18 @@
 </header>
 
 <main>
-  <h2>Turniere / Events</h2>
+  <h2>Turnier</h2>
   <div class="card">
     <div class="field">
-      <label>Aktives Turnier</label>
+      <label>Diese Einstellungen gelten für</label>
       <div class="row">
-        <select id="tourSelect" style="flex:1;min-width:200px" onchange="onTourSelect()"></select>
-        <button class="btn-ghost" onclick="renameTour()">Umbenennen</button>
-        <button class="btn-ghost" onclick="deleteTour()">Löschen</button>
+        <div id="tourFixed" style="flex:1;min-width:200px;font-size:20px;font-weight:900">…</div>
+        <button class="btn-ghost" id="btnRenameTour" onclick="renameTour()">Umbenennen</button>
       </div>
-      <div class="hint">Alle Spiele, Ergebnisse und Übertragungen gehören zum aktiven Turnier. Das Turnier gilt nur für diesen Tab – mehrere Turniere parallel in mehreren Tabs sind möglich. Tablets und Anzeigen wählen ihr Turnier selbst (Launcher) bzw. über den Link.</div>
+      <div class="hint" id="tourFixedHint">Alle Einstellungen auf dieser Seite gehören nur zu diesem Turnier. Turnier wechseln, anlegen oder löschen: über <a href="start.html">🏠 Turniere</a> auf der Startseite.</div>
     </div>
-    <div class="field">
-      <label>Neues Turnier anlegen</label>
-      <div class="row">
-        <input type="text" id="newTourName" placeholder="z.B. German Junior Open 2026" style="flex:1;min-width:220px">
-        <button class="btn-green" onclick="createTour()">Anlegen &amp; aktivieren</button>
-      </div>
-    </div>
-    <div class="field">
-      <button class="btn-ghost" onclick="adoptOrphans()">Vorhandene Spiele ohne Turnier ins aktive Turnier übernehmen</button>
+    <div class="field" id="adoptBox">
+      <button class="btn-ghost" onclick="adoptOrphans()">Vorhandene Spiele ohne Turnier in dieses Turnier übernehmen</button>
       <div class="hint">Nützlich für Spiele, die vor der Turnier-Funktion importiert wurden.</div>
     </div>
   </div>
@@ -96,12 +88,12 @@
   <h2>Backup</h2>
   <div class="card">
     <div class="row">
-      <button class="btn-ghost" onclick="downloadBackup()">⬇ Backup des aktiven Turniers herunterladen</button>
+      <button class="btn-ghost" onclick="downloadBackup()">⬇ Backup dieses Turniers herunterladen</button>
       <button class="btn-ghost" onclick="backupFile.click()">⬆ Backup einspielen…</button>
       <input type="file" id="backupFile" accept="application/json,.json" style="display:none">
     </div>
     <div class="hint">Der Download enthält Turniername und alle Spiele/Ergebnisse als JSON-Datei.
-      Beim Einspielen wird daraus ein <b>neues</b> Turnier erstellt (bestehende Daten bleiben unberührt).</div>
+      Beim Einspielen wird daraus ein <b>neues</b> Turnier erstellt (bestehende Daten bleiben unberührt) – öffnen über die Startseite.</div>
   </div>
 
   <h2>Vereinsrangliste-Anbindung</h2>
@@ -127,7 +119,7 @@
         <select id="rkEvent" style="flex:1;min-width:220px"><option value="">— zuerst verbinden —</option></select>
         <button class="btn-green" onclick="rkImport()">Event importieren</button>
       </div>
-      <div class="hint">Legt ein neues Turnier an, lädt die offenen Spiele in Planreihenfolge und aktiviert die
+      <div class="hint">Legt ein neues Turnier an (öffnen über die Startseite), lädt die offenen Spiele in Planreihenfolge und aktiviert die
         Live-Verknüpfung: neue Spiele erscheinen automatisch, bestätigte Ergebnisse werden zurückgeschrieben.</div>
     </div>
     <div id="rkLinked" class="hint"></div>
@@ -546,7 +538,7 @@ async function renderLinks(){
   const wq = (rel, extra)=>{ const ps=[tq].concat(extra||[]).filter(Boolean);
     return rel + (ps.length ? (rel.indexOf('?')>=0 ? '&'+ps.join('&') : '?'+ps.join('&')) : ''); };
   const hint = tid ? '' :
-    '<div class="hint" style="color:#ffd08a;margin-bottom:8px">Kein Turnier aktiv – wähle oben ein Turnier, damit die Links fest dazu gehören.</div>';
+    '<div class="hint" style="color:#ffd08a;margin-bottom:8px">Kein Turnier geöffnet – bitte über die Startseite (🏠 Turniere) ein Turnier öffnen.</div>';
 
   const linkRow=(tag,url)=>`<div class="lrow"><span class="tag">${tag}</span>
     <code title="${url}">${url}</code>
@@ -620,7 +612,7 @@ async function initVenues(){
   try{ VENUES=await Store.listVenues(); }catch(e){ VENUES=[]; }
   renderVenueCatalog();
   const tid=Store.activeTournament();
-  if(!tid){ $('tourLocations').innerHTML='<span class="hint">Kein Turnier aktiv – oben ein Turnier wählen.</span>'; $('tourCourts').innerHTML=''; return; }
+  if(!tid){ $('tourLocations').innerHTML='<span class="hint">Kein Turnier geöffnet – bitte über die Startseite öffnen.</span>'; $('tourCourts').innerHTML=''; return; }
   try{ TVENUES=await Store.getTournamentVenues(); }catch(e){ TVENUES=[]; }
   try{ TCOURTS=await Store.getTournamentCourts(); }catch(e){ TCOURTS=[]; }
   renderTourLocations(); await renderTourCourts();
@@ -855,15 +847,24 @@ async function changeRole(sel){
   catch(e){ toast('Fehler: '+e.message); }
 }
 
-// ================= TURNIERE =================
+// ================= TURNIER (fest für diese Seite) =================
+// Die Einstellungen gelten nur für das Turnier, mit dem sie geöffnet wurden (?t= bzw. Turnier dieses Tabs).
+// Kein Wechsel hier – Turnierauswahl, Anlegen und Löschen nur auf der Startseite (start.html).
 let TOURS=[];
 async function loadTours(){
   try{ TOURS=await Store.listTournaments(); }catch(e){ TOURS=[]; }
+  try{ await Store.ensureActiveTournament(); }catch(e){}
   const active=Store.activeTournament();
-  const sel=$('tourSelect');
-  sel.innerHTML='<option value="">— Kein Turnier (Altdaten) —</option>'+
-    TOURS.map(t=>`<option value="${t.id}" ${t.id===active?'selected':''}>${t.name}</option>`).join('');
   const at=TOURS.find(t=>t.id===active); window.__activeTourName = at?at.name:'';
+  const el=$('tourFixed'), hint=$('tourFixedHint');
+  if(active){
+    el.textContent='🏆 '+(at?at.name:active); el.style.color='';
+    $('btnRenameTour').style.display=''; $('adoptBox').style.display='';
+  }else{
+    el.textContent='Kein Turnier geöffnet'; el.style.color='#ffd08a';
+    $('btnRenameTour').style.display='none'; $('adoptBox').style.display='none';
+    hint.innerHTML='Bitte zuerst auf der <a href="start.html">🏠 Startseite</a> ein Turnier öffnen und von dort in die Einstellungen gehen.';
+  }
   syncTourUrl();
   renderLinks();
   try{ if(typeof initVenues==='function') initVenues(); }catch(e){}
@@ -877,43 +878,16 @@ async function syncTourUrl(){
     if(u.href!==location.href) history.replaceState(null,'',u.pathname+u.search+u.hash); }catch(e){}
   const b=document.getElementById('lnkBack'); if(b) b.setAttribute('href','index.html'+(tid?('?t='+encodeURIComponent(tid)):''));
 }
-async function onTourSelect(){
-  const id=$('tourSelect').value||null;
-  await Store.setActiveTournament(id);
-  syncTourUrl();
-  const t=(TOURS||[]).find(x=>x.id===id); window.__activeTourName = t?t.name:'';
-  try{ if(typeof Auth!=='undefined' && Auth.refreshRole) await Auth.refreshRole(); }catch(e){}
-  toast(id?('Turnier aktiv: '+(t?t.name:'')):'Kein Turnier aktiv');
-  try{ await applyBranding(); }catch(e){}
-  renderLinks();
-  try{ if(typeof initMembers==='function') initMembers(); }catch(e){}
-  try{ if(typeof initVenues==='function') initVenues(); }catch(e){}
-}
-async function createTour(){
-  const name=$('newTourName').value.trim();
-  if(!name){ toast('Bitte einen Turniernamen eingeben'); return; }
-  try{ const t=await Store.createTournament(name); await Store.setActiveTournament(t.id);
-    $('newTourName').value=''; await loadTours(); toast('Turnier angelegt & aktiviert'); }
-  catch(e){ toast('Fehler: '+e.message); }
-}
 async function renameTour(){
-  const id=$('tourSelect').value; if(!id){ toast('Kein Turnier ausgewählt'); return; }
+  const id=Store.activeTournament(); if(!id){ toast('Kein Turnier geöffnet'); return; }
   const cur=(TOURS.find(t=>t.id===id)||{}).name||'';
-  const name=prompt('Neuer Name für das Turnier:', cur); if(!name) return;
+  const name=prompt('Neuer Name für das Turnier:', cur); if(!name||!name.trim()) return;
   try{ await Store.renameTournament(id,name.trim()); await loadTours(); toast('Umbenannt'); }
   catch(e){ toast('Fehler: '+e.message); }
 }
-async function deleteTour(){
-  const id=$('tourSelect').value; if(!id){ toast('Kein Turnier ausgewählt'); return; }
-  const nm=(TOURS.find(t=>t.id===id)||{}).name||'';
-  if(!confirm(`Turnier „${nm}" und ALLE zugehörigen Spiele/Ergebnisse endgültig löschen?`)) return;
-  try{ await Store.deleteTournament(id); if(Store.activeTournament()===id) await Store.setActiveTournament(null);
-    await loadTours(); toast('Turnier gelöscht'); }
-  catch(e){ toast('Fehler: '+e.message); }
-}
 async function adoptOrphans(){
-  if(!Store.activeTournament()){ toast('Bitte zuerst ein Turnier aktivieren'); return; }
-  if(!confirm('Alle Spiele ohne Turnier-Zuordnung dem aktiven Turnier zuordnen?')) return;
+  if(!Store.activeTournament()){ toast('Kein Turnier geöffnet'); return; }
+  if(!confirm('Alle Spiele ohne Turnier-Zuordnung dem Turnier „'+(window.__activeTourName||'')+'" zuordnen?')) return;
   try{ await Store.adoptOrphans(); toast('Spiele übernommen'); }
   catch(e){ toast('Fehler: '+e.message); }
 }
@@ -938,8 +912,8 @@ $('backupFile').addEventListener('change',async e=>{
     const suggested=(obj.tournament&&obj.tournament.name)||'Import';
     const name=prompt('Name für das eingespielte Turnier:', suggested); if(!name) return;
     const t=await Store.importBackup(obj,{name:name.trim()});
-    await Store.setActiveTournament(t.id); await loadTours();
-    toast('Backup eingespielt & aktiviert');
+    await loadTours();
+    toast('Backup als neues Turnier „'+name.trim()+'" eingespielt – öffnen über die Startseite');
   }catch(err){ toast('Backup-Fehler: '+err.message); }
 });
 
@@ -980,18 +954,17 @@ async function rkImport(){
   try{
     $('rkStatus').textContent='Lade Spiele…';
     const open=await Ranking.loadOpenMatches(eid);
-    // neues Turnier anlegen & aktivieren
+    // neues Turnier anlegen – diese Seite bleibt beim aktuellen Turnier
     const t=await Store.createTournament('Rangliste: '+name);
-    await Store.setActiveTournament(t.id);
-    // Spiele einfügen (mit ext-Verknüpfung)
+    // Spiele direkt dem neuen Turnier zuordnen (mit ext-Verknüpfung)
     const rows=open.map(m=>Object.assign({
       status:'scheduled', state:null, result:null, winner:null, score_text:null,
       court_id:null, import_key:('rk:'+m.ext.matchId),
-    }, m));
+    }, m, { tournament_id:t.id }));
     if(rows.length) await Store.insertMany(rows);
-    // Verknüpfung merken (für Live-Sync + Rückschreiben)
-    await Store.saveSettings({ rankingEvent:{ id:eid, name, tournamentId:t.id } });
-    $('rkStatus').textContent='✓ '+rows.length+' Spiele importiert & Turnier aktiviert.'; $('rkStatus').style.color='#7CFF9B';
+    // Verknüpfung in den Einstellungen des neuen Turniers merken (für Live-Sync + Rückschreiben)
+    await Store.saveSettings({ rankingEvent:{ id:eid, name, tournamentId:t.id } }, t.id);
+    $('rkStatus').textContent='✓ '+rows.length+' Spiele in neues Turnier „Rangliste: '+name+'" importiert – öffnen über die Startseite.'; $('rkStatus').style.color='#7CFF9B';
     await loadTours(); rkShowLinked();
   }catch(e){ $('rkStatus').textContent='Fehler: '+e.message; $('rkStatus').style.color='#ff9a9d'; }
 }
@@ -1208,7 +1181,7 @@ function updateBackupStatus(){
 // ---- Wiederherstellung ----
 async function restoreBackup(bk){
   if(!bk || bk.app!=='squash-referee' || !bk.tournamentId || !Array.isArray(bk.matches)) throw new Error('Keine gültige Squash-Sicherung.');
-  await Store.setActiveTournament(bk.tournamentId);                 // in das richtige Turnier einspielen
+  if(bk.tournamentId!==Store.activeTournament()) throw new Error('Diese Sicherung gehört zu einem anderen Turnier ('+(bk.tournamentName||bk.tournamentId)+'). Bitte dieses Turnier über die Startseite öffnen.');
   if(bk.settings){ try{ await Store.saveSettings(bk.settings); }catch(e){} }
   try{
     if(Array.isArray(bk.venues) && bk.venues.length){
@@ -1224,6 +1197,7 @@ async function doRestore(bk){
   if(!bk || bk.app!=='squash-referee' || !bk.tournamentId || !Array.isArray(bk.matches)){ toast('Keine gültige Squash-Sicherung.'); return; }
   const when=bk.createdAt?new Date(bk.createdAt).toLocaleString():'unbekannt';
   const nm=bk.tournamentName||bk.tournamentId;
+  if(bk.tournamentId!==Store.activeTournament()){ toast('Sicherung gehört zu Turnier „'+nm+'" – bitte dieses Turnier über die Startseite öffnen.'); return; }
   if(!confirm('Sicherung vom '+when+' wiederherstellen?\n\nTurnier: '+nm+'\nSpiele: '+((bk.matches||[]).length)+'\n\nACHTUNG: Der aktuelle Stand dieses Turniers wird vollständig überschrieben.')) return;
   try{ await restoreBackup(bk); toast('Wiederhergestellt ✓'); await loadSettings(); await refreshBackupList(); }
   catch(e){ toast('Wiederherstellung fehlgeschlagen: '+e.message); }

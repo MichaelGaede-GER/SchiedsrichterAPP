@@ -704,17 +704,19 @@ const Store = (() => {
       // Reihenfolge: Standardwerte < globale Settings < Turnier-Settings
       return Object.assign(this._defaults(), g || {}, t);
     },
-    async saveSettings(patch) {
+    // tid optional: Einstellungen eines bestimmten Turniers speichern, ohne das aktive Turnier zu wechseln
+    async saveSettings(patch, tid) {
       patch = patch || {};
       await ensureActive();
       // aktives Turnier wird pro Gerät gespeichert (nicht global)
-      if ('activeTournament' in patch) { await this.setActiveTournament(patch.activeTournament); }
+      if (!tid && 'activeTournament' in patch) { await this.setActiveTournament(patch.activeTournament); }
       const rest = Object.assign({}, patch); delete rest.activeTournament;
       if (Object.keys(rest).length === 0) return;
-      if (ACTIVE && backend.getTournamentSettings && backend.saveTournamentSettings) {
+      const target = tid || ACTIVE;
+      if (target && backend.getTournamentSettings && backend.saveTournamentSettings) {
         let t = {};
-        try { t = await backend.getTournamentSettings(ACTIVE) || {}; } catch (e) { t = {}; }
-        await backend.saveTournamentSettings(ACTIVE, Object.assign({}, t, rest));
+        try { t = await backend.getTournamentSettings(target) || {}; } catch (e) { t = {}; }
+        await backend.saveTournamentSettings(target, Object.assign({}, t, rest));
       } else {
         let g = {};
         try { g = await backend.getSettingsRaw(); } catch (e) { g = {}; }
