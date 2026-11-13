@@ -46,11 +46,28 @@
   .tphelp:hover{background:#164a72}
   .tphelp.tsbtn{margin-left:0;background:#14361f;color:#bff5cf;border-color:#2e9e57}
   .tphelp.tsbtn:hover{background:#1a4a2a}
-  #tsDlg{width:min(720px,96vw)}
-  #tsDlg .tsinfo{font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5}
-  #tsDlg input[type=text],#tsDlg textarea{width:100%;box-sizing:border-box}
-  #tsDlg textarea{height:70px;font:12px monospace}
-  #tsDlg .tsrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  #tsDlg,#impDlg{width:min(720px,96vw)}
+  #tsDlg .tsinfo,#impDlg .tsinfo{font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5}
+  #tsDlg input[type=text],#tsDlg textarea,#impDlg input[type=text],#impDlg textarea{width:100%;box-sizing:border-box}
+  #tsDlg textarea,#impDlg textarea{height:70px;font:12px monospace}
+  #tsDlg .tsrow,#impDlg .tsrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .tphelp .xcount{background:#0d2616;border:1px solid #2e9e57;border-radius:999px;padding:0 8px;margin-left:6px;font-size:12px}
+  .tphelp .xcount.zero{opacity:.55}
+  /* Import-/Übertrag-Popups */
+  .impgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:620px){.impgrid{grid-template-columns:1fr}}
+  .impcard{display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left;cursor:pointer;
+    background:#131a26;border:1.5px solid var(--line);border-radius:12px;padding:14px 16px;color:var(--ink);font:inherit}
+  .impcard:hover,.impcard.on{border-color:var(--blue);background:#14203a}
+  .impcard.ts:hover,.impcard.ts.on{border-color:#2e9e57;background:#12261a}
+  .impcard.static{cursor:default}
+  .impcard .ic{font-size:22px}
+  .impcard b{font-size:14.5px}
+  .impcard small{color:var(--muted);font-size:12px;line-height:1.45}
+  .impopts{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0 0 14px;font-size:13px;color:var(--muted)}
+  .impopts label{display:inline-flex;align-items:center;gap:8px}
+  .xsum{margin:-4px 0 8px;font-size:14px}
+  #tsList{max-height:150px;overflow:auto}
   /* TP-Eingabehilfe */
   #tpDlg{width:min(820px,96vw);max-height:88vh}
   .tpbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
@@ -359,8 +376,8 @@
       Bestätigte Ergebnisse <span class="count" id="doneCount">0</span></button>
     <button class="mtab" data-tab="sent" onclick="setMainTab('sent')">
       Übertragene Ergebnisse <span class="count" id="sentCount">0</span></button>
-    <button class="tphelp manage-only" onclick="openTpHelper()" title="Ergebnisse zum Eintragen in Tournament Planner">🖨 TP-Eingabehilfe</button>
-    <button class="tphelp tsbtn manage-only" onclick="openTsDlg()" title="Spiele von turnier.de holen / bestätigte Ergebnisse dort eintragen">⇅ turnier.de</button>
+    <button class="tphelp manage-only" onclick="openImportDlg()" title="Spiele importieren (XLSX oder turnier.de / tournamentsoftware.com)">⬇ Import</button>
+    <button class="tphelp tsbtn manage-only" onclick="openTsDlg()" title="Bestätigte Ergebnisse an turnier.de übertragen / TP-Eingabehilfe">⇪ Übertrag <span class="xcount" id="xferCount">0</span></button>
   </div>
 
   <div id="panelSched">
@@ -369,10 +386,6 @@
       <select id="dayFilter" class="filter" onchange="setDayFilter(this.value)" title="Nur Spiele eines Turniertags anzeigen"><option value="">Alle Tage</option></select>
       <select id="courtFilter" class="filter" onchange="render()"><option value="">Alle Courts</option></select>
       <div class="spacer"></div>
-      <button class="btn-primary btn-sm manage-only" onclick="fileInput.click()">⬆ XLSX importieren</button>
-      <select id="defLoc" class="filter manage-only" title="Standard-Location für neue/importierte Spiele" style="display:none"></select>
-      <label class="manage-only" id="autoCourtWrap" style="display:none;align-items:center;gap:6px;color:var(--muted);font-size:13px">
-        <input type="checkbox" id="autoCourt"> Courts autom. verteilen</label>
       <button class="btn-ghost btn-sm manage-only" onclick="openAdd()">+ Spiel</button>
       <select class="btn-ghost btn-sm manage-only" id="bulkBestOf" onchange="bulkBestOf(this.value)" title="Gewinnsätze für alle geplanten Spiele" style="cursor:pointer">
         <option value="">Alle Spiele: Gewinnsätze…</option>
@@ -524,42 +537,70 @@
   </div>
 </dialog>
 
-<dialog id="tsDlg">
-  <h3>⇩ Spiele von turnier.de holen</h3>
-  <div class="tsinfo">
-    Öffnet die Spiele-Seite (dsqv.turnier.de, esf./wsf.tournamentsoftware.com), das Skript liest alle Spieltage
-    inkl. Court, Nation und Runde und schickt sie hierher. Erneuter Import aktualisiert Zeiten/Courts/Paarungen;
-    hat ein vorhandenes Spiel auf turnier.de schon ein Ergebnis, wird es übernommen und nach „Übertragene Ergebnisse“ verschoben.</div>
-  <div class="tsrow">
-    <span style="flex:1"></span>
-    <button class="btn-primary" onclick="tsImportOpen()">⇩ Spiele holen</button>
+<dialog id="impDlg">
+  <h3>⬇ Spiele importieren</h3>
+  <div class="tsinfo">Quelle wählen. Erneuter Import aktualisiert vorhandene Spiele (Zeiten, Courts, Paarungen) –
+    bereits gespielte Spiele mit Ergebnis wandern automatisch nach „Übertragene Ergebnisse“.</div>
+  <div class="impopts" id="impOpts" style="display:none">
+    <label>Location für importierte Spiele
+      <select id="defLoc" class="filter" title="Standard-Location für neue/importierte Spiele" style="display:none"></select></label>
+    <label id="autoCourtWrap" style="display:none;align-items:center;gap:6px">
+      <input type="checkbox" id="autoCourt"> Courts autom. verteilen</label>
   </div>
-  <details style="margin-top:6px">
-    <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Gespeicherte Spiele-Seite (HTML) importieren</summary>
-    <div class="tsinfo" style="margin-top:6px">Auf turnier.de die Spiele-Seite des Tages öffnen → <b>Strg+S</b> → „Webseite, nur HTML“ speichern
-      und hier auswählen (mehrere Tage = mehrere Dateien). Erneut importieren, sobald Paarungen feststehen – Platzhalter werden aktualisiert.</div>
-    <div class="tsrow"><span style="flex:1"></span>
-      <input type="file" id="tsHtmlFile" accept=".html,.htm" multiple style="display:none" onchange="tsImportHtmlFiles(this.files)">
-      <button class="btn-ghost btn-sm" onclick="document.getElementById('tsHtmlFile').click()">HTML-Datei wählen</button></div>
-  </details>
-  <details style="margin-top:6px">
-    <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Spiele von Hand einfügen (JSON aus „JSON kopieren“)</summary>
-    <textarea id="tsImpJson" placeholder='{"type":"mgtp-import","matches":[…]}'></textarea>
-    <div class="tsrow"><span style="flex:1"></span><button class="btn-ghost btn-sm" onclick="tsImportPaste()">Importieren</button></div>
-  </details>
-  <hr style="border:0;border-top:1px solid var(--line,#ddd);margin:12px 0">
-  <h3>⇪ Ergebnisse auf turnier.de übertragen</h3>
-  <div class="tsinfo">
-    Öffnet die Spiele-Seite des Turniers auf turnier.de und übergibt alle offenen bestätigten Ergebnisse
-    an das Tampermonkey-Skript. Dort „Prüfen“ kontrollieren und „Übertragen“ klicken – erfolgreich
-    eingetragene Spiele wandern hier automatisch nach „Übertragene Ergebnisse“.<br>
-    Voraussetzung: bei turnier.de angemeldet, Skript „MG Turnierplanner → turnier.de“ aktiv.</div>
-  <label style="font-size:12.5px;font-weight:700">turnier.de / tournamentsoftware.com Link dieses Turniers</label>
+  <div class="impgrid">
+    <button class="impcard" onclick="impXlsx()">
+      <span class="ic">📄</span><b>XLSX importieren</b>
+      <small>Excel-Export aus der Tournament Software / dem Tournament Planner</small></button>
+    <button class="impcard ts" onclick="impTsToggle()">
+      <span class="ic">🌐</span><b>Tournamentsoftware (turnier.de)</b>
+      <small>dsqv.turnier.de · esf./wsf.tournamentsoftware.com – direkt von der Webseite</small></button>
+  </div>
+  <div id="impTs" style="display:none">
+    <div class="tsinfo" style="margin-top:14px">
+      Öffnet die Spiele-Seite, das Skript liest alle Spieltage inkl. Court, Nation und Runde und schickt sie hierher.</div>
+    <label style="font-size:12.5px;font-weight:700">turnier.de / tournamentsoftware.com Link dieses Turniers</label>
+    <input type="text" id="tsUrlImp" placeholder="https://dsqv.turnier.de/sport/legacymatches.aspx?id=…  oder  https://esf.tournamentsoftware.com/tournament/…">
+    <div class="tsrow">
+      <span style="flex:1"></span>
+      <button class="btn-green" onclick="tsImportOpen()">⇩ Spiele holen</button>
+    </div>
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Gespeicherte Spiele-Seite (HTML) importieren</summary>
+      <div class="tsinfo" style="margin-top:6px">Auf turnier.de die Spiele-Seite des Tages öffnen → <b>Strg+S</b> → „Webseite, nur HTML“ speichern
+        und hier auswählen (mehrere Tage = mehrere Dateien). Erneut importieren, sobald Paarungen feststehen – Platzhalter werden aktualisiert.</div>
+      <div class="tsrow"><span style="flex:1"></span>
+        <input type="file" id="tsHtmlFile" accept=".html,.htm" multiple style="display:none" onchange="tsImportHtmlFiles(this.files)">
+        <button class="btn-ghost btn-sm" onclick="document.getElementById('tsHtmlFile').click()">HTML-Datei wählen</button></div>
+    </details>
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Spiele von Hand einfügen (JSON aus „JSON kopieren“)</summary>
+      <textarea id="tsImpJson" placeholder='{"type":"mgtp-import","matches":[…]}'></textarea>
+      <div class="tsrow"><span style="flex:1"></span><button class="btn-ghost btn-sm" onclick="tsImportPaste()">Importieren</button></div>
+    </details>
+  </div>
+  <div class="tsrow"><span style="flex:1"></span><button class="btn-primary btn-sm" onclick="impDlg.close()">Schließen</button></div>
+</dialog>
+
+<dialog id="tsDlg">
+  <h3>⇪ Ergebnisse übertragen</h3>
+  <div class="xsum"><span id="tsCount" style="font-weight:700"></span></div>
+  <div class="tsinfo" id="tsList"></div>
+  <div class="impgrid">
+    <div class="impcard ts static">
+      <span class="ic">🌐</span><b>An turnier.de übergeben</b>
+      <small>Öffnet die Spiele-Seite des Turniers und übergibt alle offenen bestätigten Ergebnisse an das Tampermonkey-Skript.
+        Dort „Prüfen“ kontrollieren und „Übertragen“ klicken – erfolgreich eingetragene Spiele wandern hier automatisch nach
+        „Übertragene Ergebnisse“. Voraussetzung: bei turnier.de angemeldet, Skript „MG Turnierplanner → turnier.de“ aktiv.</small></div>
+    <button class="impcard" onclick="tsDlg.close();openTpHelper()">
+      <span class="ic">🖨</span><b>TP-Eingabehilfe</b>
+      <small>Ergebnisliste nach Event &amp; Match-Nr. zum manuellen Eintragen im Tournament Planner (mit Druckansicht)</small></button>
+  </div>
+  <label style="font-size:12.5px;font-weight:700;display:block;margin-top:14px">turnier.de / tournamentsoftware.com Link dieses Turniers</label>
   <input type="text" id="tsUrl" placeholder="https://dsqv.turnier.de/sport/legacymatches.aspx?id=…  oder  https://esf.tournamentsoftware.com/tournament/…">
   <div class="tsrow">
-    <span id="tsCount" style="font-weight:700"></span><span style="flex:1"></span>
+    <span style="flex:1"></span>
     <button class="btn-ghost btn-sm" onclick="tsCopy()">Daten kopieren</button>
-    <button class="btn-green" onclick="tsOpen()">turnier.de öffnen &amp; übergeben</button>
+    <button class="btn-green" id="tsSendBtn" onclick="tsOpen()">turnier.de öffnen &amp; übergeben</button>
   </div>
   <details style="margin-top:6px">
     <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Rückmeldung von Hand einfügen (falls die automatische nicht ankommt)</summary>
@@ -968,11 +1009,12 @@ async function load(){
 function fillDefLoc(){
   const sel=document.getElementById('defLoc'); const wrap=document.getElementById('autoCourtWrap');
   if(!sel) return;
-  if(!TVENUES_IDX.length){ sel.style.display='none'; if(wrap) wrap.style.display='none'; sel.innerHTML=''; return; }
+  const opts=document.getElementById('impOpts');
+  if(!TVENUES_IDX.length){ sel.style.display='none'; if(wrap) wrap.style.display='none'; if(opts) opts.style.display='none'; sel.innerHTML=''; return; }
   const prev=sel.value;
   sel.innerHTML=TVENUES_IDX.map(v=>`<option value="${v.venue_id}">🏟 ${(''+v.name).replace(/</g,'&lt;')}</option>`).join('');
   if(prev && TVENUES_IDX.some(v=>v.venue_id===prev)) sel.value=prev;
-  sel.style.display=''; if(wrap) wrap.style.display='inline-flex';
+  sel.style.display=''; if(wrap) wrap.style.display='inline-flex'; if(opts) opts.style.display='flex';
 }
 function defLocId(){ const s=document.getElementById('defLoc'); return (s && s.style.display!=='none' && s.value) ? s.value : null; }
 function venueCourtsFor(venueId){ const v=(COURT_LAYOUT||[]).find(x=>x.venue_id===venueId); return v?v.courts.map(c=>c.no):[]; }
@@ -1191,7 +1233,7 @@ function renderSched(){
     } else {
       el.innerHTML = (DAY_FILTER && MATCHES.some(m=>!m.court_id && m.status==='scheduled'))
         ? '<div class="emptyrow">Keine offenen Spiele an diesem Tag. Oben bei „Alle Tage“ einen anderen Tag wählen.</div>'
-        : '<div class="emptyrow">Keine offenen Ansetzungen. Über „⬆ XLSX importieren“ oder „+ Spiel“ anlegen.</div>';
+        : '<div class="emptyrow">Keine offenen Ansetzungen. Über „⬇ Import“ oder „+ Spiel“ anlegen.</div>';
     }
     return;
   }
@@ -1280,6 +1322,7 @@ function renderDone(){
   const sent=confirmed.filter(m=>m.transferred);
   document.getElementById('doneCount').textContent=done.length;
   document.getElementById('sentCount').textContent=sent.length;
+  { const xc=document.getElementById('xferCount'); if(xc){ const n=tsOpenResults().length; xc.textContent=n; xc.classList.toggle('zero',!n); } }
 
   const el=document.getElementById('done');
   if(!done.length){ el.innerHTML='<div class="emptyrow">Noch keine offenen Ergebnisse. '+(confirmed.length?'Alle übertragen ✓':'')+'</div>'; }
@@ -2596,6 +2639,22 @@ Auth.guard('view').then(()=>{
 
 // ================= TURNIER.DE-ÜBERTRAG (Tampermonkey-Skript auf dsqv.turnier.de) =================
 const tsDlg=document.getElementById('tsDlg');
+const impDlg=document.getElementById('impDlg');
+// ---- Import-Popup (XLSX / turnier.de) ----
+async function openImportDlg(){
+  let s={}; try{ s=await Store.getSettings(); }catch(e){}
+  document.getElementById('tsUrlImp').value=s.tsMatchesUrl||'';
+  document.getElementById('tsImpJson').value='';
+  impTsToggle(false);
+  impDlg.showModal();
+}
+function impTsToggle(force){
+  const box=document.getElementById('impTs');
+  const on=(typeof force==='boolean')?force:(box.style.display==='none');
+  box.style.display=on?'':'none';
+  const c=impDlg.querySelector('.impcard.ts'); if(c) c.classList.toggle('on',on);
+}
+function impXlsx(){ impDlg.close(); fileInput.click(); }
 const tsImpDlg=document.getElementById('tsImpDlg');
 const TS_ORIGIN_RE=/^https:\/\/([a-z0-9-]+\.)?(turnier\.de|tournamentsoftware\.com)$/i;
 function tsOpenResults(){
@@ -2623,17 +2682,22 @@ async function openTsDlg(){
   let s={}; try{ s=await Store.getSettings(); }catch(e){}
   document.getElementById('tsUrl').value=s.tsMatchesUrl||'';
   const n=tsOpenResults().length, noW=tsOpenResults().filter(m=>!(m.winner==1||m.winner==2)).length;
-  document.getElementById('tsCount').textContent=n+' offene(s) Ergebnis(se)'+(noW?(' · '+noW+' ohne Sieger'):'');
+  document.getElementById('tsCount').textContent=n+' bestätigte(s) Ergebnis(se) offen'+(noW?(' · '+noW+' ohne Sieger'):'');
+  document.getElementById('tsList').innerHTML=n
+    ? tsOpenResults().slice(0,40).map(m=>`${escH(m.draw||m.event||'')} · ${m.winner==1?'<b>':''}${escH(m.player1_name||'')}${m.winner==1?'</b>':''} – ${m.winner==2?'<b>':''}${escH(m.player2_name||'')}${m.winner==2?'</b>':''} · ${escH(m.ending==='walkover'?'w/o':m.ending==='retired'?(m.score_text||'')+' ret.':(m.score_text||''))}`).join('<br>')+(n>40?'<br>… und '+(n-40)+' weitere':'')
+    : 'Keine bestätigten Ergebnisse offen – alles übertragen.';
+  document.getElementById('tsSendBtn').disabled=!n;
   document.getElementById('tsBack').value='';
   tsDlg.showModal();
 }
-function tsUrlCheck(){
-  const u=document.getElementById('tsUrl').value.trim();
+function tsUrlCheck(fid){
+  fid=fid||'tsUrl';
+  const u=document.getElementById(fid).value.trim();
   try{ const x=new URL(u);
     if(!TS_ORIGIN_RE.test(x.origin)) throw 0;
     // neue Turnierseite (/tournament/<GUID>/…) -> Tabellenansicht
     const g=/\/tournament\/([0-9a-f-]{36})/i.exec(x.pathname);
-    if(g){ const v=x.origin+'/sport/legacymatches.aspx?id='+g[1]; document.getElementById('tsUrl').value=v; return v; }
+    if(g){ const v=x.origin+'/sport/legacymatches.aspx?id='+g[1]; document.getElementById(fid).value=v; return v; }
     if(!/legacymatches\.aspx/i.test(x.pathname) || !x.searchParams.get('id')) throw 0;
     x.hash=''; x.searchParams.delete('d'); return x.toString();
   }catch(e){ toast('Bitte den Link der Turnierseite eintragen (…/sport/legacymatches.aspx?id=… oder …/tournament/<ID>/Matches)'); return null; }
@@ -2671,7 +2735,7 @@ async function tsApplyBack(){
   else { document.getElementById('tsBack').value=''; openTsDlg(); }
 }
 async function tsImportOpen(){
-  const url=tsUrlCheck(); if(!url) return;
+  const url=tsUrlCheck('tsUrlImp'); if(!url) return;
   try{ await Store.saveSettings({tsMatchesUrl:url}); }catch(e){}
   const w=window.open(url+'#mgtp-import','mg_turnierde');
   if(!w){ toast('Popup blockiert – bitte erlauben oder JSON von Hand einfügen'); return; }
@@ -2713,6 +2777,7 @@ async function tsReceiveImport(d, src){
     (noId?`<br>davon ${noId} noch ohne feste Paarung (Platzhalter) – werden beim nächsten Import aktualisiert`:'')+
     (tName?`<br><br>Ziel-Turnier: <b>${escH(tName.trim())}</b>`:'');
   try{ tsDlg.close(); }catch(e){}
+  try{ impDlg.close(); }catch(e){}
   try{ window.focus(); }catch(e){}
   if(!tsImpDlg.open) tsImpDlg.showModal();
   document.title='⇩ Import bestätigen · '+document.title.replace(/^⇩ Import bestätigen · /,'');
