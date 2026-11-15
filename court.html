@@ -453,7 +453,7 @@
   <div id="warmShirts" class="wshirts"></div>
   <div id="warmStartRow" class="row wrow">
     <button id="btnStartWarm" class="btn btn-green wbig" onclick="startWarm()">▶ Aufwärmen starten</button>
-    <button class="btn btn-blue wbig" onclick="askServer()">Wer schlägt auf?</button>
+    <button id="btnAskServer" class="btn btn-blue wbig" style="display:none" onclick="askServer()">Wer schlägt auf?</button>
   </div>
   <div id="warmServeRow" style="display:none">
     <p class="wq">Wer hat Aufschlag?</p>
@@ -1838,13 +1838,22 @@ function showWarmup(){
   primeWarmPhase();            // Phase 1 bereit (pausiert) – Schiri startet
   show('ovWarmup');
 }
+// Aufwärm-Bildschirm je nach Stand:
+//  vor dem Start  -> „▶ Aufwärmen starten“ + Shirt-Farben wählbar, KEIN „Wer schlägt auf?“
+//  nach dem Start -> „Wer schlägt auf?“, Start-Button und Shirt-Auswahl ausgeblendet
+let warmStarted=false;
+function warmUiState(){
+  const st=document.getElementById('btnStartWarm'); if(st) st.style.display = warmStarted ? 'none' : '';
+  const as=document.getElementById('btnAskServer'); if(as) as.style.display = warmStarted ? '' : 'none';
+  const sh=document.getElementById('warmShirts'); if(sh) sh.style.display = warmStarted ? 'none' : '';
+}
 function warmBackToStart(){
   const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='flex';
   const qr=document.getElementById('warmServeRow'); if(qr) qr.style.display='none';
-  const b=document.getElementById('btnStartWarm'); if(b) b.style.display='';
   const lbl=document.getElementById('warmPhaseLabel'); if(lbl){ lbl.classList.remove('big'); setText('warmPhaseLabel','Aufwärmen'); }
   const wb=document.getElementById('btnWarmBack'); if(wb) wb.style.display='none';
   renderWarmShirts();
+  warmUiState();
 }
 function warmServeView(){
   // Aufschlagwahl anzeigen – Timer/Steuerung/Logo/Info bleiben sichtbar (wie vorher)
@@ -1863,13 +1872,14 @@ function primeWarmPhase(){
   Timer.prime(warmTotal(),'Aufwärmen');
   Timer.onEnd=onWarmDone; Timer.onTick=warmTick; Timer._announce=true; Timer._msg15='15 Sekunden – Spieler bitte auf den Court!';
   paintWarmPhase(warmTotal());
-  const b=document.getElementById('btnStartWarm'); if(b){ b.textContent='▶ Aufwärmen starten'; b.style.display=''; }
+  const b=document.getElementById('btnStartWarm'); if(b){ b.textContent='▶ Aufwärmen starten'; }
+  warmStarted=false; warmUiState();      // Reset/neues Spiel -> wieder Startansicht mit Shirt-Auswahl
 }
 function startWarm(){
   if(Timer.sec<=0) primeWarmPhase();
   Timer.onEnd=onWarmDone; Timer.onTick=warmTick; Timer._announce=true; Timer._msg15='15 Sekunden – Spieler bitte auf den Court!';
   if(!Timer.running) Timer.toggle();
-  const b=document.getElementById('btnStartWarm'); if(b) b.style.display='none';   // kein Pause – Start-Button verschwindet
+  warmStarted=true; warmUiState();       // kein Pause – Start-Button + Shirts weg, „Wer schlägt auf?“ erscheint
 }
 function askServer(){
   warmServeView();   // Aufschlagwahl jederzeit möglich – Match startet mit startPlay()
