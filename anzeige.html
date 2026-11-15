@@ -50,6 +50,7 @@
   .courttile.center{border-color:var(--gold)}.courttile.semi{border-color:#8fd0ff}
   .cfn{font-size:12px;font-weight:800;padding:2px 8px;border-radius:999px}
   .cfn.center{background:#3a2f0c;color:var(--gold)}.cfn.semi{background:#0e2036;color:#8fd0ff}
+  .cfn.custom{background:#1f2633;color:#e7edf5;border:1px solid #4a5a73}
   .empty{color:var(--muted);font-size:18px;padding:40px 0;text-align:center}
   .opt{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:16px;margin:18px 2px 0}
   .opt input{width:22px;height:22px}
@@ -217,7 +218,8 @@ async function loadCourts(){
 }
 function courtTile(n, venueId, fn){
   const cls='courttile'+(fn==='center'?' center':fn==='semi'?' semi':'');
-  const tag=fn==='center'?'<span class="cfn center">Center · Finale</span>':fn==='semi'?'<span class="cfn semi">Halbfinale</span>':'';
+  const cx=(typeof courtFnCustom==='function')?courtFnCustom(n, venueId, CNSET):'';   // eigene Bezeichnung (Einstellungen)
+  const tag=cx?`<span class="cfn custom">${esc(cx)}</span>`:fn==='center'?'<span class="cfn center">Center · Finale</span>':fn==='semi'?'<span class="cfn semi">Halbfinale</span>':'';
   const nm=courtName(n, venueId, CNSET);
   return `<div class="${cls}" data-court="${esc(n)}" data-venue="${esc(venueId||'')}">`+(nm
     ? `<div class="cn nm">${esc(nm)}</div><div class="s">Court ${esc(n)}</div>`
