@@ -1113,6 +1113,22 @@ function courtName(no, venueId, s) {
 }
 function courtLabel(no, venueId, s) { return courtName(no, venueId, s) || ('Court ' + no); }
 
+// Court-Funktion/Bezeichnung (s = Store.getSettings()-Ergebnis).
+//  Standard: function 'normal' | 'center' | 'semi' (Tabelle tournament_courts)
+//  Eigene Bezeichnungen pro Turnier: s.courtLabels (Liste) + s.courtFnCustom { '<venueId>|<courtNo>': 'Ersatzcourt' }
+//  courtFnCustom(3, venueId, s)        -> 'Ersatzcourt' oder ''
+//  courtFunctionLabel(3, venueId, fn, s) -> 'Ersatzcourt' | 'Center/Finale' | 'Halbfinale' | 'normal'
+const COURT_FN_LABEL = { normal: 'normal', center: 'Center/Finale', semi: 'Halbfinale' };
+function courtFnCustom(no, venueId, s) {
+  const m = (s && s.courtFnCustom) || {}; const n = Number(no);
+  if (venueId) return m[venueId + '|' + n] || '';
+  const k = Object.keys(m).find(x => Number(x.split('|')[1]) === n);   // Seiten ohne loc=
+  return k ? m[k] : '';
+}
+function courtFunctionLabel(no, venueId, fn, s) {
+  return courtFnCustom(no, venueId, s) || COURT_FN_LABEL[fn || 'normal'] || String(fn || '');
+}
+
 // "Vorname Nachname (Country)[seed]" -> {name, country, seed}
 function parsePlayer(raw) {
   raw = (raw == null ? '' : String(raw)).trim();

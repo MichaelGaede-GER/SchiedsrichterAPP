@@ -562,7 +562,8 @@ async function renderLinks(){
       const locq='loc='+encodeURIComponent(v.venue_id);
       const courts = tcourts.filter(c=>c.venue_id===v.venue_id).slice().sort((a,b)=>(a.sort-b.sort)||(a.court_no-b.court_no));
       const inner = courts.map(c=>{
-        const fnTag = c.function==='center'?' (Center)':c.function==='semi'?' (Halbfinale)':'';
+        const cx=customFnOf(v.venue_id,c.court_no);
+        const fnTag = cx?(' ('+escS(cx)+')'):c.function==='center'?' (Center)':c.function==='semi'?' (Halbfinale)':'';
         const links=[
           ['Schiedsrichter-Tablet', wq(`court.html?court=${c.court_no}`,[locq])],
           ['Anzeige',               wq(`stream.html?court=${c.court_no}&view=scoreboard`,[locq])],
@@ -652,17 +653,52 @@ async function renderTourCourts(){
       <div class="ctiles">`+
       (courts.map(c=>{ const no=Number(c.court_no), on=cur.has(no), fn=cur.get(no)||'normal';
         const nm=(c.name&&String(c.name).trim())||'';
+        const cx=customFnOf(v.venue_id,no);                       // eigene Bezeichnung (falls gesetzt)
+        const val=cx?('x:'+cx):fn;
+        const custOpts=customLabels().map(l=>`<option value="${escS('x:'+l)}" ${val===('x:'+l)?'selected':''}>${escS(l)}</option>`).join('');
         return `<div class="ctile${on?' on':''}">
           <label><input type="checkbox" ${on?'checked':''} onchange="onCourtToggle('${v.venue_id}',${no},this.checked)">
             <span>${nm?escS(nm):('Court '+no)}${nm?`<br><span class="cno">Court ${no}</span>`:''}</span></label>
-          <select ${on?'':'disabled'} onchange="onCourtFn('${v.venue_id}',${no},this.value)">
-            <option value="normal" ${fn==='normal'?'selected':''}>normal</option>
-            <option value="center" ${fn==='center'?'selected':''}>Center/Finale</option>
-            <option value="semi" ${fn==='semi'?'selected':''}>Halbfinale</option>
+          <select ${on?'':'disabled'} onchange="onCourtFn('${v.venue_id}',${no},this.value,this)">
+            <option value="normal" ${val==='normal'?'selected':''}>normal</option>
+            <option value="center" ${val==='center'?'selected':''}>Center/Finale</option>
+            <option value="semi" ${val==='semi'?'selected':''}>Halbfinale</option>
+            ${custOpts}
+            <option value="__new">+ Neue Bezeichnung…</option>
           </select></div>`; }).join('') || '<span class="hint">Diese Anlage hat keine Courts – Anzahl auf der Startseite eintragen.</span>')+
       `</div></div>`;
   }
+  const labs=customLabels();
+  html+=`<div style="margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+    <span class="hint" style="margin:0">Eigene Bezeichnungen:</span>
+    ${labs.length?labs.map((l,i)=>`<span style="display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 6px 3px 12px;font-size:13px">${escS(l)}
+      <button class="btn-ghost" style="padding:0 7px;font-size:13px;line-height:20px;border-radius:999px" title="Bezeichnung löschen" onclick="deleteCustomLabel(${i})">×</button></span>`).join('')
+      :'<span class="hint" style="margin:0">keine – im Dropdown „+ Neue Bezeichnung…“ wählen</span>'}
+  </div>`;
   el.innerHTML=html;
+}
+// ---- Eigene Court-Bezeichnungen (pro Turnier, in den Turnier-Einstellungen) ----
+//  courtLabels:   ['Ersatzcourt', …]                    – Liste für alle Dropdowns
+//  courtFnCustom: { '<venueId>|<courtNo>': 'Ersatzcourt' } – Zuordnung je Court (function bleibt 'normal')
+function customLabels(){ return Array.isArray(S.courtLabels)?S.courtLabels.filter(Boolean):[]; }
+function customFnOf(venueId,no){ const m=S.courtFnCustom||{}; return m[venueId+'|'+Number(no)]||''; }
+async function saveCustomFn(map,labels){
+  const patch={courtFnCustom:map}; if(labels) patch.courtLabels=labels;
+  await Store.saveSettings(patch);
+  S.courtFnCustom=map; if(labels) S.courtLabels=labels;
+}
+async function deleteCustomLabel(i){
+  const labs=customLabels(); const l=labs[i]; if(l==null) return;
+  const map=Object.assign({},S.courtFnCustom||{}); const used=Object.keys(map).filter(k=>map[k]===l);
+  if(!confirm('Bezeichnung „'+l+'“ löschen?'+(used.length?('\n\n'+used.length+' Court(s) damit werden auf „normal“ zurückgesetzt.'):''))) return;
+  used.forEach(k=>delete map[k]);
+  try{ await saveCustomFn(map, labs.filter((_,j)=>j!==i)); toast('Bezeichnung gelöscht'); }catch(e){ toast('Fehler: '+e.message); }
+  await renderTourCourts(); renderLinks();
+}
+async function clearCustomFn(venueId,nos){
+  const map=Object.assign({},S.courtFnCustom||{}); let ch=false;
+  Object.keys(map).forEach(k=>{ const [vid,no]=k.split('|'); if(vid===venueId && (!nos||nos.includes(Number(no)))){ delete map[k]; ch=true; } });
+  if(ch){ try{ await saveCustomFn(map); }catch(e){} }
 }
 async function saveVenueCourts(venueId){
   const list=TCOURTS.filter(c=>c.venue_id===venueId).map(c=>({court_no:c.court_no,function:c.function,sort:c.sort}));
@@ -683,6 +719,7 @@ async function afterCourtChange(){
 async function onCourtToggle(venueId,no,on){
   TCOURTS=TCOURTS.filter(c=>!(c.venue_id===venueId&&Number(c.court_no)===no));
   if(on) TCOURTS.push({venue_id:venueId,court_no:no,function:'normal',sort:no});
+  else await clearCustomFn(venueId,[no]);
   try{ await saveVenueCourts(venueId); toast('Gespeichert'); }catch(e){ toast('Fehler: '+e.message); }
   await renderTourCourts(); await afterCourtChange();
 }
@@ -691,12 +728,33 @@ async function setAllCourts(venueId,on){
   TCOURTS=TCOURTS.filter(c=>c.venue_id!==venueId);
   if(on) (VCOURTS[venueId]||[]).forEach(c=>{ const no=Number(c.court_no);
     TCOURTS.push(keep.get(no)||{venue_id:venueId,court_no:no,function:'normal',sort:no}); });
+  if(!on) await clearCustomFn(venueId);
   try{ await saveVenueCourts(venueId); toast('Gespeichert'); }catch(e){ toast('Fehler: '+e.message); }
   await renderTourCourts(); await afterCourtChange();
 }
-async function onCourtFn(venueId,no,fn){
-  const c=TCOURTS.find(x=>x.venue_id===venueId&&Number(x.court_no)===no); if(c) c.function=fn;
-  try{ await saveVenueCourts(venueId); toast('Gespeichert'); }catch(e){ toast('Fehler: '+e.message); }
+async function onCourtFn(venueId,no,fn,sel){
+  const c=TCOURTS.find(x=>x.venue_id===venueId&&Number(x.court_no)===no);
+  let labels=null;
+  if(fn==='__new'){
+    const raw=prompt('Neue Court-Bezeichnung (z. B. Ersatzcourt):','');
+    const l=(raw||'').trim();
+    if(!l){ await renderTourCourts(); return; }                       // abgebrochen -> alte Auswahl
+    const std=['normal','center/finale','halbfinale'];
+    const labs=customLabels();
+    if(std.includes(l.toLowerCase())){ toast('„'+l+'“ gibt es bereits'); await renderTourCourts(); return; }
+    const hit=labs.find(x=>x.toLowerCase()===l.toLowerCase());
+    if(!hit) labels=labs.concat([l]);
+    fn='x:'+(hit||l);
+  }
+  const map=Object.assign({},S.courtFnCustom||{}); const key=venueId+'|'+no;
+  if(fn.indexOf('x:')===0){ map[key]=fn.slice(2); if(c) c.function='normal'; }   // eigene Bezeichnung: DB-Funktion bleibt 'normal'
+  else { delete map[key]; if(c) c.function=fn; }
+  try{
+    await saveVenueCourts(venueId);
+    await saveCustomFn(map,labels);
+    toast(labels?'Bezeichnung angelegt':'Gespeichert');
+  }catch(e){ toast('Fehler: '+e.message); }
+  if(labels) await renderTourCourts();                                // neue Option in allen Dropdowns
   renderLinks();
 }
 
