@@ -447,7 +447,7 @@
   <div id="warmPhaseLabel">Aufwärmen</div>
   <div id="warmPhaseSide">&nbsp;</div>
   <div id="warmTimers">
-    <div><div class="wcap">Gesamt</div><div id="warmClock" class="timerbig wt" style="color:#cbd5e1">5:00</div></div>
+    <div><div class="wcap">Aufwärmen</div><div id="warmClock" class="timerbig wt" style="color:#cbd5e1">4:00</div></div>
     <div><div id="warmPhaseCap" class="wcap">Phase&nbsp;1&nbsp;/&nbsp;3</div><div id="warmPhaseClock" class="timerbig wt" style="color:#7fe08a">2:00</div></div>
   </div>
   <div id="warmShirts" class="wshirts"></div>
@@ -1757,21 +1757,26 @@ function warmPName(n){
 // Phaseninfo aus Restsekunden des GESAMT-Timers berechnen.
 // 3 Phasen: Phase 3 (Vorbereitung) = letzte Minute; Rest hälftig auf Phase 1 & 2.
 // Standard 5:00 -> 2:00 (Phase 1) · 2:00 (Phase 2) · 1:00 (Phase 3).
+// Anzeige am Tablet: „Aufwärmen“ 4:00 (Phase 1+2) + Phasen-Uhr; die letzte Minute zählt nicht zur Aufwärmzeit.
 function warmPhaseInfo(sec){
   const T=warmTotal();
   const fin=Math.min(60,T);              // Phase 3
   const body=Math.max(0,T-fin);          // Phase 1 + 2
   const p1=Math.ceil(body/2);            // z.B. 120
   const b12=T-p1;                        // Grenze Phase 1 -> 2 (z.B. 180)
-  if(sec>b12)  return {phase:1, rem:sec-b12, title:'1. Aufwärmen',
+  const warm=Math.max(0,sec-fin);        // Aufwärmzeit OHNE letzte Minute (Standard 4:00 -> 0:00)
+  if(sec>b12)  return {phase:1, rem:sec-b12, warm, title:'1. Aufwärmen',
                        side:warmPName(1)+' rechts  ·  '+warmPName(2)+' links'};
-  if(sec>fin)  return {phase:2, rem:sec-fin, title:'2. Aufwärmen (Seitenwechsel)',
+  if(sec>fin)  return {phase:2, rem:sec-fin, warm, title:'2. Aufwärmen (Seitenwechsel)',
                        side:warmPName(1)+' links  ·  '+warmPName(2)+' rechts'};
-  return {phase:3, rem:sec, title:'3. Vorbereitung',
+  return {phase:3, rem:sec, warm, title:'3. Vorbereitung',
           side:'Letzte Minute – fertig machen zum Spiel'};
 }
 function paintWarmPhase(sec){
   const i=warmPhaseInfo(sec);
+  // Linke Uhr = reine Aufwärmzeit (4:00), die letzte Minute läuft danach nur in der Phasen-Uhr
+  setText('warmClock', Timer.fmt(i.warm));
+  const wc=document.getElementById('warmClock'); if(wc) wc.style.opacity = i.phase===3 ? '.45' : '1';
   setText('warmPhaseCap','Phase '+i.phase+' / 3');
   setText('warmPhaseClock', Timer.fmt(Math.max(0,i.rem)));
   const lbl=document.getElementById('warmPhaseLabel');
