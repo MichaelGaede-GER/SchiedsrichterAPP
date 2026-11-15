@@ -1839,13 +1839,14 @@ function showWarmup(){
   show('ovWarmup');
 }
 // Aufwärm-Bildschirm je nach Stand:
-//  vor dem Start  -> „▶ Aufwärmen starten“ + Shirt-Farben wählbar, KEIN „Wer schlägt auf?“
-//  nach dem Start -> „Wer schlägt auf?“, Start-Button und Shirt-Auswahl ausgeblendet
+//  vor dem Start  -> „▶ Aufwärmen starten“ + Shirt-Farben, KEIN „Wer schlägt auf?“
+//  nach dem Start -> „Wer schlägt auf?“ statt Start-Button, Shirt-Farben weiter wählbar
+//  Aufschlagwahl  -> Shirt-Auswahl ausgeblendet (siehe warmServeView), „↩ Zurück“ zeigt sie wieder
 let warmStarted=false;
 function warmUiState(){
   const st=document.getElementById('btnStartWarm'); if(st) st.style.display = warmStarted ? 'none' : '';
   const as=document.getElementById('btnAskServer'); if(as) as.style.display = warmStarted ? '' : 'none';
-  const sh=document.getElementById('warmShirts'); if(sh) sh.style.display = warmStarted ? 'none' : '';
+  const sh=document.getElementById('warmShirts'); if(sh) sh.style.display = '';
 }
 function warmBackToStart(){
   const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='flex';
@@ -1860,6 +1861,7 @@ function warmServeView(){
   const sr=document.getElementById('warmStartRow'); if(sr) sr.style.display='none';  // Start-Button -> Aufschlagwahl
   const qr=document.getElementById('warmServeRow'); if(qr) qr.style.display='block';
   const wb=document.getElementById('btnWarmBack'); if(wb) wb.style.display='';
+  const sh=document.getElementById('warmShirts'); if(sh) sh.style.display='none';    // Aufschlagwahl: Shirt-Auswahl weg
   const ov=document.getElementById('ovWarmup'); if(ov) ov.scrollTop=0;               // passt ohne Scrollen auf den Bildschirm
 }
 function askServer(){
