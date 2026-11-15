@@ -382,6 +382,12 @@ function warmTotalS(){
   const s=((SET&&SET.warmupP1)||0)+((SET&&SET.warmupP2)||0)+((SET&&SET.warmupFinal)||0);
   return s>0?s:300;
 }
+// Aufwärm-Countdown aufteilen: erst 4:00 Aufwärmen (ohne letzte Minute), danach eigene 1:00 bis Spielbeginn
+// sec = Restsekunden des Gesamt-Timers (Standard 5:00) -> {sec, last}
+function warmSplit(sec){
+  const T=warmTotalS(), fin=Math.min(60,T);
+  return sec>fin ? { sec:sec-fin, last:false } : { sec:sec, last:true };
+}
 function warmHintOn(d){
   if(!d || d.mstatus!=='warmup' || !d.timer) return false;
   const t=d.timer; if(!/aufwärm|warm/i.test(String(t.label||''))) return false;
@@ -399,7 +405,8 @@ function bTimer(d){
   else if(typeof t.sec==='number') sec=t.sec;
   if(sec==null || sec<0) return '';
   const L=String(t.label||'');
-  const lab=/aufwärm|warm/i.test(L)?'WARM-UP':(/satzpause|interval|pause/i.test(L)?'GAME INTERVAL':(/verletz|injury|blut|physio|angemess|ausrüst/i.test(L)?'INJURY TIME':(L.toUpperCase()||'TIMER')));
+  let lab=/aufwärm|warm/i.test(L)?'WARM-UP':(/satzpause|interval|pause/i.test(L)?'GAME INTERVAL':(/verletz|injury|blut|physio|angemess|ausrüst/i.test(L)?'INJURY TIME':(L.toUpperCase()||'TIMER')));
+  if(lab==='WARM-UP'){ const w=warmSplit(sec); sec=w.sec; if(w.last) lab='SPIELBEGINN IN'; }   // 4:00 Aufwärmen, dann 1:00
   const mm=Math.floor(sec/60), ss=String(sec%60).padStart(2,'0');
   const hint = (lab==='WARM-UP' && warmHintOn(d)) ? `<div class="b-hint">${escS(WARM_HINT)}</div>` : '';
   return `<div class="b-timer"><div class="b-tl">${escS(lab)}</div><div class="b-tv">${mm}:${ss}</div>${hint}</div>`;
@@ -520,7 +527,9 @@ function timerInfo(){
   if(t.running && t.endsAt){ left=Math.round((t.endsAt-Date.now())/1000); if(left<=0) return null; }
   else if(!t.running && t.sec>0){ left=t.sec; }   // pausiert
   else return null;
-  return { label:t.label||'Timer', left, paused:!t.running };
+  let label=t.label||'Timer';
+  if(/aufwärm|warm/i.test(label)){ const w=warmSplit(left); left=w.sec; label=w.last?'Spielbeginn in':'Aufwärmen'; }   // 4:00, dann 1:00
+  return { label, left, paused:!t.running };
 }
 function paintTimer(){
   const el=document.getElementById('stimer'); if(!el) return;
