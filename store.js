@@ -546,6 +546,24 @@ const Store = (() => {
     return ACTIVE;
   }
 
+  // ---- Gleichzeitige gleiche Anfragen zusammenlegen ----
+  // Rufen mehrere Programmteile beim Start parallel dieselben Daten ab (Einstellungen, Locations, Courts,
+  // Turnierliste), geht nur EINE Anfrage an den Server; alle Aufrufer bekommen eine eigene Kopie.
+  // Es wird nur die gerade LAUFENDE Anfrage geteilt (kein Zwischenspeicher) -> nie veraltete Daten.
+  const INFLIGHT = {};
+  const clone = (v) => { try { return (typeof structuredClone === 'function') ? structuredClone(v) : JSON.parse(JSON.stringify(v)); } catch (e) { return v; } };
+  function shared(key, fn) {
+    let p = INFLIGHT[key];
+    if (!p) {
+      p = INFLIGHT[key] = Promise.resolve().then(fn);
+      const done = () => { if (INFLIGHT[key] === p) delete INFLIGHT[key]; };
+      p.then(done, done);
+    }
+    return p.then(clone);
+  }
+  // nach dem Schreiben: laufende (evtl. veraltete) Anfrage nicht mehr weiterreichen
+  function dropShared(prefix) { Object.keys(INFLIGHT).forEach(k => { if (k.indexOf(prefix) === 0) delete INFLIGHT[k]; }); }
+
   // Realtime-Abos merken, damit sie bei einem Turnierwechsel im selben Tab neu (gefiltert) verbunden werden
   const SUBS = [];
   function bindSub(sub) {
@@ -619,14 +637,15 @@ const Store = (() => {
     async getMode() { const s = await this.getSettings(); return s.tourMode === 'team' ? 'team' : 'single'; },
 
     // ---- Turniere ----
-    listTournaments: (...a) => backend.listTournaments(...a),
-    async createTournament(name) { const t = await backend.createTournament(name); return t; },
-    renameTournament: (...a) => backend.renameTournament(...a),
-    deleteTournament: (...a) => backend.deleteTournament(...a),
+    listTournaments: () => shared('tours', () => backend.listTournaments()),
+    async createTournament(name) { dropShared('tours'); const t = await backend.createTournament(name); dropShared('tours'); return t; },
+    async renameTournament(...a) { dropShared('tours'); const r = await backend.renameTournament(...a); dropShared('tours'); return r; },
+    async deleteTournament(...a) { dropShared('tours'); const r = await backend.deleteTournament(...a); dropShared('tours'); return r; },
     // Archivieren: Kennzeichen in den Turnier-Einstellungen (settings.archived) – Daten bleiben vollständig erhalten
     async setTournamentArchived(id, on) {
       let t = {}; try { t = await backend.getTournamentSettings(id) || {}; } catch (e) { t = {}; }
       t = Object.assign({}, t); if (on) { t.archived = true; t.archivedAt = new Date().toISOString(); } else { delete t.archived; delete t.archivedAt; }
+      dropShared('tours'); dropShared('settings');
       await backend.saveTournamentSettings(id, t);
     },
     isArchived(t) { return !!(t && t.settings && t.settings.archived); },
@@ -675,10 +694,10 @@ const Store = (() => {
       await this.saveSettings({ courtNames: byKey, courtNamesByNo: byNo }, tid);
       return true;
     },
-    async getTournamentVenues(tid) { tid = tid || (await ensureActive()); if (!tid) return []; return backend.getTournamentVenues(tid); },
-    async setTournamentVenues(ids, tid) { tid = tid || (await ensureActive()); if (!tid) throw new Error('Kein aktives Turnier.'); return backend.setTournamentVenues(tid, ids); },
-    async getTournamentCourts(tid) { tid = tid || (await ensureActive()); if (!tid) return []; return backend.getTournamentCourts(tid); },
-    async setTournamentCourts(venueId, courts, tid) { tid = tid || (await ensureActive()); if (!tid) throw new Error('Kein aktives Turnier.'); return backend.setTournamentCourts(tid, venueId, courts); },
+    async getTournamentVenues(tid) { tid = tid || (await ensureActive()); if (!tid) return []; return shared('tv|' + tid, () => backend.getTournamentVenues(tid)); },
+    async setTournamentVenues(ids, tid) { tid = tid || (await ensureActive()); if (!tid) throw new Error('Kein aktives Turnier.'); dropShared('tv|'); const r = await backend.setTournamentVenues(tid, ids); dropShared('tv|'); return r; },
+    async getTournamentCourts(tid) { tid = tid || (await ensureActive()); if (!tid) return []; return shared('tc|' + tid, () => backend.getTournamentCourts(tid)); },
+    async setTournamentCourts(venueId, courts, tid) { tid = tid || (await ensureActive()); if (!tid) throw new Error('Kein aktives Turnier.'); dropShared('tc|'); const r = await backend.setTournamentCourts(tid, venueId, courts); dropShared('tc|'); return r; },
     // Hilfsfunktion für die Index-/Anzeige-Filterung: genutzte Court-Nummern
     async usedCourtNumbers(tid, venueId) {
       tid = tid || (await ensureActive()); if (!tid) return [];
@@ -736,22 +755,26 @@ const Store = (() => {
     },
     async getSettings() {
       await ensureActive();                  // aktives Turnier pro Gerät (localStorage)
-      let g = {};
-      try { g = await backend.getSettingsRaw(); } catch (e) { g = {}; }
-      let t = {};
-      if (ACTIVE && backend.getTournamentSettings) {
-        try { t = await backend.getTournamentSettings(ACTIVE) || {}; } catch (e) { t = {}; }
-      }
+      const tid = ACTIVE || null;
+      const raw = await shared('settings|' + (tid || ''), async () => {
+        // globale + Turnier-Einstellungen GLEICHZEITIG laden (vorher nacheinander = doppelte Wartezeit)
+        const [g, t] = await Promise.all([
+          backend.getSettingsRaw().catch(() => ({})),
+          (tid && backend.getTournamentSettings) ? backend.getTournamentSettings(tid).catch(() => ({})) : Promise.resolve({}),
+        ]);
+        return { g: g || {}, t: t || {} };
+      });
       // Leere Bild-Felder im Turnier (z. B. Logo nie eingetragen) überschreiben das allgemeine Logo nicht
-      t = Object.assign({}, t || {});
+      const t = Object.assign({}, raw.t || {});
       ['logoUrl', 'backgroundUrl'].forEach(k => { if (t[k] == null || String(t[k]).trim() === '') delete t[k]; });
       // Reihenfolge: Standardwerte < globale Settings < Turnier-Settings
-      return Object.assign(this._defaults(), g || {}, t);
+      return Object.assign(this._defaults(), raw.g || {}, t);
     },
     // tid optional: Einstellungen eines bestimmten Turniers speichern, ohne das aktive Turnier zu wechseln
     async saveSettings(patch, tid) {
       patch = patch || {};
       await ensureActive();
+      dropShared('settings');
       // aktives Turnier wird pro Gerät gespeichert (nicht global)
       if (!tid && 'activeTournament' in patch) { await this.setActiveTournament(patch.activeTournament); }
       const rest = Object.assign({}, patch); delete rest.activeTournament;
@@ -766,6 +789,7 @@ const Store = (() => {
         try { g = await backend.getSettingsRaw(); } catch (e) { g = {}; }
         await backend.saveSettingsRaw(Object.assign({}, g, rest));
       }
+      dropShared('settings');
     },
 
     // nächstes geplantes Spiel eines Courts (nach Uhrzeit, im aktiven Turnier)
@@ -860,6 +884,56 @@ const LiveFeed = (() => {
   return { start, apply, mergeOne, patch, info, active: () => !!ch, lastAt: () => lastAt };
 })();
 try { window.LiveFeed = LiveFeed; } catch (e) {}
+
+// =====================================================================
+//  LOKALER ZWISCHENSPEICHER (IndexedDB) – letzter Stand je Turnier
+//  Nur zum schnellen Anzeigen beim Öffnen eines Turniers. Der Server bleibt maßgeblich:
+//  Seiten zeigen den gespeicherten Stand, sperren Aktionen und ersetzen ihn, sobald die
+//  frischen Daten da sind. IndexedDB statt localStorage, weil Spiele inkl. Spielstand
+//  schnell mehrere MB groß werden. Ohne IndexedDB (z. B. privater Modus) passiert einfach nichts.
+// =====================================================================
+const LocalCache = (() => {
+  const DB = 'mgtp-cache', ST = 'kv', KEEP = 8;           // höchstens 8 Turniere aufheben
+  let dbp = null;
+  function db() {
+    if (dbp) return dbp;
+    dbp = new Promise((res, rej) => {
+      try {
+        if (!window.indexedDB) return rej(new Error('kein IndexedDB'));
+        const r = indexedDB.open(DB, 1);
+        r.onupgradeneeded = () => { r.result.createObjectStore(ST); };
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+        r.onblocked = () => rej(new Error('IndexedDB blockiert'));
+      } catch (e) { rej(e); }
+    });
+    dbp.catch(() => { dbp = null; });
+    return dbp;
+  }
+  function tx(mode, fn) {
+    return db().then(d => new Promise((res, rej) => {
+      const t = d.transaction(ST, mode), s = t.objectStore(ST);
+      let out; const r = fn(s); if (r) r.onsuccess = () => { out = r.result; };
+      t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    }));
+  }
+  async function get(key) { try { return (await tx('readonly', s => s.get(key))) || null; } catch (e) { return null; } }
+  async function set(key, val) {
+    try {
+      await tx('readwrite', s => s.put(Object.assign({ at: Date.now() }, val), key));
+      // aufräumen: nur die zuletzt benutzten Turniere behalten
+      let idx = []; try { idx = JSON.parse(localStorage.getItem('mgtp_cache_idx') || '[]'); } catch (e) {}
+      idx = idx.filter(x => x && x.k !== key); idx.unshift({ k: key, at: Date.now() });
+      const drop = idx.slice(KEEP); idx = idx.slice(0, KEEP);
+      try { localStorage.setItem('mgtp_cache_idx', JSON.stringify(idx)); } catch (e) {}
+      for (const x of drop) { try { await tx('readwrite', s => s.delete(x.k)); } catch (e) {} }
+      return true;
+    } catch (e) { return false; }
+  }
+  async function del(key) { try { await tx('readwrite', s => s.delete(key)); } catch (e) {} }
+  return { get, set, del };
+})();
+try { window.LocalCache = LocalCache; } catch (e) {}
 
 // Öffentliche RPC ohne supabase-js (reines fetch) – für Anzeigen ohne Login (OBS, TV, Handy)
 async function rpcPublic(fn, args) {

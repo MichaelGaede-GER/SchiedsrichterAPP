@@ -99,6 +99,11 @@
     border:1px solid var(--line);color:var(--muted)}
   .mode.live{color:var(--green);border-color:#1e5b3d;background:#10261c}
   .mode.local{color:var(--amber);border-color:#5b4a1e;background:#241f10}
+  /* Letzter gespeicherter Stand wird gezeigt, bis die Serverdaten da sind -> Bedienung gesperrt */
+  .mode.sync{color:#ffd27a;border-color:#7a5a1e;background:#2a210c;margin-left:10px}
+  .mode.sync.off{color:#ff9a9d;border-color:#6b1e24;background:#2a1013}
+  body.stale main{pointer-events:none;opacity:.78;transition:opacity .2s}
+  body.stale{cursor:progress}
   main{padding:20px;max-width:1500px;margin:0 auto}
   h2{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);
     margin:26px 0 12px;font-weight:700;display:flex;align-items:center;gap:10px}
@@ -332,6 +337,7 @@
   <a id="lnkKontrolle" class="navlink manage-only" href="kontrolle.html" target="_blank" rel="noopener" style="margin-left:10px" title="Alle Tablets live sehen und steuern">📟 Tablet-Kontrolle</a>
   <a id="lnkSettings" class="navlink" href="settings.html" style="margin-left:10px">⚙️ Einstellungen</a>
   <span id="mode" class="mode">…</span>
+  <span id="syncState" class="mode sync" style="display:none"></span>
   <span id="activeTour" class="mode" style="display:none"></span>
 </header>
 
@@ -928,6 +934,7 @@ function refreshAlarms(){
         + (overdue? ` · ${overdue} überfällig!` : '');
     } else { bar.style.display='none'; bar.classList.remove('alarm'); }
   }
+  if(!FRESH) return;          // gespeicherter Stand: keine Automatik, keine Alarmtöne (erst mit Serverdaten)
   checkAutoConfirm();
   checkPhysioAlarm();
   checkBatteryAlarm();
@@ -938,7 +945,7 @@ const _sweepBusy=new Set();
 const _autoHold=new Map();        // matchId -> bis-Zeitpunkt (nach „Vom Court nehmen" nicht sofort wieder auflegen)
 const AUTO_HOLD_MS=60000;         // 60 Sekunden Sperre
 async function autoAssignSweep(){
-  if(!FLOW_AUTOASSIGN || MISSING_ACTIVE) return;           // Modus aus oder wegen Platzhaltern pausiert
+  if(!FRESH || !FLOW_AUTOASSIGN || MISSING_ACTIVE) return; // nur mit Serverdaten; Modus aus oder wegen Platzhaltern pausiert
   const dlg=document.getElementById('addDlg'); if(dlg && dlg.open) return;   // Bearbeiten-Dialog offen -> Automatik pausiert
   const now=Date.now();
   for(const [id,t] of _autoHold){ if(t<=now) _autoHold.delete(id); }         // abgelaufene Sperren aufräumen
@@ -988,23 +995,112 @@ else { modeEl.textContent='● Lokaler Testmodus (nur dieser Browser)'; modeEl.c
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600); }
 
-async function load(){
+// ===================== LADEN =====================
+// full=true  -> Einstellungen + Locations + Courts + Spiele (Start, Einstellungsänderung, nach Aktionen)
+// full=false -> nur Spiele (Realtime: jeder Punkt auf einem Tablet) – Court-Layout bleibt
+// Alle Abfragen laufen GLEICHZEITIG. Kommen während des Ladens weitere Auslöser, wird danach
+// genau einmal nachgeladen (statt viele parallele Ladevorgänge).
+let FRESH=false;              // true = Daten kommen vom Server (nicht aus dem lokalen Zwischenspeicher)
+let FRESH_AT=0;               // Zeitpunkt des letzten erfolgreichen Server-Ladens
+let _freshResolve; const FRESH_READY=new Promise(r=>_freshResolve=r);   // wartet auf ersten Server-Stand
+let LAST_LAYOUT=null;         // {st,tv,tc} des letzten vollen Ladens
+let _loadBusy=false, _loadAgain=null;
+async function load(full){
+  full = (full!==false) || !LAST_LAYOUT;
+  if(_loadBusy){ _loadAgain = (_loadAgain===true || full) ? true : false; return; }
+  _loadBusy=true;
   try{
-    await loadCourtLayout();
+    const tid=await Store.ensureActiveTournament();
+    try{ LiveFeed.start(tid, onLiveFeed); }catch(e){}                       // bei Turnierwechsel neu verbinden
+    const wantTies = TEAM_MODE || !LAST_LAYOUT;                              // Modus noch unbekannt -> gleich mitladen
+    const [lay, ms, ts] = await Promise.all([
+      full ? loadCourtLayout() : Promise.resolve(LAST_LAYOUT),
+      Store.listMatches(),
+      wantTies ? Store.listTies().catch(()=>[]) : Promise.resolve(null),
+    ]);
+    if(tid!==Store.activeTournament()) return;                              // Turnier inzwischen gewechselt
+    let ties = ts;
+    if(TEAM_MODE && ties==null) ties = await Store.listTies().catch(()=>[]); // gerade auf Teamturnier umgestellt
+    LAST_LAYOUT=lay;
     fillDefLoc();
-    try{ LiveFeed.start(Store.activeTournament(), onLiveFeed); }catch(e){}   // bei Turnierwechsel neu verbinden
-    MATCHES = LiveFeed.apply(await Store.listMatches());
-    TIES = TEAM_MODE ? await Store.listTies() : [];
+    MATCHES = LiveFeed.apply(ms);
+    TIES = TEAM_MODE ? (ties||[]) : [];
+    setFresh(true);
     render();
+    saveCacheSoon(tid, ms, TIES);
   }catch(err){
     console.error('Laden fehlgeschlagen:', err);
-    const el=document.getElementById('sched');
-    if(el) el.innerHTML=`<div class="emptyrow" style="color:#ff9a9d">
-      Daten konnten nicht geladen werden: ${(err&&err.message)||err}<br>
-      <span style="color:var(--muted)">Prüfe die Supabase-Verbindung bzw. führe <b>supabase-schema.sql</b> erneut aus.</span></div>`;
-    try{ renderCourts(); }catch(e){}
-    toast('Fehler beim Laden: '+((err&&err.message)||err));
+    if(!FRESH && MATCHES.length){                                           // zeigt gespeicherten Stand -> nur Hinweis
+      setFresh(false, true);
+      toast('Server nicht erreichbar – letzter gespeicherter Stand wird angezeigt');
+      setTimeout(()=>{ if(!FRESH) load(); }, 5000);                        // in 5 s erneut versuchen
+    } else {
+      const el=document.getElementById('sched');
+      if(el) el.innerHTML=`<div class="emptyrow" style="color:#ff9a9d">
+        Daten konnten nicht geladen werden: ${(err&&err.message)||err}<br>
+        <span style="color:var(--muted)">Prüfe die Supabase-Verbindung bzw. führe <b>supabase-schema.sql</b> erneut aus.</span></div>`;
+      try{ renderCourts(); }catch(e){}
+      toast('Fehler beim Laden: '+((err&&err.message)||err));
+    }
+  }finally{
+    _loadBusy=false;
+    if(_loadAgain!==null){ const f=_loadAgain; _loadAgain=null; load(f); }
   }
+}
+// Anzeige „letzter Stand“ + Sperre der Bedienung, solange keine Serverdaten da sind
+function setFresh(on, offline){
+  if(on){ FRESH=true; FRESH_AT=Date.now(); _freshResolve(); }
+  document.body.classList.toggle('stale', !on);
+  const el=document.getElementById('syncState'); if(!el) return;
+  if(on){ el.style.display='none'; return; }
+  const at=CACHE_AT?new Date(CACHE_AT):null;
+  const hm=at?(String(at.getHours()).padStart(2,'0')+':'+String(at.getMinutes()).padStart(2,'0')):'';
+  el.classList.toggle('off', !!offline);
+  el.textContent = offline ? `⚠ Offline – Stand von ${hm||'?'}` : `⟳ Letzter Stand${hm?' ('+hm+')':''} · wird aktualisiert…`;
+  el.title = 'Bis die aktuellen Daten vom Server da sind, sind Ansetzen, Bestätigen und Bearbeiten gesperrt.';
+  el.style.display='';
+}
+// Aktionen nur mit Serverdaten (sonst könnte z. B. ein schon belegter Court erneut vergeben werden)
+function needFresh(){ if(FRESH) return true; toast('Einen Moment – die aktuellen Daten werden noch geladen'); return false; }
+
+// ---- Lokaler Zwischenspeicher je Turnier + Benutzer (IndexedDB, siehe store.js) ----
+let CACHE_AT=0, _cacheTimer=0, _cachePending=null, _cacheLastSave=0;
+const CACHE_MIN_GAP=10000;    // höchstens alle 10 s schreiben (während Spielen kommt jeder Punkt als Änderung)
+function cacheKey(tid){
+  let uid=''; try{ uid=(typeof Auth!=='undefined' && Auth.user() && Auth.user().id)||''; }catch(e){}
+  return 'idx:'+(uid||'anon')+':'+(tid||'none');
+}
+function saveCacheSoon(tid, ms, ties){
+  if(typeof LocalCache==='undefined' || !tid || !LAST_LAYOUT) return;
+  _cachePending={ key:cacheKey(tid), val:{ v:1, tid, st:LAST_LAYOUT.st, tv:LAST_LAYOUT.tv, tc:LAST_LAYOUT.tc, matches:ms, ties:ties||[], tourName:window.__tourName||'' } };
+  if(_cacheTimer) return;
+  const wait=Math.max(0, CACHE_MIN_GAP-(Date.now()-_cacheLastSave));
+  _cacheTimer=setTimeout(flushCache, wait);
+}
+function flushCache(){
+  clearTimeout(_cacheTimer); _cacheTimer=0;
+  const p=_cachePending; _cachePending=null; if(!p) return;
+  _cacheLastSave=Date.now();
+  LocalCache.set(p.key, p.val);
+}
+// beim Verlassen (z. B. Turnierwechsel über die Startseite) den neuesten Stand noch schreiben
+window.addEventListener('pagehide', flushCache);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flushCache(); });
+// Gespeicherten Stand sofort zeigen – nur solange noch keine Serverdaten da sind
+async function paintFromCache(){
+  if(typeof LocalCache==='undefined') return false;
+  const tid=await Store.ensureActiveTournament(); if(!tid) return false;
+  const c=await LocalCache.get(cacheKey(tid));
+  if(!c || FRESH || c.tid!==tid) return false;
+  CACHE_AT=c.at||0;
+  applyLayoutData(c.st||{}, c.tv||[], c.tc||[], tid);
+  LAST_LAYOUT=null;                                  // erstes Server-Laden holt das Layout immer neu
+  fillDefLoc();
+  MATCHES=c.matches||[]; TIES=TEAM_MODE?(c.ties||[]):[];
+  paintBranding(c.st||{}, c.tourName||'');
+  setFresh(false);
+  render();
+  return true;
 }
 function fillDefLoc(){
   const sel=document.getElementById('defLoc'); const wrap=document.getElementById('autoCourtWrap');
@@ -1032,9 +1128,20 @@ let CNSET = {};                 // Turnier-Einstellungen mit Court-Namen (Starts
 function cHead(cid, venueId){ const n=courtName(cid, venueId, CNSET); return n ? (escH(n)+' <span class="cnno">C'+cid+'</span>') : ('COURT '+cid); }
 function cBtn(cid, venueId){ return escH(courtLabel(cid, venueId, CNSET)); }
 let TVENUES_IDX = [];           // Locations des aktiven Turniers [{venue_id,name}]
+// Einstellungen, Locations und Courts GLEICHZEITIG laden (vorher 4 Anfragen nacheinander)
 async function loadCourtLayout(){
+  const tid=await Store.ensureActiveTournament();
+  const [st,tv,tc]=await Promise.all([
+    Store.getSettings().catch(()=>({})),
+    tid ? Store.getTournamentVenues().catch(()=>[]) : Promise.resolve([]),
+    tid ? Store.getTournamentCourts().catch(()=>[]) : Promise.resolve([]),
+  ]);
+  applyLayoutData(st||{}, tv||[], tc||[], tid);
+  return { st:st||{}, tv:tv||[], tc:tc||[] };
+}
+// Geladene (oder gespeicherte) Einstellungen/Courts übernehmen
+function applyLayoutData(st, tv, tc, tid){
   try{
-    let st={}; try{ st=await Store.getSettings(); }catch(e){}
     COURTS_FALLBACK = Array.isArray(st.courts) ? st.courts : null;
     CNSET = { courtNames:st.courtNames||{}, courtNamesByNo:st.courtNamesByNo||{} };
     TOURNAME = st.tournamentName || TOURNAME || '';
@@ -1049,12 +1156,9 @@ async function loadCourtLayout(){
     TEAM_FLOW = st.teamFlow || (st.teamManualNext===false ? 'confirm' : 'refpick');
     if(!['leader','assign','confirm','refpick'].includes(TEAM_FLOW)) TEAM_FLOW='refpick';
     TEAM_POINTS = Object.assign({ matchWon:2,matchDraw:1,matchLost:1,bonusMatchWon:1,bonusMatchDraw:0,bonusMatchLost:0,bonusRubberWon:1,bonusRubberDraw:0,bonusRubberLost:0,positions:6 }, st.teamPoints||{});
-    const tid = Store.activeTournament && Store.activeTournament();
     if(!tid){ COURT_LAYOUT=null; TVENUES_IDX=[]; return; }
-    let tv=[], tc=[];
-    try{ tv=await Store.getTournamentVenues(); }catch(e){}
-    try{ tc=await Store.getTournamentCourts(); }catch(e){}
-    TVENUES_IDX = tv || [];
+    tv=tv||[]; tc=tc||[];
+    TVENUES_IDX = tv;
     if(tc && tc.length){
       const byV={}; tc.forEach(c=>{ (byV[c.venue_id]=byV[c.venue_id]||[]).push(c); });
       const order = tv.length ? tv : Object.keys(byV).map(id=>({venue_id:id,name:''}));
@@ -1404,6 +1508,7 @@ function updateSelBar(){ const bar=document.getElementById('selbar');
 
 async function assign(id,cid,venueId){
   if(typeof Auth!=='undefined' && !Auth.can('manage')){ toast('Keine Berechtigung'); return; }
+  if(!needFresh()) return;
   const m=MATCHES.find(x=>x.id===id); if(!m) return;
   // Location bestimmen: explizit > am Spiel hinterlegt > eindeutig aus Court-Layout
   let vid = venueId || m.venue_id || null;
@@ -1417,6 +1522,7 @@ async function assign(id,cid,venueId){
   try{ await Store.assignToCourt(id,cid,Number(m.best_of)||3); selectedMatch=null; updateSelBar(); toast(`Auf Court ${cid} gelegt`); }
   catch(e){ toast(e.message); } }
 async function unassign(id){
+  if(!needFresh()) return;
   const m=MATCHES.find(x=>x.id===id);
   const nm=m?`${m.player1_name} vs ${m.player2_name}`:'dieses Spiel';
   if(!confirm('Spiel wirklich vom Court nehmen?\n\n'+nm+'\n\nDer aktuelle Spielstand bleibt erhalten und das Spiel geht zurück in die Ansetzungen.')) return;
@@ -1424,6 +1530,7 @@ async function unassign(id){
   await Store.unassign(id); toast('Zurück in die Ansetzungen (Auto-Auflage 60s pausiert)');
 }
 async function confirmR(id, force){
+  if(!needFresh()) return;
   const m=MATCHES.find(x=>x.id===id); const court=m?m.court_id:null;
   await Store.confirmResult(id);
   await rankingWriteBack(m);
@@ -1496,7 +1603,7 @@ function autoEligible(m, leadMin, immediate){
 function holdAuto(id){ autoOverride.add(id); try{ renderCourts(); }catch(e){} }
 function resumeAuto(id){ autoOverride.delete(id); try{ renderCourts(); }catch(e){} }
 async function checkAutoConfirm(){
-  if(MISSING_ACTIVE) return;                           // wegen fehlender Spieler pausiert
+  if(!FRESH || MISSING_ACTIVE) return;                 // nur mit Serverdaten; wegen fehlender Spieler pausiert
   const teamAuto = TEAM_MODE && teamAutoConfirm();     // Team C/D: auch ohne globalen Auto-Confirm
   if(!FLOW_AUTOCONFIRM && !teamAuto) return;
   const now=Date.now();
@@ -1559,6 +1666,7 @@ async function initRankingSync(){
 async function syncFromRanking(){
   if(rkSyncing) return; rkSyncing=true;
   try{
+    await FRESH_READY;    // Abgleich „schon vorhanden?“ braucht die Spiele vom Server (sonst doppelte Spiele)
     const s=await Store.getSettings(); const ev=s.rankingEvent;
     if(!ev||!ev.id||typeof Ranking==='undefined'||!Ranking.configured()) return;
     if(ev.tournamentId && Store.activeTournament && Store.activeTournament()!==ev.tournamentId) return; // nur ins verknüpfte Turnier
@@ -1794,6 +1902,7 @@ function assignReferees(recs){
 fileInput.addEventListener('change', async e=>{
   const file=e.target.files[0]; if(!file) return; fileInput.value='';
   try{
+    if(!FRESH){ toast('Warte auf aktuelle Daten vom Server …'); await FRESH_READY; }
     const buf=await file.arrayBuffer();
     const wb=XLSX.read(buf,{type:'array'});
     let recs=[];
@@ -2240,26 +2349,30 @@ function syncTourUrl(){
   const k=document.getElementById('lnkKontrolle'); if(k) k.setAttribute('href','kontrolle.html'+q);
   const st=document.getElementById('lnkSettings'); if(st) st.setAttribute('href','settings.html'+q);
 }
-async function applyBranding(){
-  try{ await Store.ensureActiveTournament(); syncTourUrl(); }catch(e){}
-  try{ await renderMoLinks(); }catch(e){}
-  const s=await Store.getSettings();
+// Logo, Hintergrund, Titel und Turniername setzen (aus Serverdaten oder dem gespeicherten Stand)
+function paintBranding(s, tourName){
+  s=s||{};
   const bgel=document.getElementById('bgfx');
   bgel.style.backgroundImage = s.backgroundUrl?`url("${s.backgroundUrl}")`:'none';
   bgel.style.opacity = (s.bgOpacity!=null? s.bgOpacity : 0.5);
   const l=document.getElementById('logo');
-  if(s.logoUrl){ l.src=s.logoUrl; l.style.display='block'; } else l.style.display='none';
+  if(s.logoUrl){ if(l.getAttribute('src')!==s.logoUrl) l.src=s.logoUrl; l.style.display='block'; } else l.style.display='none';
   if(s.tournamentName) document.getElementById('appTitle').innerHTML='🎾 '+s.tournamentName;
-  // aktives Turnier anzeigen
-  try{
-    const tours=await Store.listTournaments();
-    const act=Store.activeTournament();
-    const t=tours.find(x=>x.id===act);
-    window.__tourName = t?t.name:'';
+  if(tourName!=null){            // aktives Turnier anzeigen
+    window.__tourName = tourName;
     const el=document.getElementById('activeTour');
-    el.textContent = t?('Turnier: '+t.name) : 'Kein Turnier aktiv';
-    el.style.color = t?'#8fd0ff':'#ffd08a';
-  }catch(e){}
+    el.textContent = tourName?('Turnier: '+tourName) : 'Kein Turnier aktiv';
+    el.style.color = tourName?'#8fd0ff':'#ffd08a';
+  }
+}
+async function applyBranding(){
+  try{ await Store.ensureActiveTournament(); syncTourUrl(); }catch(e){}
+  const links=renderMoLinks().catch(()=>{});                   // Match-Overview-Links parallel
+  const [s, tours]=await Promise.all([ Store.getSettings(), Store.listTournaments().catch(()=>null) ]);
+  const act=Store.activeTournament();
+  const t=tours ? tours.find(x=>x.id===act) : null;
+  paintBranding(s, tours ? (t?t.name:'') : null);
+  await links;
 }
 
 async function onSettingsChanged(){ try{ await applyBranding(); }catch(e){} load(); initRankingSync(); }
@@ -2623,18 +2736,22 @@ function onLiveFeed(p){
   MATCHES=next;
   if(!_liveRaf) _liveRaf=requestAnimationFrame(()=>{ _liveRaf=0; try{ renderCourts(); }catch(e){} });
 }
-Auth.guard('view').then(()=>{
+Auth.guard('view').then(async ()=>{
   Store.ensureActiveTournament().then(tid=>LiveFeed.start(tid, onLiveFeed)).catch(()=>{});
-  Store.subscribeAll(load);
-  Store.subscribeTies(load);
+  // Realtime: geänderte Spiele -> nur die Spiele neu laden (nicht jedes Mal Einstellungen + Courts)
+  Store.subscribeAll(()=>load(false));
+  Store.subscribeTies(()=>load(false));
   Store.subscribeSettings(onSettingsChanged);
   Store.subscribeTournaments(()=>{ fillTourPick(); onSettingsChanged(); });
-  fillTourPick();
-  applyBranding();
-  try{ renderCourts(); }catch(e){}
-  load();
-  initRankingSync();
   applyRoleUI();
+  load();                                   // Serverdaten sofort anfordern …
+  applyBranding();
+  fillTourPick();
+  initRankingSync();
+  // … und in der Zwischenzeit den zuletzt gespeicherten Stand dieses Turniers zeigen (falls vorhanden)
+  let shown=false;
+  try{ shown=await Promise.race([ paintFromCache(), new Promise(r=>setTimeout(()=>r(false),400)) ]); }catch(e){}
+  if(!shown && !FRESH){ try{ renderCourts(); }catch(e){} }
 });
 
 // ================= TURNIER.DE-ÜBERTRAG (Tampermonkey-Skript auf dsqv.turnier.de) =================
@@ -2789,6 +2906,7 @@ async function tsImpDecide(ok){
   if(!ok){ tsImpReply({type:'mgtp-import-done', cancelled:true}); toast('Import abgebrochen'); return; }
   tsImporting=true;
   try{
+    if(!FRESH){ toast('Warte auf aktuelle Daten vom Server …'); await FRESH_READY; }   // Import gleicht mit vorhandenen Spielen ab
     assignReferees(p.recs);
     if(p.d.url){ try{ await Store.saveSettings({tsMatchesUrl:p.d.url}); }catch(e){} }
     const r=await importRecs(p.recs);
