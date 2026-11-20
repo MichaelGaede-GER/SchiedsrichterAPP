@@ -528,14 +528,14 @@
   <div id="penConduct">
   <h3 class="sech">Verhaltensstrafe wegen</h3>
   <select id="penReason" class="selbig">
-    <option>Schlägermissbrauch</option>
-    <option>Obszönität</option>
-    <option>Spielverzögerung</option>
-    <option>Widerspruch</option>
-    <option>Beschimpfung / Beleidigung Offizieller</option>
-    <option>Übermäßiger körperlicher Kontakt</option>
-    <option>Unsportliches Verhalten</option>
-    <option>Coaching</option>
+    <option value="Schlägermissbrauch">Schlägermissbrauch</option>
+    <option value="Obszönität">Obszönität</option>
+    <option value="Spielverzögerung">Spielverzögerung</option>
+    <option value="Widerspruch">Widerspruch</option>
+    <option value="Beschimpfung / Beleidigung Offizieller">Beschimpfung / Beleidigung Offizieller</option>
+    <option value="Übermäßiger körperlicher Kontakt">Übermäßiger körperlicher Kontakt</option>
+    <option value="Unsportliches Verhalten">Unsportliches Verhalten</option>
+    <option value="Coaching">Coaching</option>
   </select>
   <div id="penNext" class="pennext"></div>
   <div class="row">
@@ -662,13 +662,14 @@
 <script src="auth.js"></script>
 <script>
 const CONFIG = window.CONFIG;
+const T = s => (window.I18N && I18N.t) ? I18N.t(s) : s;   // Übersetzung für Dialoge/zusammengesetzte Texte
 const COURT = Number(new URLSearchParams(location.search).get('court')) || 1;
 const VENUE = new URLSearchParams(location.search).get('loc') || null;
 // PWA / Kiosk
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 document.addEventListener('contextmenu', e=>e.preventDefault());
 let _lastTap=0; document.addEventListener('touchend', e=>{ const t=Date.now(); if(t-_lastTap<300){ e.preventDefault(); } _lastTap=t; }, {passive:false});
-function backToLauncher(){ if(confirm('Turnier/Court wechseln? Das aktuelle Spiel bleibt gespeichert.')) location.href='tablet.html'; }
+function backToLauncher(){ if(confirm(T('Turnier/Court wechseln? Das aktuelle Spiel bleibt gespeichert.'))) location.href='tablet.html'; }
 document.title = 'Court ' + COURT;
 // Court-Name aus den Turnier-Einstellungen (Startseite → ✏️ Courts benennen)
 function courtText(){ return courtLabel(COURT, VENUE, SETTINGS||{}); }              // „Glascourt“ bzw. „Court 3“
@@ -1247,8 +1248,8 @@ async function chooseRubber(id){
 async function backToTiePicker(){
   if(!match) return;
   if(M && (M.status==='playing' || (M.games&&M.games.length) || (M.g&&(M.g.p1||M.g.p2)))){
-    if(!confirm('Das Spiel läuft bereits. Wirklich abbrechen und zurück zur Auswahl? Der Spielstand geht verloren.')) return;
-  } else if(!confirm('Dieses Einzel abwählen und zurück zur Begegnungs-Auswahl?')){ return; }
+    if(!confirm(T('Das Spiel läuft bereits. Wirklich abbrechen und zurück zur Auswahl? Der Spielstand geht verloren.'))) return;
+  } else if(!confirm(T('Dieses Einzel abwählen und zurück zur Begegnungs-Auswahl?'))){ return; }
   const mid=match.id;
   try{ await Store.unassign(mid); }catch(e){ toast('Fehler: '+(e.message||e)); return; }
   try{ Timer.stop(); }catch(e){}
@@ -1484,12 +1485,12 @@ function openPenalty(player, mode){
     else if(mode==='injury'){ pc.style.display='none'; pi.style.display='block'; }
     else { pc.style.display='block'; pi.style.display='block'; } }
   const list=(M.conduct&&M.conduct['p'+player])||[];
-  const label={warning:'Verwarnung',stroke:'Strafpunkt',game:'Strafsatz',match:'Strafsatz (Matchende)'};
-  const done=list.map(e=>label[e.type]).join(', ')||'noch keine Strafe';
+  const label={warning:'Verwarnung',stroke:'Strafpunkt',game:'Strafsatz',match:'Strafspiel'};
+  const done=list.map(e=>T(label[e.type])).join(', ')||'noch keine Strafe';
   const nxt=nextConduct(list);
   document.getElementById('penNext').innerHTML=`Bisher: <b>${done}</b>.<br>Empfohlene nächste Stufe: <b>${label[nxt]}</b>.`;
-  ['penWarn','penStroke','penGame'].forEach(id=>document.getElementById(id).classList.remove('blue'));
-  const map={warning:'penWarn',stroke:'penStroke',game:'penGame',match:'penGame'};
+  ['penWarn','penStroke','penGame','penMatch'].forEach(id=>document.getElementById(id).classList.remove('blue'));
+  const map={warning:'penWarn',stroke:'penStroke',game:'penGame',match:'penMatch'};
   const hi=document.getElementById(map[nxt]); if(hi) hi.classList.add('blue');
   // Verletzungsteil zurücksetzen (falls vorher offen)
   hide('ovInjury');
@@ -1507,7 +1508,7 @@ function applyConduct(type){
   const t={warning:'Verwarnung',stroke:'Strafpunkt → Gegner',game:'Strafsatz → Gegner',match:'Strafspiel → Gegner'}[type];
   M.logDecision(t, penaltyPlayer, reason);
   hide('ovPenalty');
-  toast(t+' · '+reason);
+  toast(T(t)+' · '+T(reason));
   afterChange();
 }
 
@@ -1540,7 +1541,7 @@ function startInjury(sec,label){
   injuryActive=true; injuryStartTs=Date.now();
   hide('ovPenalty');
   setText('injTitle','Verletzungspause');
-  setText('injSub', (injuryPlayer===1?match.player1_name:match.player2_name)+' – '+label);
+  setText('injSub', (injuryPlayer===1?match.player1_name:match.player2_name)+' – '+T(label));
   document.getElementById('injRun').style.display='';
   document.getElementById('injAsk').style.display='none';
   document.getElementById('injRetire').style.display='none';
@@ -1556,7 +1557,7 @@ function startInjuryOpen(label){   // „angemessene Zeit“ – zählt hoch, Re
   injuryActive=true; injuryStartTs=Date.now();
   hide('ovPenalty');
   setText('injTitle','Verletzungspause – angemessene Zeit');
-  setText('injSub', (injuryPlayer===1?match.player1_name:match.player2_name)+' – '+label);
+  setText('injSub', (injuryPlayer===1?match.player1_name:match.player2_name)+' – '+T(label));
   document.getElementById('injRun').style.display='';
   document.getElementById('injAsk').style.display='none';
   document.getElementById('injRetire').style.display='none';

@@ -159,16 +159,16 @@
     'Stop': 'Stop',
     'Reset': 'Reset',
     'Timeout 90s': 'Timeout 90s',
-    'Satzpause 90s': 'Set break 90s',
-    'Satzpause': 'Set break',
-    'Nächsten Satz starten': 'Start next set',
+    'Satzpause 90s': 'Interval 90s',
+    'Satzpause': 'Interval',
+    'Nächsten Satz starten': 'Start next game',
     'Timer': 'Timer',
     'Punkt → P1': 'Point → P1',
     'Punkt → P2': 'Point → P2',
     'Undo': 'Undo',
     'Undo letzter Punkt': 'Undo last point',
-    '− Satz': '− Set',
-    '+ Satz': '+ Set',
+    '− Satz': '− Game',
+    '+ Satz': '+ Game',
     'Let': 'Let',
     'Let-Entscheidung': 'Let decision',
     'No Let': 'No Let',
@@ -392,7 +392,134 @@
     'Tabellen-Rangfolge': 'Table ranking order',
     'Gewonnene Einzel → Begegnungspunkte → Satz-Differenz → Punkt-Differenz → Punkte für':
       'Rubbers won → match points → game difference → point difference → points for',
-    'Einstellungen des Tablets anpassen': 'Adjust tablet settings'
+    'Einstellungen des Tablets anpassen': 'Adjust tablet settings',
+
+    // ===== Tablet-Startseite (tablet.html) =====
+    '🎾 Schiedsrichter': '🎾 Referee',
+    '☀ Helligkeit: nur optisch': '☀ Brightness: visual only',
+    '☀ Fully: Helligkeit aktiv': '☀ Fully: brightness active',
+    'Echte Helligkeitssteuerung (30/50/75 %) nur im Fully Kiosk Browser mit aktivem JavaScript-Interface':
+      'Real brightness control (30/50/75 %) only in Fully Kiosk Browser with JavaScript interface enabled',
+    '1 · Turnier auswählen': '1 · Select tournament',
+    'Wähle das Turnier für dieses Tablet.': 'Choose the tournament for this tablet.',
+    'Turnier wählen': 'Select tournament',
+    '‹ Zurück': '‹ Back',
+    '2 · Court auswählen': '2 · Select court',
+    '▶ Zum Court': '▶ Go to court',
+    'Offline. Nutze oben „Fortsetzen", um zum zuletzt genutzten Court zu gelangen.':
+      'Offline. Use “Resume” above to return to the last court used.',
+    'Offline. Nutze oben „Fortsetzen", um zum zuletzt genutzten Court zu gelangen. Für die Turnier-/Court-Auswahl bitte online gehen.':
+      'Offline. Use “Resume” above to return to the last court used. Please go online to select a tournament/court.',
+    'Turniere konnten nicht geladen werden.': 'Tournaments could not be loaded.',
+    'Keine Turniere für dieses Konto. Bitte in der Verwaltung unter „Mitglieder & Rollen“ diesem Konto ein Turnier zuweisen.':
+      'No tournaments for this account. Please assign a tournament to this account in the admin under “Members & Roles”.',
+    'Keine Courts zugeordnet.': 'No courts assigned.',
+    'Für dieses Turnier sind keine Courts festgelegt (Einstellungen → Anlagen & Courts).':
+      'No courts defined for this tournament (Settings → Venues & Courts).',
+    'Offline und keine gespeicherten Courts für dieses Turnier.': 'Offline and no saved courts for this tournament.',
+    'Center · Finale': 'Centre · Final',
+    'Halbfinale': 'Semi-final',
+
+    // ===== Schiedsrichter-Tablet (court.html) =====
+    // Kopfzeile / Spielfeld
+    'Turnier/Court wechseln': 'Change tournament/court',
+    'Turnier/Court wechseln? Das aktuelle Spiel bleibt gespeichert.':
+      'Change tournament/court? The current match will be kept.',
+    '● Aufschlag': '● Serve',
+    '⇄ Rechts': '⇄ Right',
+    '⇄ Links': '⇄ Left',
+    'Aufschlagseite wechseln': 'Switch serve side',
+    'LET / Entscheidung': 'LET / Decision',
+    'SATZBALL': 'GAME BALL',
+    'MATCHBALL': 'MATCH BALL',
+    'Bildschirmhelligkeit': 'Screen brightness',
+    'Nur optische Abdunklung – echte Helligkeit nur im Fully Kiosk Browser':
+      'Visual dimming only – real brightness only in Fully Kiosk Browser',
+    'nur': 'display',
+    'Anzeige': 'only',
+    'Strafpunkt': 'Conduct stroke',
+    'Strafsatz': 'Conduct game',
+    'Strafspiel': 'Conduct match',
+    'Verletzung': 'Injury',
+    // Warteschlange
+    'ALS NÄCHSTES': 'NEXT',
+    'SPÄTER': 'LATER',
+    // Aufwärmen
+    '▶ Aufwärmen starten': '▶ Start warm-up',
+    'Wer hat Aufschlag?': 'Who has the serve?',
+    'Spieler A': 'Player A',
+    'Spieler B': 'Player B',
+    '↩ Zurück': '↩ Back',
+    'Aufwärmen läuft weiter ·': 'Warm-up continues ·',
+    // Shirt-Farben
+    'keine Farbe': 'no colour',
+    'Farbe': 'Colour',
+    'Rot': 'Red', 'Blau': 'Blue', 'Grün': 'Green', 'Gelb': 'Yellow', 'Orange': 'Orange',
+    'Lila': 'Purple', 'Pink': 'Pink', 'Türkis': 'Turquoise', 'Schwarz': 'Black',
+    'Weiß': 'White', 'Grau': 'Grey', 'Braun': 'Brown',
+    // Nachricht der Turnierleitung
+    '✉️ Nachricht der Turnierleitung': '✉️ Message from the tournament desk',
+    'Bestätigen': 'Acknowledge',
+    'Bestätigt': 'Acknowledged',
+    'Turnierleitung: Punkt korrigiert': 'Tournament desk: point corrected',
+    'Turnierleitung: letzter Punkt zurückgenommen': 'Tournament desk: last point undone',
+    // Let / Entscheidung
+    'Bei Behinderung: Ball wiederholen oder Punkt vergeben (Stroke / No Let).':
+      'On interference: replay the rally or award the point (Stroke / No Let).',
+    'Entscheidung des Schiedsrichters': 'Referee decision',
+    'Wer hat gefragt / verursacht?': 'Who appealed / caused it?',
+    'Aus Sicht des Spielers, der gefragt hat.': 'From the point of view of the player who appealed.',
+    'Punkt → Gegner': 'Point → opponent',
+    'Punkt → Spieler': 'Point → player',
+    'Yes Let': 'Yes Let',
+    'Entscheidung': 'Conduct',
+    'Strafen': 'Penalties',
+    'Pause / Physio': 'Break / Physio',
+    'Defekte Ausrüstung': 'Equipment failure',
+    'Auszeit 2:00': 'Time-out 2:00',
+    'Let – Wiederholung': 'Let – replay',
+    // Verhaltensstrafen
+    'Strafspiel → Gegner': 'Conduct match → opponent',
+    'Bisher:': 'So far:',
+    'noch keine Strafe': 'no penalty yet',
+    'Nur im laufenden Satz möglich': 'Only possible during a game',
+    // Verletzung / Physio
+    'Verletzungs-/Auszeit-Timer': 'Injury / time-out timer',
+    'Beide / Contributed · 15:00': 'Contributed · 15:00',
+    'Gegner unbeabsichtigt · 15:00': 'Opponent-inflicted (accidental) · 15:00',
+    'Angemessene Zeit (Referee)': 'Reasonable time (referee)',
+    'Blutverletzung': 'Bleeding injury',
+    'Blutend – selbst · 5:00': 'Bleeding – self-inflicted · 5:00',
+    'Blutend – beide · angemessen': 'Bleeding – contributed · reasonable time',
+    'Blutend – Gegner · angemessen': 'Bleeding – opponent-inflicted · reasonable time',
+    'Selbst verschuldet': 'Self-inflicted',
+    'Beide / Contributed': 'Contributed',
+    'Gegner (unbeabsichtigt)': 'Opponent-inflicted (accidental)',
+    'Angemessene Zeit': 'Reasonable time',
+    'Blutend – selbst': 'Bleeding – self-inflicted',
+    'Blutend – beide (angemessen)': 'Bleeding – contributed (reasonable time)',
+    'Blutend – Gegner (angemessen)': 'Bleeding – opponent-inflicted (reasonable time)',
+    'Verletzungspause – angemessene Zeit': 'Injury time-out – reasonable time',
+    'Zeit vorbei →': 'Time up →',
+    '⚠️ Physio zum Court anfordern': '⚠️ Request physio to court',
+    'Blutende Wunde': 'Bleeding wound',
+    'Umgeknickt': 'Twisted ankle',
+    'Krämpfe': 'Cramps',
+    'Sonstiges': 'Other',
+    '✔ Physio bestätigt': '✔ Physio confirmed',
+    '– weiterspielen?': '– continue playing?',
+    'Der aktuelle Spielstand wird übertragen, „Retired" wird vermerkt.':
+      'The current score will be submitted and “Retired” recorded.',
+    // Satzpause / Spielende
+    '↶ Zurück · letzten Punkt rückgängig': '↶ Back · undo last point',
+    '↶ Undo letzter Punkt': '↶ Undo last point',
+    '🔒 Match abgeschlossen – warte auf die nächste Zuweisung der Turnierleitung.':
+      '🔒 Match closed – waiting for the next assignment from the tournament desk.',
+    // Teamturnier (Dialoge)
+    'Das Spiel läuft bereits. Wirklich abbrechen und zurück zur Auswahl? Der Spielstand geht verloren.':
+      'The match is already in progress. Really cancel and return to the selection? The score will be lost.',
+    'Dieses Einzel abwählen und zurück zur Begegnungs-Auswahl?':
+      'Deselect this rubber and return to the team match selection?'
   };
 
   // ---- Regeln für dynamische Strings (mit Zahlen/Namen) ------------------
@@ -439,6 +566,32 @@
     [/^(\d+) Begegnungen gefunden\. Jetzt importieren\?$/, '$1 team matches found. Import now?'],
     [/^Bestätigt · nächstes Einzel S(.+) auf Court (.+)$/, 'Confirmed · next rubber S$1 on court $2'],
     [/^Ergebnis bestätigt – (.+)$/, 'Result confirmed – $1'],
+
+    // ===== Tablet-Startseite / Schiedsrichter-Tablet (dynamisch) =====
+    [/^Fortsetzen: (.+)$/, 'Resume: $1'],
+    [/^Nächste Spiele auf (.+)$/, 'Next matches on $1'],
+    [/^Nächstes Spiel auf (.+)$/, 'Next match on $1'],
+    [/^Begegnung auf (.+)$/, 'Team match on $1'],
+    [/^Begegnung beendet · (.+)$/, 'Team match finished · $1'],
+    [/^Schiri: (.+)$/, 'Ref: $1'],
+    [/^(Aufwärmen|Satzpause|Verletzung|Timeout) (\d+:\d\d)$/, '$1 $2'],
+    [/^S(\d+): (.+)$/, 'G$1: $2'],
+    [/^Satz (\d+) beendet: (.+)\. Aufschlag Satz (\d+): (.+)$/, 'Game $1 finished: $2. Serve in game $3: $4'],
+    [/^Satzende zurückgenommen · (.+)$/, 'End of game undone · $1'],
+    [/^Satz (.+)$/, 'Games $1'],
+    [/^Sätze (.+) · Aufgabe \(Retired\)$/, 'Games $1 · Retired'],
+    [/^Shirt-Farbe – (.+)$/, 'Shirt colour – $1'],
+    [/^Shirt-Farbe Spieler (\d)$/, 'Shirt colour player $1'],
+    [/^Spieler (\d)$/, 'Player $1'],
+    [/^(.+) ✎$/, '$1 ✎'],
+    [/^Entscheidung des Schiedsrichters für (.+)$/, 'Referee decision for $1'],
+    [/^No Let – Punkt → (.+)$/, 'No Let – point → $1'],
+    [/^Stroke – Punkt → (.+)$/, 'Stroke – point → $1'],
+    [/^Punkt → (.+)$/, 'Point → $1'],
+    [/^⚠️ Physio angefordert: (.+)$/, '⚠️ Physio requested: $1'],
+    [/^(.+) gewinnt \(Gegner\)$/, '$1 wins (opponent)'],
+    [/^(.+) gewinnt$/, '$1 wins'],
+    [/^„Undo letzter Punkt" noch (\d+) s möglich$/, '“Undo last point” available for $1 s'],
     [/^Sätze (.+)$/, 'Games $1']
   ];
 
@@ -447,7 +600,17 @@
     if (!key) return null;
     if (Object.prototype.hasOwnProperty.call(DICT, key)) return DICT[key];
     for (var i = 0; i < RULES.length; i++) {
-      if (RULES[i][0].test(key)) return key.replace(RULES[i][0], RULES[i][1]);
+      var re = RULES[i][0];
+      var m = key.match(re);
+      if (m) {
+        // Platzhalter ($1, $2 …) einsetzen – bekannte Wörter darin (Gründe, Farben, Labels)
+        // werden ebenfalls übersetzt, Namen/Zahlen bleiben unverändert.
+        return RULES[i][1].replace(/\$(\d)/g, function (_, n) {
+          var g = m[Number(n)]; if (g == null) return '';
+          var gk = g.trim();
+          return Object.prototype.hasOwnProperty.call(DICT, gk) ? g.replace(gk, DICT[gk]) : g;
+        });
+      }
     }
     return null;
   }
@@ -464,7 +627,7 @@
 
   function fixAttrs(el) {
     if (!el.getAttribute) return;
-    ['placeholder', 'title'].forEach(function (a) {
+    ['placeholder', 'title', 'aria-label'].forEach(function (a) {
       if (el.hasAttribute(a)) {
         var v = el.getAttribute(a);
         var en = translate(v);
@@ -500,7 +663,7 @@
     });
     observer.observe(document.documentElement, {
       childList: true, subtree: true, characterData: true,
-      attributes: true, attributeFilter: ['placeholder', 'title']
+      attributes: true, attributeFilter: ['placeholder', 'title', 'aria-label']
     });
   }
 
