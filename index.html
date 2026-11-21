@@ -51,6 +51,14 @@
   #tsDlg input[type=text],#tsDlg textarea,#impDlg input[type=text],#impDlg textarea{width:100%;box-sizing:border-box}
   #tsDlg textarea,#impDlg textarea{height:70px;font:12px monospace}
   #tsDlg .tsrow,#impDlg .tsrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .syncpill{display:none;align-items:center;gap:6px;border-radius:999px;padding:6px 12px;font:700 12.5px inherit;cursor:pointer;
+    border:1px solid #31405a;background:#131a26;color:#8aa0bf;white-space:nowrap}
+  .syncpill.on{display:inline-flex}
+  .syncpill.ok{border-color:#2e9e57;color:#bff5cf;background:#10291a}
+  .syncpill.warn{border-color:#b8860b;color:#ffe2a6;background:#2e2410}
+  .syncpill.err{border-color:#c0392b;color:#ffc9c2;background:#33140f}
+  .syncpill.run{border-color:#2f6bff;color:#cfe8ff;background:#123a5a}
+  .syncpill.other{border-style:dashed}
   .tphelp .xcount{background:#0d2616;border:1px solid #2e9e57;border-radius:999px;padding:0 8px;margin-left:6px;font-size:12px}
   .tphelp .xcount.zero{opacity:.55}
   /* Import-/Übertrag-Popups */
@@ -385,6 +393,8 @@
       Übertragene Ergebnisse <span class="count" id="sentCount">0</span></button>
     <button class="tphelp manage-only" onclick="openImportDlg()" title="Spiele importieren (XLSX oder turnier.de / tournamentsoftware.com)">⬇ Import</button>
     <button class="tphelp tsbtn manage-only" onclick="openTsDlg()" title="Bestätigte Ergebnisse an turnier.de übertragen / TP-Eingabehilfe">⇪ Übertrag <span class="xcount" id="xferCount">0</span></button>
+    <button class="syncpill manage-only" id="syncPillImp" onclick="syncPillClick('imp')" title="Auto-Import von turnier.de">⇩ –</button>
+    <button class="syncpill manage-only" id="syncPillUp" onclick="syncPillClick('up')" title="Auto-Upload zu turnier.de">⇪ –</button>
   </div>
 
   <div id="panelSched">
@@ -1930,7 +1940,9 @@ function parseImportScore(txt, sets){
 // Gemeinsamer Import-Kern für XLSX und turnier.de-Skript.
 // recs: {time,event,nr,court,round,t1raw,t2raw,sort_ts,court_no,played,referee}
 //   turnier.de zusätzlich: ext_key (fester Schlüssel aus MatchID), p1/p2 = {name,country}
-async function importRecs(recs){
+// opts (optional, Auto-Import): { autoCourt:bool (statt Häkchen im Import-Dialog), label:'Auto-Import' (Präfix der Meldung) }
+async function importRecs(recs, opts){
+    opts=opts||{};
     const open=recs.filter(r=>!r.played);
     const played=recs.length-open.length;
     // Stabile Zuordnung über Event|Runde|Match-Nr (OHNE Spielernamen) -> Update bei aufgelösten Platzhaltern
@@ -2026,7 +2038,8 @@ async function importRecs(recs){
       return ex;
     };
     const defVenue=defLocId();
-    const autoCourt=!!(document.getElementById('autoCourt') && document.getElementById('autoCourt').checked);
+    const autoCourt=(typeof opts.autoCourt==='boolean') ? opts.autoCourt
+      : !!(document.getElementById('autoCourt') && document.getElementById('autoCourt').checked);
     const rr=defVenue?venueCourtsFor(defVenue):[];
     let rrIdx=0;
     const toInsert=[]; let dup=0, upd=0;
@@ -2169,7 +2182,7 @@ async function importRecs(recs){
     let removed=0;
     for(const id of dupDelete){ try{ await Store.deleteMatch(id); removed++; }catch(e){ console.error(e); } }
     const neu=toInsert.length-failed;
-    toast(`${recs.length} Zeilen gelesen · ${neu} neu · ${upd} aktualisiert${resIn?(' · '+resIn+' Ergebnis(se) übernommen → „Übertragene Ergebnisse“'+(resNoWin?(' ('+resNoWin+' ohne Sieger)'):'')):''} · ${played-resIn} gespielt übersprungen · ${dup} unverändert${removed?(' · '+removed+' veraltete/doppelte entfernt'):''}${failed?(' · '+failed+' fehlgeschlagen'):''}`);
+    toast(`${opts.label?opts.label+': ':''}${recs.length} Zeilen gelesen · ${neu} neu · ${upd} aktualisiert${resIn?(' · '+resIn+' Ergebnis(se) übernommen → „Übertragene Ergebnisse“'+(resNoWin?(' ('+resNoWin+' ohne Sieger)'):'')):''} · ${played-resIn} gespielt übersprungen · ${dup} unverändert${removed?(' · '+removed+' veraltete/doppelte entfernt'):''}${failed?(' · '+failed+' fehlgeschlagen'):''}`);
     return {neu,upd,dup,played,results:resIn,failed,removed};
 }
 
@@ -2378,7 +2391,7 @@ async function applyBranding(){
   await links;
 }
 
-async function onSettingsChanged(){ try{ await applyBranding(); }catch(e){} load(); initRankingSync(); }
+async function onSettingsChanged(){ try{ await applyBranding(); }catch(e){} load(); initRankingSync(); syncLoadCfg(); }
 
 function applyRoleUI(){
   const manage   = (typeof Auth==='undefined') || Auth.can('manage');
@@ -2424,7 +2437,7 @@ async function onTourPick(v){
   try{ if(typeof Auth!=='undefined' && Auth.refreshRole) await Auth.refreshRole(); }catch(e){}
   try{ applyRoleUI(); }catch(e){}
   try{ await applyBranding(); }catch(e){}
-  load(); initRankingSync();
+  load(); initRankingSync(); syncLoadCfg();
 }
 
 // ===================== TEAMTURNIER: BEGEGNUNGEN =====================
@@ -2751,6 +2764,7 @@ Auth.guard('view').then(async ()=>{
   applyBranding();
   fillTourPick();
   initRankingSync();
+  FRESH_READY.then(()=>syncLoadCfg());      // Auto-Abgleich erst mit aktuellen Serverdaten starten
   // … und in der Zwischenzeit den zuletzt gespeicherten Stand dieses Turniers zeigen (falls vorhanden)
   let shown=false;
   try{ shown=await Promise.race([ paintFromCache(), new Promise(r=>setTimeout(()=>r(false),400)) ]); }catch(e){}
@@ -2868,6 +2882,25 @@ async function tsReceiveImport(d, src){
   tsImpSrc=src||null;
   const list=(d && Array.isArray(d.matches)) ? d.matches : [];
   if(!list.length){ toast('Keine Spiele im Import'); return; }
+  const recs=tsBuildRecs(d);
+  const open=recs.filter(r=>!r.played).length;
+  const noId=recs.filter(r=>!r.played && r.ext_key.startsWith('tsslot:')).length;
+  tsImpPending={d,recs};
+  const tName=window.__tourName||'';
+  document.getElementById('tsImpInfo').innerHTML=
+    `<b>${recs.length} Spiele</b> von ${escH(d.source||'turnier.de')} erhalten:<br>`+
+    `${open} offen · ${recs.length-open} bereits gespielt – deren Ergebnis wird bei vorhandenen Spielen übernommen (→ „Übertragene Ergebnisse“)`+
+    (noId?`<br>davon ${noId} noch ohne feste Paarung (Platzhalter) – werden beim nächsten Import aktualisiert`:'')+
+    (tName?`<br><br>Ziel-Turnier: <b>${escH(tName.trim())}</b>`:'');
+  try{ tsDlg.close(); }catch(e){}
+  try{ impDlg.close(); }catch(e){}
+  try{ window.focus(); }catch(e){}
+  if(!tsImpDlg.open) tsImpDlg.showModal();
+  document.title='⇩ Import bestätigen · '+document.title.replace(/^⇩ Import bestätigen · /,'');
+}
+// Skript-Daten (mgtp-import) -> Import-Datensätze für importRecs (gemeinsam für manuellen und Auto-Import)
+function tsBuildRecs(d){
+  const list=(d && Array.isArray(d.matches)) ? d.matches : [];
   // Auch Spiele OHNE Match-ID / ohne Spieler übernehmen (Platzhalter wie „Verlierer Q2“, offene Gruppenspiele).
   // Die bekommen einen Slot-Schlüssel (Tag+Zeit+Court+Konkurrenz) und werden beim nächsten Import aufgelöst.
   const pl=(p)=>{ const o=(p && typeof p==='object') ? p : {name:p};
@@ -2887,20 +2920,7 @@ async function tsReceiveImport(d, src){
       score:(m.score!=null?String(m.score):null), sets:(Array.isArray(m.sets)?m.sets:null), winner:(m.winner==1||m.winner==2)?Number(m.winner):null,
       retired_by:(()=>{ const x=m.retired_by!=null?m.retired_by:m.retiredBy; return (x==1||x==2)?Number(x):null; })() };
   });
-  const open=recs.filter(r=>!r.played).length;
-  const noId=recs.filter(r=>!r.played && r.ext_key.startsWith('tsslot:')).length;
-  tsImpPending={d,recs};
-  const tName=window.__tourName||'';
-  document.getElementById('tsImpInfo').innerHTML=
-    `<b>${recs.length} Spiele</b> von ${escH(d.source||'turnier.de')} erhalten:<br>`+
-    `${open} offen · ${recs.length-open} bereits gespielt – deren Ergebnis wird bei vorhandenen Spielen übernommen (→ „Übertragene Ergebnisse“)`+
-    (noId?`<br>davon ${noId} noch ohne feste Paarung (Platzhalter) – werden beim nächsten Import aktualisiert`:'')+
-    (tName?`<br><br>Ziel-Turnier: <b>${escH(tName.trim())}</b>`:'');
-  try{ tsDlg.close(); }catch(e){}
-  try{ impDlg.close(); }catch(e){}
-  try{ window.focus(); }catch(e){}
-  if(!tsImpDlg.open) tsImpDlg.showModal();
-  document.title='⇩ Import bestätigen · '+document.title.replace(/^⇩ Import bestätigen · /,'');
+  return recs;
 }
 async function tsImpDecide(ok){
   const p=tsImpPending; tsImpPending=null;
@@ -3061,9 +3081,205 @@ function tsImportPaste(){
   document.getElementById('tsImpJson').value='';
   tsReceiveImport(o);
 }
+// ================= AUTOMATISCHER ABGLEICH MIT TURNIER.DE (Import / Upload im Hintergrund) =================
+// Einstellungen (pro Turnier, settings.html): tsAutoImport/tsAutoImportMin, tsAutoUpload/tsAutoUploadMin, tsAutoCourt.
+// Ablauf: Die Verwaltung öffnet EINEN turnier.de-Tab („Sync-Tab“, #mgtp-sync), der offen bleibt. Fällig gewordene
+// Läufe schicken dem Tampermonkey-Skript dort einen Befehl (postMessage); das Skript liest/trägt ein und meldet zurück.
+// Nur EIN Gerät führt die Läufe aus (tsSyncHost, läuft ab, wenn das Gerät verschwindet -> anderes übernimmt).
+// Status jedes Laufs steht in tsSyncStatus.{imp,up} = {at, lvl:'ok'|'warn'|'err', msg, details[]} und ist überall sichtbar.
+const SYNC_MIN_SCRIPT='0.5.0';
+const SYNC_KIND={ imp:{on:'tsAutoImport', min:'tsAutoImportMin', def:20, name:'Auto-Import', ic:'⇩'},
+                  up:{on:'tsAutoUpload', min:'tsAutoUploadMin', def:10, name:'Auto-Upload', ic:'⇪'} };
+const SYNC_DEV=(()=>{ const mk=()=>'dev-'+Math.random().toString(36).slice(2,10);
+  try{ let d=localStorage.getItem('mgtp_devId'); if(!d){ d=mk(); localStorage.setItem('mgtp_devId',d); } return d; }catch(e){ return mk(); } })();
+let SYNC_CFG=null, SYNC_WIN=null, SYNC_ORIGIN='*', SYNC_VER=null, SYNC_RUNNING=null;
+const SYNC_REQ={}, SYNC_READY_WAIT=[], SYNC_RUNNOW_SEEN={imp:0,up:0};
+const syncCanManage=()=>(typeof Auth==='undefined') || Auth.can('manage');
+const syncIv=(k,c)=>{ c=c||SYNC_CFG||{}; const v=parseInt(c[SYNC_KIND[k].min],10); return Math.max(1, v>0?v:SYNC_KIND[k].def); };
+const syncOn=(k,c)=>!!((c||SYNC_CFG||{})[SYNC_KIND[k].on]);
+const syncSt=(k,c)=>(((c||SYNC_CFG||{}).tsSyncStatus)||{})[k]||{};
+const syncHm=t=>{ const d=new Date(t); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+const syncWait=ms=>new Promise(r=>setTimeout(r,ms));
+function syncVerCmp(a,b){ const x=String(a||'0').split('.').map(Number), y=String(b||'0').split('.').map(Number);
+  for(let i=0;i<3;i++){ const d=(x[i]||0)-(y[i]||0); if(d) return d; } return 0; }
+function syncOtherHost(c){ const h=(c||SYNC_CFG||{}).tsSyncHost||{}; return !!(h.id && h.id!==SYNC_DEV && h.until>Date.now()); }
+
+async function syncLoadCfg(){
+  try{ SYNC_CFG=await Store.getSettings(); }catch(e){ return; }
+  syncPaint();
+  syncTick();                     // „Jetzt ausführen“ aus den Einstellungen sofort aufgreifen
+}
+// Fällige Läufe starten (alle 20 s geprüft; über Zeitstempel, damit gedrosselte Hintergrund-Timer nicht stören)
+async function syncTick(){
+  const c=SYNC_CFG; if(!c || !FRESH || SYNC_RUNNING || !syncCanManage()) return;
+  if(syncOtherHost(c)) return;                                   // anderes Gerät führt den Abgleich aus
+  for(const k of ['imp','up']){
+    if(!syncOn(k,c)) continue;
+    const st=syncSt(k,c), last=st.at||0;
+    const wait=(st.lvl==='err') ? Math.min(syncIv(k,c),5)*60000 : syncIv(k,c)*60000;   // nach Fehler spätestens in 5 Min erneut
+    const req=((c.tsSyncRunNow||{})[k])||0;
+    const asked=req>last && req>SYNC_RUNNOW_SEEN[k];
+    if(!asked && Date.now()-last<wait) continue;
+    SYNC_RUNNOW_SEEN[k]=req;
+    await syncRun(k,false);
+    return;                                                      // höchstens ein Lauf pro Prüfung
+  }
+}
+setInterval(()=>{ syncTick(); syncPaint(); }, 20000);
+
+// Dieses Gerät als ausführendes Gerät eintragen (force = per Klick übernehmen)
+async function syncClaimHost(force){
+  const s=await Store.getSettings();
+  if(!force && syncOtherHost(s)) return false;
+  const ivs=['imp','up'].filter(k=>syncOn(k,s)).map(k=>syncIv(k,s));
+  const until=Date.now()+((ivs.length?Math.min(...ivs):30)+5)*60000;   // läuft ab, wenn dieses Gerät nicht mehr abgleicht
+  const had=((s.tsSyncHost||{}).id===SYNC_DEV);
+  await Store.saveSettings({tsSyncHost:{id:SYNC_DEV, until, at:Date.now()}});
+  if(!had && !force){                                            // gleichzeitiger Anspruch eines anderen Geräts?
+    await syncWait(1500);
+    const s2=await Store.getSettings(); if(((s2.tsSyncHost||{}).id)!==SYNC_DEV) return false;
+  }
+  return true;
+}
+async function syncSaveStatus(k, st){
+  const s=await Store.getSettings();
+  const all=Object.assign({}, s.tsSyncStatus||{});
+  all[k]=Object.assign({at:Date.now(), by:SYNC_DEV}, st);
+  await Store.saveSettings({tsSyncStatus:all});
+  SYNC_CFG=Object.assign({}, SYNC_CFG||s, {tsSyncStatus:all});
+}
+
+// ---- Verbindung zum Sync-Tab ----
+function syncCmd(cmd, data, timeoutMs){
+  return new Promise((resolve,reject)=>{
+    const reqId='r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    const t=setTimeout(()=>{ delete SYNC_REQ[reqId]; reject(new Error('Keine Antwort vom turnier.de-Tab (Zeitüberschreitung)')); }, timeoutMs);
+    SYNC_REQ[reqId]=d=>{ clearTimeout(t); delete SYNC_REQ[reqId]; resolve(d); };
+    try{ SYNC_WIN.postMessage(Object.assign({type:'mgtp-cmd', cmd, reqId}, data||{}), SYNC_ORIGIN); }
+    catch(e){ clearTimeout(t); delete SYNC_REQ[reqId]; reject(e); }
+  });
+}
+function syncWaitReady(ms){
+  return new Promise(resolve=>{
+    const t=setTimeout(()=>{ const i=SYNC_READY_WAIT.indexOf(fn); if(i>=0) SYNC_READY_WAIT.splice(i,1); resolve(null); }, ms);
+    const fn=v=>{ clearTimeout(t); resolve(v); };
+    SYNC_READY_WAIT.push(fn);
+  });
+}
+async function syncEnsureWin(url){
+  SYNC_ORIGIN=new URL(url).origin;
+  if(SYNC_WIN && !SYNC_WIN.closed){
+    try{ const r=await syncCmd('ping',{},8000); SYNC_VER=r.version||SYNC_VER; if(syncVerCmp(SYNC_VER,SYNC_MIN_SCRIPT)>=0) return; }catch(e){}
+  }
+  // Tab (neu) öffnen bzw. vorhandenen turnier.de-Tab der App neu laden
+  const w=window.open(url+'#mgtp-sync','mg_turnierde');
+  if(!w) throw new Error('Pop-up blockiert – in Chrome für diese Seite Pop-ups erlauben oder auf die Statusanzeige klicken');
+  SYNC_WIN=w; SYNC_VER=null;
+  try{ window.focus(); }catch(e){}
+  const v=await syncWaitReady(60000);
+  if(!v) throw new Error('turnier.de-Tab antwortet nicht – ist das Tampermonkey-Skript (ab v'+SYNC_MIN_SCRIPT+') aktiv?');
+  SYNC_VER=v;
+  if(syncVerCmp(v,SYNC_MIN_SCRIPT)<0) throw new Error('Tampermonkey-Skript v'+v+' ist zu alt – bitte v'+SYNC_MIN_SCRIPT+' installieren');
+}
+function syncUrl(){
+  const u=String((SYNC_CFG||{}).tsMatchesUrl||'').trim(); if(!u) return null;
+  try{ const x=new URL(u); if(!TS_ORIGIN_RE.test(x.origin)) return null;
+    const g=/\/tournament\/([0-9a-f-]{36})/i.exec(x.pathname);
+    if(g) return x.origin+'/sport/legacymatches.aspx?id='+g[1];
+    x.hash=''; x.searchParams.delete('d'); return x.toString();
+  }catch(e){ return null; }
+}
+
+// ---- Ein Lauf ----
+async function syncRun(k, manual){
+  if(SYNC_RUNNING){ if(manual) toast('Abgleich läuft bereits …'); return; }
+  SYNC_RUNNING=k; syncPaint();
+  try{
+    if(!await syncClaimHost(manual)) return;                     // anderes Gerät war schneller
+    const url=syncUrl(); if(!url) throw new Error('Kein turnier.de-Link hinterlegt (Einstellungen → Automatischer Abgleich)');
+    await syncEnsureWin(url);
+    const r = (k==='imp') ? await syncDoImport() : await syncDoUpload();
+    await syncSaveStatus(k, r);
+    if(manual) toast(SYNC_KIND[k].name+': '+r.msg);
+  }catch(e){
+    const msg=String((e&&e.message)||e);
+    try{ await syncSaveStatus(k,{lvl:'err', msg}); }catch(x){}
+    if(manual) toast(SYNC_KIND[k].name+': '+msg);
+  }finally{ SYNC_RUNNING=null; syncPaint(); }
+}
+async function syncDoImport(){
+  if(tsImporting || tsImpPending || tsImpDlg.open) return {lvl:'warn', msg:'übersprungen – manueller Import offen'};
+  // Runden, die die App schon kennt, muss das Skript nicht erneut aus den Spieldetails laden
+  const skip=MATCHES.filter(m=>m.round && String(m.import_key||'').startsWith('ts:')).map(m=>m.import_key);
+  const r=await syncCmd('import',{skipRoundKeys:skip}, 15*60000);
+  if(!r.ok) throw new Error(r.error||'Import fehlgeschlagen');
+  const recs=tsBuildRecs(r.payload||{});
+  if(!recs.length) return {lvl:'warn', msg:'keine Spiele auf turnier.de gefunden'};
+  if(tsImporting) return {lvl:'warn', msg:'übersprungen – anderer Import läuft'};
+  tsImporting=true;
+  try{
+    if(!FRESH) await FRESH_READY;
+    assignReferees(recs);
+    const x=await importRecs(recs,{autoCourt:!!(SYNC_CFG||{}).tsAutoCourt, label:'Auto-Import'})||{};
+    const parts=[recs.length+' Spiele', (x.neu||0)+' neu', (x.upd||0)+' geändert'];
+    if(x.results) parts.push(x.results+' Ergebnis(se) übernommen');
+    if(x.removed) parts.push(x.removed+' entfernt');
+    if(x.failed) parts.push(x.failed+' fehlgeschlagen');
+    return {lvl:x.failed?'warn':'ok', msg:parts.join(' · ')};
+  }finally{ tsImporting=false; }
+}
+async function syncDoUpload(){
+  const all=tsPayload().matches;
+  const noWin=all.filter(m=>!(m.winner==1||m.winner==2));
+  const list=all.filter(m=>m.winner==1||m.winner==2);
+  if(!list.length) return {lvl:noWin.length?'warn':'ok', msg:noWin.length?(noWin.length+' Ergebnis(se) ohne Sieger – bitte prüfen'):'nichts offen'};
+  const r=await syncCmd('upload',{matches:list}, 15*60000);
+  if(!r.ok) throw new Error(r.error||'Upload fehlgeschlagen');
+  const n=await tsMarkTransferred(r.transferred||[]);
+  const failed=r.failed||[], skipped=r.skipped||[];
+  const parts=[n+' übertragen'];
+  if(failed.length) parts.push(failed.length+' Fehler');
+  if(skipped.length) parts.push(skipped.length+' nicht zuordenbar / schon online');
+  if(noWin.length) parts.push(noWin.length+' ohne Sieger');
+  const details=failed.concat(skipped).slice(0,12).map(x=>`${x.p1} – ${x.p2}: ${x.msg}`);
+  return {lvl:(failed.length||skipped.length||noWin.length)?'warn':'ok', msg:parts.join(' · '), details};
+}
+
+// ---- Statusanzeige im Kopf (⇩ / ⇪) ----
+function syncPaint(){
+  const c=SYNC_CFG||{};
+  ['imp','up'].forEach(k=>{
+    const el=document.getElementById(k==='imp'?'syncPillImp':'syncPillUp'); if(!el) return;
+    const K=SYNC_KIND[k], on=syncOn(k,c);
+    el.className='syncpill manage-only'+(on?' on':'');
+    if(!on) return;
+    const st=syncSt(k,c), other=syncOtherHost(c);
+    let cls=st.lvl||'', txt;
+    if(SYNC_RUNNING===k){ cls='run'; txt=K.ic+' läuft …'; }
+    else if(other){ txt=K.ic+' '+(st.at?syncHm(st.at):'–'); el.classList.add('other'); }
+    else{ const next=(st.at||0)+syncIv(k,c)*60000; txt=K.ic+' '+(st.lvl==='err'?'Fehler':(next<=Date.now()?'gleich':syncHm(next))); }
+    if(cls) el.classList.add(cls);
+    el.textContent=txt;
+    el.title=K.name+' alle '+syncIv(k,c)+' Min'
+      +(st.at?('\nLetzter Lauf '+syncHm(st.at)+': '+(st.msg||'')):'\nNoch kein Lauf')
+      +((st.details&&st.details.length)?('\n– '+st.details.join('\n– ')):'')
+      +(other?'\nLäuft auf einem anderen Gerät (Klick = hier übernehmen)':'\nKlick = jetzt ausführen');
+  });
+}
+function syncPillClick(k){
+  if(syncOtherHost() && !confirm('Der Abgleich läuft gerade auf einem anderen Gerät.\nAuf dieses Gerät übernehmen und jetzt ausführen?')) return;
+  syncRun(k,true);                                               // Klick = Nutzeraktion -> Pop-up ist erlaubt
+}
+
 window.addEventListener('message',e=>{
   if(!TS_ORIGIN_RE.test(e.origin)) return;
   const d=e.data; if(!d) return;
+  if(d.type==='mgtp-sync-ready'){
+    if(e.source && SYNC_WIN!==e.source){ SYNC_WIN=e.source; SYNC_ORIGIN=e.origin; }
+    SYNC_VER=d.version||null;
+    SYNC_READY_WAIT.splice(0).forEach(fn=>fn(d.version||'0'));
+    return; }
+  if(d.type==='mgtp-cmd-result'){ const fn=SYNC_REQ[d.reqId]; if(fn) fn(d); return; }
   if(d.type==='mgtp-import'){
     try{ e.source.postMessage({type:'mgtp-import-ack', n:(d.matches||[]).length}, e.origin); }catch(x){}   // Empfangsbestätigung ans Skript
     tsReceiveImport(d, {win:e.source, origin:e.origin}); return; }

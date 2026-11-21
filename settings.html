@@ -61,6 +61,11 @@
   .savebar{position:sticky;bottom:0;background:linear-gradient(0deg,#0f1419,rgba(15,20,25,.8));padding:14px 0;display:flex;gap:12px;align-items:center}
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#232d3d;border:1px solid var(--line);padding:11px 18px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none}
   .toast.show{opacity:1}
+  .syncsel{padding:7px 10px;border-radius:8px;background:#0f1724;color:#fff;border:1px solid #2a3444;font:inherit}
+  .syncst{font-size:12.5px;padding:7px 10px;border-radius:8px;background:#131a26;color:var(--muted);border:1px solid var(--line);white-space:pre-line}
+  .syncst.ok{background:#10291a;color:#bff5cf;border-color:#2e9e57}
+  .syncst.warn{background:#2e2410;color:#ffe2a6;border-color:#b8860b}
+  .syncst.err{background:#33140f;color:#ffc9c2;border-color:#c0392b}
   .mode{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
 </style>
 </head>
@@ -303,6 +308,55 @@
     </div>
     <!-- Kompatibilität: verstecktes Legacy-Feld -->
     <input type="checkbox" id="autoAssign" style="display:none"><input type="checkbox" id="autoConfirm" style="display:none">
+  </div>
+
+  <h2>🔄 Automatischer Abgleich mit turnier.de</h2>
+  <div class="card">
+    <div class="hint" style="margin-bottom:12px">Holt Spiele im Hintergrund von turnier.de / tournamentsoftware.com und trägt bestätigte
+      Ergebnisse dort ein – beides unabhängig voneinander ein- und ausschaltbar. Änderungen hier werden sofort gespeichert.</div>
+    <div class="field">
+      <label>turnier.de / tournamentsoftware.com Link dieses Turniers</label>
+      <input type="text" id="tsMatchesUrl" placeholder="https://dsqv.turnier.de/sport/legacymatches.aspx?id=…  oder  https://esf.tournamentsoftware.com/tournament/…" onchange="saveSync()">
+    </div>
+    <div class="grid2">
+      <div class="clink">
+        <label class="switch" style="margin-bottom:10px">
+          <input type="checkbox" id="tsAutoImport" onchange="saveSync()"><span class="track"></span>
+          <span>⇩ Auto-Import</span>
+        </label>
+        <div class="hint" style="margin:0 0 10px">Spiele, Zeiten, Courts und Paarungen aktualisieren. Spiele auf einem Court oder in laufendem Spiel bleiben unberührt.</div>
+        <div class="row" style="gap:8px;margin-bottom:8px">
+          <span class="hint" style="margin:0">alle</span>
+          <select id="tsAutoImportMin" class="syncsel" onchange="saveSync()"></select>
+          <span class="hint" style="margin:0">Minuten</span>
+        </div>
+        <label class="row" style="gap:8px;cursor:pointer;font-size:14px;margin-bottom:10px">
+          <input type="checkbox" id="tsAutoCourt" onchange="saveSync()"> Courts autom. verteilen (neue Spiele ohne Court)</label>
+        <div class="syncst" id="syncStImp">—</div>
+        <button class="btn-ghost" style="margin-top:10px" onclick="syncRunNow('imp')">⇩ Jetzt abrufen</button>
+      </div>
+      <div class="clink">
+        <label class="switch" style="margin-bottom:10px">
+          <input type="checkbox" id="tsAutoUpload" onchange="saveSync()"><span class="track"></span>
+          <span>⇪ Auto-Upload</span>
+        </label>
+        <div class="hint" style="margin:0 0 10px">Bestätigte, noch nicht übertragene Ergebnisse eintragen. Erfolgreiche wandern nach „Übertragene Ergebnisse“.</div>
+        <div class="row" style="gap:8px;margin-bottom:8px">
+          <span class="hint" style="margin:0">alle</span>
+          <select id="tsAutoUploadMin" class="syncsel" onchange="saveSync()"></select>
+          <span class="hint" style="margin:0">Minuten</span>
+        </div>
+        <div class="hint" id="syncOpenUp" style="margin:0 0 10px">&nbsp;</div>
+        <div class="syncst" id="syncStUp">—</div>
+        <button class="btn-ghost" style="margin-top:10px" onclick="syncRunNow('up')">⇪ Jetzt übertragen</button>
+      </div>
+    </div>
+    <div class="hint" id="syncHost" style="margin-top:10px"></div>
+    <div class="hint" style="margin-top:10px">
+      <b>Voraussetzungen:</b> Die <a href="index.html" style="color:#8fd0ff">Verwaltung</a> ist auf einem Rechner geöffnet (darf im Hintergrund liegen),
+      dort ist man bei turnier.de angemeldet und das Tampermonkey-Skript „MG Turnierplanner → turnier.de“ ab <b>v0.5.0</b> ist aktiv.
+      Die Verwaltung öffnet dafür einen turnier.de-Tab („Sync-Tab“) – diesen offen lassen. Pop-ups für diese Seite in Chrome einmal erlauben.
+      Sind mehrere Verwaltungen offen, führt nur eine den Abgleich aus; fällt sie weg, übernimmt automatisch eine andere.</div>
   </div>
 
   <h2>🚑 Physio</h2>
@@ -1084,8 +1138,82 @@ async function loadSettings(){
   const opPct=Math.round(((S.bgOpacity!=null?S.bgOpacity:0.5))*100);
   $('bgOpacity').value=opPct; $('bgOpVal').textContent=opPct+'%';
   applyBranding(); renderLinks();
+  syncFill(S);
   await loadTours();
   rkLoadForm();
+}
+
+// ===================== AUTOMATISCHER ABGLEICH MIT TURNIER.DE =====================
+// Ausgeführt wird er von der Verwaltung (index.html); hier nur Einstellungen, Status und „Jetzt ausführen“.
+const SYNC_STEPS=[5,10,15,20,30,45,60];
+const SYNC_DEF={imp:20, up:10};
+function syncFill(s){
+  ['tsAutoImportMin','tsAutoUploadMin'].forEach((id,i)=>{
+    const cur=parseInt(s[id],10)||(i?SYNC_DEF.up:SYNC_DEF.imp);
+    const steps=SYNC_STEPS.includes(cur)?SYNC_STEPS:SYNC_STEPS.concat(cur).sort((a,b)=>a-b);
+    $(id).innerHTML=steps.map(n=>`<option value="${n}" ${n===cur?'selected':''}>${n}</option>`).join('');
+  });
+  $('tsAutoImport').checked=!!s.tsAutoImport;
+  $('tsAutoUpload').checked=!!s.tsAutoUpload;
+  $('tsAutoCourt').checked=!!s.tsAutoCourt;
+  $('tsMatchesUrl').value=s.tsMatchesUrl||'';
+  syncShowStatus(s);
+}
+function syncNormUrl(u){
+  u=String(u||'').trim(); if(!u) return '';
+  try{ const x=new URL(u);
+    if(!/^https:\/\/([a-z0-9-]+\.)?(turnier\.de|tournamentsoftware\.com)$/i.test(x.origin)) return null;
+    const g=/\/tournament\/([0-9a-f-]{36})/i.exec(x.pathname);
+    if(g) return x.origin+'/sport/legacymatches.aspx?id='+g[1];
+    if(!/legacymatches\.aspx/i.test(x.pathname) || !x.searchParams.get('id')) return null;
+    x.hash=''; x.searchParams.delete('d'); return x.toString();
+  }catch(e){ return null; }
+}
+async function saveSync(){
+  const url=syncNormUrl($('tsMatchesUrl').value);
+  if(url===null){ toast('Bitte den Link der Turnierseite eintragen (…/sport/legacymatches.aspx?id=… oder …/tournament/<ID>/…)'); return; }
+  $('tsMatchesUrl').value=url;
+  const patch={
+    tsMatchesUrl:url,
+    tsAutoImport:$('tsAutoImport').checked,
+    tsAutoImportMin:parseInt($('tsAutoImportMin').value,10)||SYNC_DEF.imp,
+    tsAutoUpload:$('tsAutoUpload').checked,
+    tsAutoUploadMin:parseInt($('tsAutoUploadMin').value,10)||SYNC_DEF.up,
+    tsAutoCourt:$('tsAutoCourt').checked,
+  };
+  if((patch.tsAutoImport||patch.tsAutoUpload) && !url) toast('Hinweis: Ohne turnier.de-Link kann der Abgleich nicht laufen');
+  try{ await Store.saveSettings(patch); Object.assign(S,patch); syncShowStatus(S); toast('Abgleich gespeichert ✓'); }
+  catch(e){ toast('Fehler: '+e.message); }
+}
+async function syncRunNow(k){
+  const s=await Store.getSettings();
+  const on=k==='imp'?s.tsAutoImport:s.tsAutoUpload;
+  if(!on){ toast('Bitte zuerst einschalten'); return; }
+  const h=s.tsSyncHost||{};
+  const req=Object.assign({}, s.tsSyncRunNow||{}); req[k]=Date.now();
+  try{ await Store.saveSettings({tsSyncRunNow:req}); }catch(e){ toast('Fehler: '+e.message); return; }
+  toast(h.until>Date.now() ? 'Auftrag an die Verwaltung gesendet …' : 'Auftrag gespeichert – startet, sobald die Verwaltung geöffnet ist');
+}
+function syncShowStatus(s){
+  const hm=t=>{ const d=new Date(t); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+  [['imp','syncStImp','tsAutoImport','tsAutoImportMin',SYNC_DEF.imp],['up','syncStUp','tsAutoUpload','tsAutoUploadMin',SYNC_DEF.up]].forEach(([k,id,on,min,def])=>{
+    const el=$(id); if(!el) return;
+    const st=((s.tsSyncStatus||{})[k])||{};
+    let txt = st.at ? ('Letzter Lauf '+hm(st.at)+': '+(st.msg||'')) : 'Noch kein Lauf';
+    if(st.details && st.details.length) txt+='\n– '+st.details.join('\n– ');
+    if(s[on] && st.at){ const next=st.at+(parseInt(s[min],10)||def)*60000; if(st.lvl!=='err') txt+='\nNächster Lauf ca. '+(next<=Date.now()?'gleich':hm(next)); }
+    if(!s[on]) txt=(st.at?txt+'\n':'')+'Ausgeschaltet';
+    el.textContent=txt;
+    el.className='syncst'+(s[on]&&st.lvl?(' '+st.lvl):'');
+  });
+  const h=s.tsSyncHost||{};
+  $('syncHost').textContent = (s.tsAutoImport||s.tsAutoUpload)
+    ? (h.until>Date.now() ? ('Ausführendes Gerät aktiv (zuletzt '+hm(h.at||Date.now())+').') : '⚠ Zurzeit führt kein Gerät den Abgleich aus – Verwaltung (index.html) öffnen.')
+    : '';
+  Store.listMatches().then(ms=>{
+    const n=(ms||[]).filter(m=>m.status==='confirmed' && !m.transferred && !m.tie_id).length;
+    $('syncOpenUp').textContent=n?('Wartend: '+n+' bestätigte(s) Ergebnis(se)'):'Keine Ergebnisse wartend';
+  }).catch(()=>{});
 }
 
 async function saveAll(){
@@ -1293,6 +1421,9 @@ async function restoreFromFolder(name){
 
 Auth.guard('settings').then(()=>{
   loadSettings();
+  // Status des Auto-Abgleichs live aktualisieren (nur die Statusanzeige – Formular bleibt unangetastet)
+  try{ Store.subscribeSettings(async()=>{ try{ const s=await Store.getSettings(); S.tsSyncStatus=s.tsSyncStatus; S.tsSyncHost=s.tsSyncHost; syncShowStatus(Object.assign({},S,{tsSyncStatus:s.tsSyncStatus,tsSyncHost:s.tsSyncHost})); }catch(e){} }); }catch(e){}
+  setInterval(()=>{ try{ syncShowStatus(S); }catch(e){} }, 60000);
   if(typeof Auth!=='undefined' && Auth.isPlatformAdmin && Auth.isPlatformAdmin()) initUserAdmin();
   if(typeof Auth!=='undefined' && Auth.can && Auth.can('members')) initMembers();
   renderAuthHeader();
