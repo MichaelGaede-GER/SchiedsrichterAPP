@@ -459,6 +459,20 @@
       </div>
       <div class="hint">Kleine Werbe-/Sponsorenlogos in den unteren Ecken der Court- und Tablet-Ansicht. Bild hochladen (⬆) oder URL einfügen. Leer = ausgeblendet.</div>
     </div>
+    <div class="field">
+      <label>Sponsoren-Logos in der Match Overview (oben, neben DE/EN – max. 4)</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <div class="adrow"><img class="adprev" id="adPrev_moSp1" alt=""><input type="text" id="moSp1" placeholder="Sponsor 1 – URL oder hochladen"><button class="btn-ghost" onclick="adUpload('moSp1')">⬆</button></div>
+          <div class="adrow"><img class="adprev" id="adPrev_moSp2" alt=""><input type="text" id="moSp2" placeholder="Sponsor 2 – URL oder hochladen"><button class="btn-ghost" onclick="adUpload('moSp2')">⬆</button></div>
+        </div>
+        <div>
+          <div class="adrow"><img class="adprev" id="adPrev_moSp3" alt=""><input type="text" id="moSp3" placeholder="Sponsor 3 – URL oder hochladen"><button class="btn-ghost" onclick="adUpload('moSp3')">⬆</button></div>
+          <div class="adrow"><img class="adprev" id="adPrev_moSp4" alt=""><input type="text" id="moSp4" placeholder="Sponsor 4 – URL oder hochladen"><button class="btn-ghost" onclick="adUpload('moSp4')">⬆</button></div>
+        </div>
+      </div>
+      <div class="hint">Erscheinen in der Kopfzeile der Match Overview in dieser Reihenfolge. Leer = ausgeblendet; ohne Sponsoren verschwindet der Bereich ganz.</div>
+    </div>
     <div class="hint">Große Zuschauer-Anzeige mit Logo &amp; Turniername.</div>
     <div id="liveLink" class="courts-links" style="margin-top:10px"></div>
   </div>
@@ -873,7 +887,7 @@ function removeSponsor(i){ SPONSORS.splice(i,1); renderSponsors(); }
 let _adTarget=null;
 function adUpload(fieldId){ _adTarget=fieldId; const f=$('adFile'); if(f) f.click(); }
 function adPrev(fieldId, val){ const p=$('adPrev_'+fieldId); if(!p) return; if(val){ p.src=val; p.style.display='inline-block'; } else { p.removeAttribute('src'); p.style.display='none'; } }
-['adLeft1','adLeft2','adRight1','adRight2'].forEach(id=>{
+['adLeft1','adLeft2','adRight1','adRight2','moSp1','moSp2','moSp3','moSp4'].forEach(id=>{
   const el=$(id); if(el) el.addEventListener('input',()=>adPrev(id, el.value.trim()));
 });
 (function(){ const f=$('adFile'); if(!f) return;
@@ -1131,7 +1145,8 @@ async function loadSettings(){
   renderSponsors();
   $('adLeft1').value=(S.adLeft&&S.adLeft[0])||''; $('adLeft2').value=(S.adLeft&&S.adLeft[1])||'';
   $('adRight1').value=(S.adRight&&S.adRight[0])||''; $('adRight2').value=(S.adRight&&S.adRight[1])||'';
-  ['adLeft1','adLeft2','adRight1','adRight2'].forEach(id=>adPrev(id, $(id).value.trim()));
+  { const ms=Array.isArray(S.moSponsors)?S.moSponsors:[]; [1,2,3,4].forEach(i=>{ $('moSp'+i).value=ms[i-1]||''; }); }
+  ['adLeft1','adLeft2','adRight1','adRight2','moSp1','moSp2','moSp3','moSp4'].forEach(id=>adPrev(id, $(id).value.trim()));
   $('green').value=S.green||'#82F84E'; $('greenHex').value=S.green||'#82F84E';
   $('logoUrl').value=S.logoUrl||''; showPreview('logo',S.logoUrl||'');
   $('bgUrl').value=S.backgroundUrl||''; showPreview('bg',S.backgroundUrl||'');
@@ -1251,6 +1266,7 @@ async function saveAll(){
     sponsors:SPONSORS,
     adLeft:[$('adLeft1').value.trim(),$('adLeft2').value.trim()].filter(Boolean),
     adRight:[$('adRight1').value.trim(),$('adRight2').value.trim()].filter(Boolean),
+    moSponsors:[1,2,3,4].map(i=>$('moSp'+i).value.trim()).filter(Boolean),
     green:$('green').value,
     logoUrl:$('logoUrl').value.trim(),
     backgroundUrl:$('bgUrl').value.trim(),
