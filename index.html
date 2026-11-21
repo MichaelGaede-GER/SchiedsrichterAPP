@@ -722,7 +722,7 @@ function batBadge(b){ if(!b||b.level==null) return ''; const lv=b.level; const c
   return ` <span class="batb" style="color:${col}">${b.charging?'🔌':'🔋'} ${lv}%</span>`; }
 function durBadge(s){ if(!s||!s.matchStartedAt||s.status==='warmup') return '';
   if(s.status==='finished'){ const end=s.finishedAt||Date.now(); const sec=Math.max(0,Math.floor((end-s.matchStartedAt)/1000)); return ` <span class="durb">⏱ ${fmtMMSS(sec)}</span>`; }
-  return ` <span class="durb">⏱ <span class="durtimer" data-since="${s.matchStartedAt}">00:00</span></span>`; }
+  return ` <span class="durb">⏱ <span class="durtimer" data-since="${s.matchStartedAt}">${fmtMMSS(Math.floor((Date.now()-s.matchStartedAt)/1000))}</span></span>`; }
 function physAlert(m,s){ const p=(s&&s.physio&&!s.physio.ack)?s.physio:null; if(!p) return '';
   const who=p.player?(' · '+escH(p.player===1?m.player1_name:m.player2_name)):'';
   return `<div class="physioalert">⚠️ PHYSIO ANGEFORDERT: ${escH(p.reason)}${who}
@@ -1216,7 +1216,7 @@ function courtCard(cid, venueId, fn){
                  : warm ? `<span class="badge warm-badge">🏓 AUFWÄRMEN</span>`
                        : `<span class="badge playing">Läuft</span>`;
     const injSpan = inj ? (inj.mode==='up'
-        ? `<span class="injtimer" data-since="${inj.since}">00:00</span>`
+        ? `<span class="injtimer" data-since="${inj.since}">${fmtMMSS(Math.floor((Date.now()-inj.since)/1000))}</span>`
         : `<span class="injtimer" data-endsat="${inj.endsAt||0}">${fmtMMSS(inj.sec||0)}</span>`) : '';
     const brkEnds = brk ? breakEndsAt(live.id, brk) : 0;
     const brkSpan = brk ? `<span class="brktimer" data-endsat="${brkEnds}">${fmtMMSS(Math.max(0,Math.ceil((brkEnds-Date.now())/1000)))}</span>` : '';
