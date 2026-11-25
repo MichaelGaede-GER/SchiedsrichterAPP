@@ -343,7 +343,7 @@
     style="margin-left:auto;background:var(--panel2,#1a2230);color:var(--ink,#e7edf5);border:1px solid var(--line,#2a3444);border-radius:9px;padding:7px 9px;font:inherit;cursor:pointer">
     <option value="de">🇩🇪 DE</option><option value="en">🇬🇧 EN</option></select>
   <span id="moLinks" style="display:contents"></span>
-  <a id="lnkKontrolle" class="navlink manage-only" href="kontrolle.html" target="_blank" rel="noopener" style="margin-left:10px" title="Alle Tablets live sehen und steuern">📟 Tablet-Kontrolle</a>
+  <a id="lnkKontrolle" class="navlink manage-only" href="kontrolle.html" target="_blank" onclick="return openKontrolle(event)" style="margin-left:10px" title="Alle Tablets live sehen und steuern">📟 Tablet-Kontrolle</a>
   <a id="lnkSettings" class="navlink" href="settings.html" style="margin-left:10px">⚙️ Einstellungen</a>
   <span id="mode" class="mode">…</span>
   <span id="syncState" class="mode sync" style="display:none"></span>
@@ -2364,6 +2364,18 @@ function syncTourUrl(){
   const q=tid?('?t='+encodeURIComponent(tid)):'';
   const k=document.getElementById('lnkKontrolle'); if(k) k.setAttribute('href','kontrolle.html'+q);
   const st=document.getElementById('lnkSettings'); if(st) st.setAttribute('href','settings.html'+q);
+}
+// Tablet-Kontrolle: immer dasselbe Fenster (je Turnier) – ist es schon offen, nach vorne holen statt neu öffnen
+function openKontrolle(ev){
+  if(ev && (ev.ctrlKey||ev.metaKey||ev.shiftKey||ev.button===1)) return true;   // Strg/Mittelklick: Browser-Standard
+  const a=document.getElementById('lnkKontrolle'); const url=a?a.href:'kontrolle.html';
+  const tid=(Store.activeTournament&&Store.activeTournament())||'none';
+  let w=null; try{ w=window.open('', 'mgtp_kontrolle_'+tid); }catch(e){}       // vorhandenes Fenster holen (ohne Neuladen)
+  if(!w){ toast('Pop-up blockiert – bitte Pop-ups für diese Seite erlauben'); return false; }
+  let blank=true; try{ blank=!w.location.href || w.location.href==='about:blank'; }catch(e){ blank=false; }
+  if(blank) w.location.href=url;                                               // nur beim ersten Mal laden
+  try{ w.focus(); }catch(e){}
+  return false;
 }
 // Logo, Hintergrund, Titel und Turniername setzen (aus Serverdaten oder dem gespeicherten Stand)
 function paintBranding(s, tourName){
