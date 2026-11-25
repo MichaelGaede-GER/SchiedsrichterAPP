@@ -106,6 +106,15 @@
   .games{display:flex;gap:10px;justify-self:start;flex-wrap:wrap}
   .games .g{background:#151515;border:1px solid #2a2a2a;border-radius:9px;padding:6px 14px;font-size:clamp(16px,2.6vh,24px);font-weight:700}
   .refline{color:#cfe0ff}.refline b{color:var(--muted);font-weight:600}
+  /* Fußzeile links/rechts: Satzergebnisse bzw. Logo + je ein flacher Kasten (Verletzung · Strafe) direkt neben dem Satzstand */
+  .fside{display:flex;align-items:center;gap:12px;min-width:0;align-self:stretch;justify-content:space-between}
+  .fside .games{flex:1 1 auto;min-width:0}
+  .aux{flex:0 0 auto;width:clamp(130px,14vw,280px);align-self:stretch;min-height:44px;display:flex;overflow:hidden;
+    background:#f2f2f2;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+  .aux button{flex:1 1 0;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px}
+  .aux button+button{border-left:1px solid #c9c9c9}
+  .aux button:active{background:#d9d9d9}
+  .aux svg{height:min(34px,4vh);width:auto;min-height:22px}
 
   /* Helligkeit: genau drei Stufen */
   .brt{display:inline-flex;align-items:center;gap:4px;background:#151515;border:1px solid #2a2a2a;border-radius:12px;padding:3px}
@@ -365,6 +374,9 @@
     .foot{padding:6px 12px 10px}
     .footrow{grid-template-columns:1fr;gap:8px;justify-items:center}
     .footrow .games,.footrow .setpill,.footrow .footlogo{justify-self:center}
+    .fside{justify-content:center;flex-wrap:wrap;width:100%}
+    .fside .games{flex:0 1 auto}
+    .aux{width:min(46vw,260px);height:48px}
     .setpill{font-size:clamp(22px,6.4vw,36px);padding:10px 30px}
     .games{justify-content:center;gap:8px}
     .games .g{font-size:15px;padding:5px 10px}
@@ -513,9 +525,6 @@
       <button class="decbtn nolet" onclick="decAct('nolet')"><span class="dic">👇</span><span class="dlab">No Let</span><span class="dsub" id="decNoLet">Punkt → Gegner</span></button>
       <button class="decbtn let" onclick="decAct('let')"><span class="dic">☝️</span><span class="dlab">Yes Let</span><span class="dsub">Wiederholung</span></button>
       <button class="decbtn stroke" onclick="decAct('stroke')"><span class="dic">✊</span><span class="dlab">Stroke</span><span class="dsub" id="decStroke">Punkt → Spieler</span></button>
-      <button class="decbtn conduct" onclick="decAct('conduct')"><span class="dic">⚖️</span><span class="dlab">Entscheidung</span><span class="dsub">Strafen</span></button>
-      <button class="decbtn injury" onclick="decAct('injury')"><span class="dic">🚑</span><span class="dlab">Verletzung</span><span class="dsub">Pause / Physio</span></button>
-      <button class="decbtn equip" onclick="decAct('equipment')"><span class="dic"><svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="19" cy="18" rx="11" ry="13.5" transform="rotate(-35 19 18)"/><line x1="11.5" y1="13" x2="26" y2="23" stroke-width="1.1"/><line x1="15" y1="8" x2="24" y2="28" stroke-width="1.1"/><path d="M27 28 L41 42"/></svg></span><span class="dlab">Defekte Ausrüstung</span><span class="dsub">Auszeit 2:00</span></button>
     </div>
   </div>
   <div class="row"><button class="btn btn-gray" onclick="hide('ovDecide')">Abbrechen</button></div>
@@ -563,6 +572,10 @@
   </div>
   <div class="row inj">
     <button class="choice" onclick="startInjuryOpen('Blutend – Gegner (angemessen)')">Blutend – Gegner · angemessen</button>
+  </div>
+  <h3 class="sech" style="margin-top:14px">Ausrüstung</h3>
+  <div class="row inj">
+    <button class="choice" onclick="startInjury(120,'Defekte Ausrüstung')">Defekte Ausrüstung · 2:00</button>
   </div>
   </div>
   <div class="row"><button class="btn btn-gray" onclick="hide('ovPenalty')">Schließen</button></div>
@@ -1110,7 +1123,7 @@ function render(){
     const srvB = serving
       ? `<button class="cbtn srv${srvChg?' srvchg':''}" onclick="toggleServeSide()" title="Aufschlagseite wechseln">${srvChg?'<span class="ar">⇄</span>':'⇄'} ${sideLabel(s.side)}</button>`
       : `<button class="cbtn srv idle" tabindex="-1" aria-hidden="true">–</button>`;
-    const let_=`<button class="cbtn let" onclick="openDecide(${p})" title="LET / Entscheidung">LET</button>`;
+    const let_=`<button class="cbtn let" onclick="openDecide(${p})" title="Call · Let / Stroke / No Let">CALL</button>`;
     return `<div class="pctrl ${p===1?'left':'right'}">${p===1 ? (shirt+srvB+let_) : (let_+srvB+shirt)}</div>`;
   };
   const gb1=s.status==='playing'?(s.matchBall(1)?'match':(s.gameBall(1)?'game':'')):'';
@@ -1149,13 +1162,19 @@ function render(){
     </div>
     <div class="foot">
       <div class="footrow">
-        <span class="games">${s.games.map((g,i)=>`<span class="g">S${i+1}: ${g.p1}-${g.p2}</span>`).join('')}</span>
+        <div class="fside">
+          <span class="games">${s.games.map((g,i)=>`<span class="g">S${i+1}: ${g.p1}-${g.p2}</span>`).join('')}</span>
+          ${auxBox(1)}
+        </div>
         <span class="setpill" onclick="toggleSetView()" title="Antippen: Satzergebnisse anzeigen">${
           (showSetScores && s.games.length)
             ? 'Satz '+s.games.map(g=>g.p1+'-'+g.p2).join('  ')
             : 'Satz '+s.gamesWon(1)+' – '+s.gamesWon(2)
         }</span>
-        ${(SETTINGS&&SETTINGS.logoUrl)?`<img class="footlogo" src="${SETTINGS.logoUrl}" alt="">`:'<span></span>'}
+        <div class="fside">
+          ${auxBox(2)}
+          ${(SETTINGS&&SETTINGS.logoUrl)?`<img class="footlogo" src="${SETTINGS.logoUrl}" alt="">`:'<span></span>'}
+        </div>
       </div>
     </div>
   </div>`;
@@ -1258,6 +1277,16 @@ async function backToTiePicker(){
   await loadCourt();   // Einzel ist wieder offen -> Picker erscheint erneut
 }
 
+// Flacher Kasten unter CALL: Verletzung (öffnet direkt das Verletzungsmenü) · Strafe/gelbe Karte (öffnet direkt das Strafmenü)
+function auxBox(p){
+  const inj=`<svg viewBox="0 0 40 32" aria-hidden="true"><rect x="2" y="7" width="36" height="23" rx="4" fill="#e5484d"/>
+    <path d="M14 7 V4 a2 2 0 0 1 2-2 h8 a2 2 0 0 1 2 2 V7" fill="none" stroke="#e5484d" stroke-width="3"/>
+    <path d="M20 12 V25 M13.5 18.5 H26.5" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/></svg>`;
+  const card=`<svg viewBox="0 0 32 40" aria-hidden="true"><rect x="6" y="3" width="21" height="31" rx="3" fill="#f5c400" stroke="#8a6d00" stroke-width="1.5" transform="rotate(10 16 20)"/></svg>`;
+  return `<div class="aux">
+    <button onclick="openPenalty(${p},'injury')" title="Verletzung" aria-label="Verletzung">${inj}</button>
+    <button onclick="openPenalty(${p},'conduct')" title="Strafe" aria-label="Strafe">${card}</button></div>`;
+}
 // Conduct-Badges an den Namen
 function conductBadges(p){
   if(!M||!M.conduct) return '';
