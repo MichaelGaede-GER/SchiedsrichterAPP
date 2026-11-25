@@ -13,7 +13,9 @@
   #stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
 
   /* Steuerleiste (im Stream weg-croppen oder mit H ausblenden) */
-  .idle{opacity:.25;font-weight:800;font-size:5vw;color:#0a3d0a}
+  /* Leerlauf (kein Spiel auf dem Court): dezente Court-Kennung unten rechts, oberhalb der Versionsanzeige */
+  .idle{position:fixed;right:1.6vw;bottom:4.2vh;opacity:.35;font-weight:800;font-size:1.6vw;letter-spacing:.04em;
+    color:#5f6f5f;white-space:nowrap;pointer-events:none}
   .mo{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;
     background:transparent;color:#fff;text-align:center;padding:3vh 4vw}
   .mo-frame{background:rgba(10,14,22,.97);border:1px solid rgba(255,255,255,.12);border-radius:24px;
