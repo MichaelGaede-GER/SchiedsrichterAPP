@@ -198,6 +198,9 @@
   .b-ball.set{border-color:#ffd23f}.b-ball.set .b-tv{color:#ffd23f}
   .b-ball.match{border-color:#ff4b4b}.b-ball.match .b-tv{color:#ff5a5a}
   .b-ball .b-tl{color:#fff;letter-spacing:.06em}
+  /* Satz-/Matchball: Kasten transparent, damit der Spielstand dahinter lesbar bleibt */
+  .b-ball{background:rgba(8,12,20,.28);box-shadow:none}
+  .b-ball .b-tl,.b-ball .b-tv{text-shadow:0 0 1.2vh rgba(0,0,0,.9),0 .3vh .6vh rgba(0,0,0,.8)}
   /* Match beendet: Ergebnis + nächste 3 Spiele (wie im Live-Stream) */
   .dmo{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:3vh 4vw 10vh;gap:1.6vh}
   .dmo-logo{height:9vh;object-fit:contain}
